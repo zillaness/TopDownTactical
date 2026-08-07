@@ -453,6 +453,21 @@ function pathCostEnemy(tx, ty) {
 }
 function roomAt(x, y) { const t = tileAt(x, y); return inBounds(t.tx, t.ty) ? level.room[t.ty][t.tx] : 0; }
 
+// snap a point to the nearest standable tile center (not wall, not door threshold)
+function nearestPassable(x, y) {
+  const t = tileAt(x, y);
+  if (inBounds(t.tx, t.ty) && !isWall(t.tx, t.ty) && !doorAt(t.tx, t.ty)) return { x, y };
+  for (let r = 1; r <= 4; r++) {
+    for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const nx = t.tx + ox, ny = t.ty + oy;
+      if (inBounds(nx, ny) && !isWall(nx, ny) && !doorAt(nx, ny))
+        return { x: nx * TILE + TILE / 2, y: ny * TILE + TILE / 2 };
+    }
+  }
+  return { x, y };
+}
+
 // ---------------------------------------------------------------- S4 visibility
 // Player gets a full lit visibility polygon. Squadmates contribute entity-level
 // spotting only ("contact pings") — you see what YOU see; the squad reports.
@@ -638,7 +653,7 @@ function shoutCompliance(p) {
     if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
     if (dist(p.x, p.y, e.x, e.y) > 320) continue;
     if (!lineOfSight(p.x, p.y, e.x, e.y, opaque)) continue;
-    trySurrender(e);
+    trySurrender(e, p);
   }
 }
 
@@ -1022,14 +1037,14 @@ function updateEnemy(e, dt) {
     case "idle": {
       if (e.kind === "patrol") {
         e.wanderT -= dt;
-        if (e.wanderT <= 0 && !e.path) {
+        if (e.wanderT <= 0 && !e._wanderGoal) {
           const spot = randomInteriorSpot();
-          if (spot) { e._wanderGoal = spot; }
+          if (spot) e._wanderGoal = spot;
           e.wanderT = rand(5, 10);
         }
         if (e._wanderGoal) {
           const arrived = moveAlongPath(e, e._wanderGoal.x, e._wanderGoal.y, TUNE.enemyWalk, dt, pathCostEnemy);
-          if (arrived) e._wanderGoal = null;
+          if (arrived) { e._wanderGoal = null; e.path = null; }
         }
       } else {
         e.face = angLerp(e.face, e.homeFace, dt * 2);
@@ -1038,12 +1053,13 @@ function updateEnemy(e, dt) {
     }
   }
 
-  // hostage-taker: run to a hostage once the alarm is up
+  // hostage-taker: run to a hostage once the alarm is up (overrides investigating —
+  // otherwise the suspicious branch and this one both move him in the same frame)
   if (e.kind === "taker" && game.alarm && e.state !== "combat" && e.state !== "hunt") {
+    e.investigate = null;
     const h = nearestEntity(game.hostages, e.x, e.y, 1e9, h => h.alive && !h.secured);
     if (h && dist(e.x, e.y, h.x, h.y) > 40) {
       moveAlongPath(e, h.x, h.y, TUNE.enemyRun, dt, pathCostEnemy);
-      e.state = e.state === "suspicious" ? "suspicious" : e.state;
     }
   }
 }
@@ -1057,7 +1073,7 @@ function moveAlongPath(e, gx, gy, speed, dt, costFn) {
     const st = tileAt(e.x, e.y);
     e.path = astar(st.tx, st.ty, gt.tx, gt.ty, passForPath, costFn);
     e.pathI = 0; e.repathT = 1.2;
-    if (!e.path) return dist(e.x, e.y, gx, gy) < TILE;
+    if (!e.path) return true;   // unreachable goal: complete the order instead of freezing forever
   }
   // advance along path
   while (e.pathI < e.path.length) {
@@ -1098,7 +1114,7 @@ function randomInteriorSpot() {
   return null;
 }
 
-function trySurrender(e) {
+function trySurrender(e, shouter) {
   if (!e.alive || e.state === "surrender" || e.state === "cuffed") return false;
   let p = TUNE.surrenderBase;
   if (e.blind > 0 || e.flashedRecently > 0) p = TUNE.surrenderFlashed;
@@ -1119,7 +1135,8 @@ function trySurrender(e) {
     sfxAt("surrender", e.x, e.y);
     return true;
   }
-  alertEnemy(e, game.player.x, game.player.y);
+  const src = shouter || game.player;
+  alertEnemy(e, src.x, src.y);
   return false;
 }
 
@@ -1191,7 +1208,7 @@ function stackSlots(d, fromX, fromY) {
   const n = doorNormal(d, fromX, fromY);
   const lat = { x: n.y === 0 ? 0 : 1, y: n.x === 0 ? 0 : 1 }; // perpendicular (along the wall)
   const base = { x: c.x + n.x * TILE * 0.95, y: c.y + n.y * TILE * 0.95 };
-  const mk = (lx) => ({ x: base.x + lat.x * lx, y: base.y + lat.y * lx });
+  const mk = (lx) => nearestPassable(base.x + lat.x * lx, base.y + lat.y * lx);
   return { normal: n, slots: [mk(TILE * 0.85), mk(-TILE * 0.85), mk(TILE * 1.65)] };
 }
 
@@ -1199,7 +1216,7 @@ function entryPoints(d, normal) {
   const c = doorCenter(d);
   const lat = { x: normal.y === 0 ? 0 : 1, y: normal.x === 0 ? 0 : 1 };
   const inward = { x: -normal.x, y: -normal.y };
-  const p = (fwd, lx) => ({ x: c.x + inward.x * fwd + lat.x * lx, y: c.y + inward.y * fwd + lat.y * lx });
+  const p = (fwd, lx) => nearestPassable(c.x + inward.x * fwd + lat.x * lx, c.y + inward.y * fwd + lat.y * lx);
   return [p(TILE * 1.6, TILE * 0.9), p(TILE * 1.6, -TILE * 0.9), p(TILE * 2.6, 0)];
 }
 
@@ -1213,7 +1230,7 @@ function issueOrders() {
     }
   }
   if (pressed("4") || pressed("`")) { game.selected.clear(); game.squad.forEach((s, i) => s.alive && game.selected.add(i)); }
-  if (pressed("z")) selectedSquaddies().forEach(s => { s.order = { type: "follow" }; s.path = null; });
+  if (pressed("z")) selectedSquaddies().forEach(s => { removeFromPlans(s); s.order = { type: "follow" }; s.path = null; });
   if (pressed("v")) {
     const targets = game.selected.size ? selectedSquaddies() : game.squad.filter(s => s.alive);
     const order = ["hold", "return", "free"];
@@ -1258,17 +1275,18 @@ function selectedSquaddies() {
 }
 
 function orderMove(sel, x, y) {
-  // spread arrival points slightly so they don't pile up
+  // spread arrival points slightly so they don't pile up; snap out of walls
   sel.forEach((s, i) => {
     const off = i === 0 ? { x: 0, y: 0 } : { x: Math.cos(i * 2.4) * 26, y: Math.sin(i * 2.4) * 26 };
-    s.order = { type: "move", x: x + off.x, y: y + off.y, face: angleTo(game.player.x, game.player.y, x, y) };
+    const pt = nearestPassable(x + off.x, y + off.y);
+    s.order = { type: "move", x: pt.x, y: pt.y, face: angleTo(game.player.x, game.player.y, x, y) };
     s.path = null; removeFromPlans(s);
   });
 }
 
 function orderStack(sel, d) {
   sel.forEach(removeFromPlans); // before plan creation, so the empty-plan filter can't drop the new plan
-  let plan = game.plans.find(p => p.door === d);
+  let plan = game.plans.find(p => p.door === d && p.state !== "executing");
   if (!plan) {
     const { normal, slots } = stackSlots(d, game.player.x, game.player.y);
     plan = { door: d, normal, slots, members: [], method: d.locked ? "kick" : "open", useBang: true, state: "forming", t: 0 };
@@ -1285,9 +1303,17 @@ function orderStack(sel, d) {
 function removeFromPlans(s) {
   for (const p of game.plans) {
     const i = p.members.indexOf(s);
-    if (i >= 0) p.members.splice(i, 1);
+    if (i >= 0) { p.members.splice(i, 1); syncPlanMembers(p); }
   }
   game.plans = game.plans.filter(p => p.members.length > 0 || p.state === "executing");
+}
+
+// keep slot indices matched to member order, and drop the dead
+function syncPlanMembers(p) {
+  p.members = p.members.filter(m => m.alive);
+  p.members.forEach((m, i) => {
+    if (m.order && m.order.type === "stack" && m.order.plan === p) m.order.slot = i;
+  });
 }
 
 // ---- per-frame squaddie behavior
@@ -1315,15 +1341,17 @@ function updateSquaddie(s, dt) {
   if (threat) {
     s.face = angLerp(s.face, angleTo(s.x, s.y, threat.x, threat.y), dt * 12);
     s.reactT -= dt;
-    // fire discipline: entry = weapons free; otherwise per ROE
+    // fire discipline: entry = weapons free; alarm-up counts as engageable under return-fire
     const mayFire = executingEntry || s.roe === "free"
-      || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0));
-    if (mayFire && s.reactT <= 0 && s.stagger <= 0 && clearShot(s, threat)) {
+      || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0 || game.alarm));
+    const canShoot = clearShot(s, threat);
+    if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0) {
       tryFire(s, angleTo(s.x, s.y, threat.x, threat.y));
     }
     if (s.ammo <= 0 && s.reloading <= 0) tryReload(s);
-    // engaged squaddies stop advancing unless mid-entry (entry keeps flowing)
-    if (!executingEntry && s.order.type !== "stack") return;
+    // stop to shoot only when actually able and willing — a blocked or held shot
+    // must never freeze movement orders (that deadlocks the squad)
+    if (!executingEntry && s.order.type !== "stack" && mayFire && canShoot) return;
   }
 
   switch (s.order.type) {
@@ -1376,7 +1404,7 @@ function squadShout(s) {
     if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
     if (dist(s.x, s.y, e.x, e.y) > 260) continue;
     if (!lineOfSight(s.x, s.y, e.x, e.y, opaque)) continue;
-    trySurrender(e);
+    trySurrender(e, s);
   }
 }
 
@@ -1399,8 +1427,9 @@ function clearShot(s, target) {
 // ---- breach plan timeline
 function updatePlans(dt) {
   for (const p of game.plans) {
+    if (p.state !== "executing") syncPlanMembers(p);
     if (p.state === "forming") {
-      const allAt = p.members.length > 0 && p.members.every(s => !s.alive || dist(s.x, s.y, p.slots[p.members.indexOf(s)].x, p.slots[p.members.indexOf(s)].y) < 14);
+      const allAt = p.members.length > 0 && p.members.every((s, i) => dist(s.x, s.y, p.slots[i].x, p.slots[i].y) < 14);
       if (allAt) p.state = "ready";
     } else if (p.state === "ready") {
       const stillAt = p.members.some(s => s.alive && dist(s.x, s.y, doorCenter(p.door).x, doorCenter(p.door).y) < TILE * 3.2);
@@ -1436,7 +1465,14 @@ function updatePlans(dt) {
       if (p.t > entryAt + 3) p.state = "done";
     }
   }
-  game.plans = game.plans.filter(p => p.state !== "done");
+  // stack orders pointing at a finished plan become hold — never a dangling reference
+  for (const p of game.plans) {
+    if (p.state !== "done") continue;
+    for (const m of game.squad) {
+      if (m.alive && m.order && m.order.type === "stack" && m.order.plan === p) m.order = { type: "hold" };
+    }
+  }
+  game.plans = game.plans.filter(p => p.state !== "done" && (p.members.length > 0 || p.state === "executing"));
 }
 
 // ---------------------------------------------------------------- S11 render
@@ -1882,12 +1918,13 @@ function updateExecutionTimer(dt) {
 
 function checkMissionEnd(dt) {
   if (game.state !== "play") return;
+  if (game.stats.hostagesDead > 0) { endMission(false, "A hostage was killed."); return; }
   if (!game.player.alive) {
+    game.paused = false;               // no pausing your way out of being dead
     game.playerDeadT += dt;
     if (game.playerDeadT > 1.2) endMission(false, "You went down. The stack has no point man.");
     return;
   }
-  if (game.stats.hostagesDead > 0) { endMission(false, "A hostage was killed."); return; }
   const hostOk = game.hostages.length > 0 && game.hostages.every(h => h.alive && h.secured);
   const threats = game.enemies.filter(e => e.alive && e.state !== "cuffed").length;
   if (hostOk && threats === 0) endMission(true, "");
@@ -1958,7 +1995,7 @@ function frame(now) {
     if (pressed(" ")) game.paused = !game.paused;
     if (pressed("escape")) { game.state = "menu"; document.getElementById("menu").classList.remove("hidden"); }
     game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
-    issueOrders();                    // orders work while paused/slowed — that's the point
+    if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       update(game.slowmo ? dt * 0.15 : dt);
       updateCamera(dt);               // camera stays smooth in real time
