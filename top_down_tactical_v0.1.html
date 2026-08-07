@@ -421,11 +421,12 @@ function computeVisPolygon(x, y, maxDist) {
     const ang = (i / n) * TAU;
     const hit = raycast(x, y, ang, maxDist, opaque);
     pts.push(hit);
-    // mark seen tiles along the ray (memory / explored map)
-    const steps = Math.ceil(hit.d / (TILE * 0.6));
+    // mark seen tiles along the ray (memory / explored map); fine step so no tile is skipped
+    const stepLen = TILE * 0.35;
+    const steps = Math.ceil(hit.d / stepLen);
     for (let s = 0; s <= steps; s++) {
-      const sx = x + Math.cos(ang) * Math.min(hit.d, s * TILE * 0.6);
-      const sy = y + Math.sin(ang) * Math.min(hit.d, s * TILE * 0.6);
+      const sx = x + Math.cos(ang) * Math.min(hit.d, s * stepLen);
+      const sy = y + Math.sin(ang) * Math.min(hit.d, s * stepLen);
       const tx = Math.floor(sx / TILE), ty = Math.floor(sy / TILE);
       if (inBounds(tx, ty)) seen.grid[ty][tx] = 1;
     }
@@ -1643,9 +1644,16 @@ function update(dt) {
   for (const h of game.hostages) updateCivilian(h, dt);
   updateBullets(dt);
   updateBangs(dt);
+  updateFx(dt);
   processNoises();
   updateExecutionTimer(dt);
   checkMissionEnd(dt);
+}
+
+function updateFx(dt) {
+  for (const f of game.fx) f.t -= dt;
+  game.fx = game.fx.filter(f => f.t > 0);
+  if (game.decals.length > 400) game.decals.splice(0, game.decals.length - 400);
 }
 
 function updateExecutionTimer(dt) {
