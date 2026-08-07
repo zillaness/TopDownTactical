@@ -12,7 +12,7 @@ ai_update: Update last_updated and bump version in frontmatter (filename stays R
 
 A top-down Door Kickers 2-style tactical game where you directly control the
 point man — WASD to move, mouse to aim and shoot — while commanding a 3-man AI
-squad through stacks, synchronized breaches, and hostage rescues. Three
+squad through stacks, synchronized breaches, and hostage rescues. Four
 missions, three difficulty tiers, best grades saved per mission.
 
 **Play:** open `top_down_tactical_v0.2.html` in a browser. Everything is one

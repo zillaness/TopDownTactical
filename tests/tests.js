@@ -157,3 +157,22 @@ for (let i = 0; i < N; i++) {
 }
 console.log('outgunned surrender rate:', (surr2 / N).toFixed(2), '(expect ~0.28±0.08)');
 console.log('COMPLIANCE TEST DONE');
+
+// ===== map 4 integrity =====
+game.mapIndex = 3; initGame();
+console.log('map4', level.w + 'x' + level.h, 'doors:', level.doors.length,
+  'enemies:', level.spawns.enemies.length, 'hostages:', level.spawns.hostages.length, 'player:', !!level.spawns.player);
+const ps4 = level.spawns.player, st4 = tileAt(ps4.x, ps4.y);
+for (const hsp of level.spawns.hostages) {
+  const ht = tileAt(hsp.x, hsp.y);
+  const pp = astar(st4.tx, st4.ty, ht.tx, ht.ty, passForPath, pathCostSquad);
+  console.log('map4 path player->hostage@' + ht.tx + ',' + ht.ty + ':', pp ? pp.length + ' tiles' : 'UNREACHABLE!');
+}
+for (const es of level.spawns.enemies) {
+  const et = tileAt(es.x, es.y);
+  if (!astar(st4.tx, st4.ty, et.tx, et.ty, passForPath, pathCostEnemy)) console.log('map4 UNREACHABLE enemy', et.tx, et.ty, es.kind);
+}
+game.state = 'play';
+for (let i = 0; i < 600; i++) update(1/60);
+console.log('map4 after 10s idle: alarm =', game.alarm, '| enemies alive:', game.enemies.filter(e => e.alive).length);
+console.log('MAP4 TEST DONE');

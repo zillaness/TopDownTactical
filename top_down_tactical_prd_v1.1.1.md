@@ -112,7 +112,7 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 - Pathing opens unlocked doors quietly, kicks locked ones only when directly ordered through them.
 - **Fire discipline (ROE):** hold / return fire (default) / weapons free, cycled with V per selection; breach entries are always weapons free; enemy gunfire opens a 4s return-fire window.
 
-### 5.7 Missions & scoring (v0.1: three hostage-rescue maps, mission select + difficulty on menu)
+### 5.7 Missions & scoring (v0.1: four hostage-rescue maps, mission select + difficulty on menu)
 - THE COMPOUND (one building, two entries) and SAFEHOUSE ROW (two buildings across an alley, hostages far east, locked back door).
 - Win: all hostages secured (E in a cleared room) AND all threats dead or cuffed. Lose: player down, or any hostage dies.
 - Debrief: time, arrests vs kills, surrendered-suspect kills, civilian deaths by your team, squad losses, shots, bangs, breaches. Grade S/A/B/C/D — arrests add, kills subtract, ROE violations subtract hard. Score-as-difficulty is the future difficulty knob (SWAT 4's 95/100 Elite model).
