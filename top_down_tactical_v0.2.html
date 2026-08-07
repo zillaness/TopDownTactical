@@ -974,6 +974,10 @@ function detonateWallCharge() {
 // ---- noise
 function addNoise(x, y, radius, type, side) {
   game.noises.push({ x, y, radius, type, side });
+  // your own noise is visualized so the stealth system is learnable (DK2 pain point)
+  if ((side === "player" || side === "squad") && radius >= 100) {
+    game.fx.push({ kind: "noisering", x, y, r: radius, t: 0.55, max: 0.55 });
+  }
 }
 
 // ---------------------------------------------------------------- S9 enemy & civilian AI
@@ -1770,6 +1774,10 @@ function drawFx() {
     } else if (f.kind === "blood") {
       ctx.fillStyle = COLORS.blood; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x + Math.cos(f.ang) * (1 - k) * 10, f.y + Math.sin(f.ang) * (1 - k) * 10, 5, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+    } else if (f.kind === "noisering") {
+      ctx.strokeStyle = "#e8b53a"; ctx.globalAlpha = k * 0.22; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.75 + (1 - k) * 0.25), 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
     } else if (f.kind === "shout" || f.kind === "slam") {
       ctx.strokeStyle = f.kind === "shout" ? "#fff" : COLORS.accent; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x, f.y, (1 - k) * 40 + 8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;

@@ -82,6 +82,7 @@ can both drive this file.
 - 06:3x ✅ U17 squad breach-charge economy (2/mission, dry falls back to kick, plan label shows count) + three-mission text sync — committed eb0b179
 - 06:4x ✅ review workflow formally complete (15 agents, 0 errors): both CONFIRMED defects were already fixed in U1a/U1b; QA screenshots verified wall-charge breach + stun into the secure room on THE PLANT
 - 06:5x ✅ U18 compliance statistics regression test — flashed 0.54 (~0.55), feint 0.25 (~0.20), outgunned 0.33 (~0.28), all in band — committed with this ledger line
+- 07:0x ✅ U19 noise-radius rings for player-side emissions (stealth system made learnable) — committed with this ledger line
 - ▶ NEXT: idle until 8:00am pause trigger; on fire: final push, refresh this Handoff, night summary to Sam
 
 ## Handoff
