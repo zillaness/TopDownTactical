@@ -78,7 +78,8 @@ can both drive this file.
 - 05:5x ✅ U14 version bump → top_down_tactical_v0.2.html (full changelog) + project README.md — committed with this ledger line
 - 06:0x ✅ review verdicts cross-checked: both CONFIRMED defects already fixed in U1a/U1b; REFUTED entries were verifiers observing the applied fixes — nothing new to apply
 - 06:0x ✅ U15 difficulty selector (Rookie/Regular/Elite: reaction, execution timer, surrender odds) + best-grade persistence per map+difficulty via localStorage — committed with this ledger line
-- ▶ NEXT: U16 third mission map; handoff prep before the 8am pause
+- 06:2x ✅ U16 third mission "THE PLANT" (inner secure room: locked door or wall-charge entry; elite + taker inside), map-3 tests + bot runs green — committed with this ledger line
+- ▶ NEXT: U17 squad charge economy + three-mission text sync; then final QA screenshots + handoff prep
 
 ## Handoff
 

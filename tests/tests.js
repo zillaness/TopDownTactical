@@ -111,3 +111,22 @@ cuffEnemy(fe2);
 for (let i = 0; i < 120; i++) update(1/60);
 console.log('cuffed feinter stays cuffed:', fe2.state === 'cuffed');
 console.log('FEINT TEST DONE');
+
+// ===== map 3 integrity =====
+game.mapIndex = 2; initGame();
+console.log('map3', level.w + 'x' + level.h, 'doors:', level.doors.length,
+  'enemies:', level.spawns.enemies.length, 'hostages:', level.spawns.hostages.length, 'player:', !!level.spawns.player);
+const ps3 = level.spawns.player, st3 = tileAt(ps3.x, ps3.y);
+for (const hsp of level.spawns.hostages) {
+  const ht = tileAt(hsp.x, hsp.y);
+  const pp = astar(st3.tx, st3.ty, ht.tx, ht.ty, passForPath, pathCostSquad);
+  console.log('map3 path player->hostage@' + ht.tx + ',' + ht.ty + ':', pp ? pp.length + ' tiles' : 'UNREACHABLE!');
+}
+for (const es of level.spawns.enemies) {
+  const et = tileAt(es.x, es.y);
+  if (!astar(st3.tx, st3.ty, et.tx, et.ty, passForPath, pathCostEnemy)) console.log('map3 UNREACHABLE enemy', et.tx, et.ty, es.kind);
+}
+game.state = 'play';
+for (let i = 0; i < 600; i++) update(1/60);
+console.log('map3 after 10s idle: alarm =', game.alarm, '| enemies alive:', game.enemies.filter(e => e.alive).length);
+console.log('MAP3 TEST DONE');

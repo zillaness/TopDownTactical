@@ -55,4 +55,5 @@ function botRun(mapIdx, seedLabel) {
 let totalErrs = 0;
 for (let r = 0; r < 3; r++) totalErrs += botRun(0, 'r' + r);
 for (let r = 0; r < 3; r++) totalErrs += botRun(1, 'r' + r);
+for (let r = 0; r < 3; r++) totalErrs += botRun(2, 'r' + r);
 console.log('BOT RUNS DONE, total update errors:', totalErrs);
