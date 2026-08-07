@@ -61,7 +61,9 @@ can both drive this file.
 - 2026-08-07 ✅ prototype v0.1 core (12 sections, smoke-tested) — committed 06495a0
 - 2026-08-07 ✅ research doc, 6-chapter sweep + synthesis — committed df91a80
 - 2026-08-07 ✅ PRD v1.0 — committed e6d7ceb
-- 2026-08-07 ▶ NEXT: apply confirmed findings from review workflow, then final push
+- 03:1x ✅ U2 browser verification via Playwright + fixed fx pruning & seen-grid gaps — committed d5addd8
+- 03:2x ✅ U3 synthesized WebAudio SFX (shot/kick/breach/bang/shout/hit/thud/door/click/surrender, distance+pan) — committed with this ledger line
+- ▶ NEXT: U4 slow-mo command mode; review-workflow findings fold in as U1 when it lands
 
 ## Handoff
 

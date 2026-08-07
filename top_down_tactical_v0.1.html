@@ -570,6 +570,7 @@ function emitFootstepNoise(ent, dt) {
 function shoutCompliance(p) {
   p.shoutCd = 1.4;
   addNoise(p.x, p.y, TUNE.noiseShout, "shout", "player");
+  sfxAt("shout", p.x, p.y);
   game.fx.push({ kind: "shout", x: p.x, y: p.y, t: 0.5, max: 0.5 });
   for (const e of game.enemies) {
     if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
@@ -590,7 +591,7 @@ function updateShooterWeapon(s, dt) {
 }
 
 function tryReload(s) {
-  if (s.reloading <= 0 && s.ammo < s.weapon.mag) s.reloading = s.weapon.reload;
+  if (s.reloading <= 0 && s.ammo < s.weapon.mag) { s.reloading = s.weapon.reload; sfxAt("click", s.x, s.y); }
 }
 
 function tryFire(s, ang) {
@@ -607,6 +608,7 @@ function tryFire(s, ang) {
   });
   game.fx.push({ kind: "muzzle", x: s.x + Math.cos(ang) * (s.r + 6), y: s.y + Math.sin(ang) * (s.r + 6), ang, t: 0.05, max: 0.05 });
   addNoise(s.x, s.y, TUNE.noiseShot, "shot", s.side);
+  sfxAt("shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
   return true;
 }
@@ -662,6 +664,7 @@ function segCircle(x1, y1, x2, y2, cx, cy, r) {
 function applyHit(ent, b, hx, hy) {
   ent.hp -= b.dmg * rand(0.85, 1.15);
   game.fx.push({ kind: "blood", x: hx, y: hy, ang: b.ang, t: 0.4, max: 0.4 });
+  sfxAt("hit", hx, hy);
   game.decals.push({ x: hx + Math.cos(b.ang) * rand(2, 14), y: hy + Math.sin(b.ang) * rand(2, 14), r: rand(3, 7) });
   if (ent.side === "enemy" && ent.state !== "combat" && ent.state !== "surrender" && ent.state !== "cuffed") alertEnemy(ent, hx, hy);
   if (ent.hp <= 0) killEntity(ent, b.side);
@@ -680,6 +683,7 @@ function killEntity(ent, bySide) {
   if (ent.side === "hostage") game.stats.hostagesDead++;
   if (ent.side === "player") { /* handled in mission fail check */ }
   addNoise(ent.x, ent.y, 120, "bodyfall", ent.side);
+  sfxAt("thud", ent.x, ent.y);
 }
 
 // ---- flashbangs
@@ -716,6 +720,7 @@ function updateBangs(dt) {
 function detonateBang(g) {
   game.fx.push({ kind: "flash", x: g.x, y: g.y, t: 0.5, max: 0.5 });
   addNoise(g.x, g.y, TUNE.noiseBangBlast, "bang", g.side);
+  sfxAt("bang", g.x, g.y);
   game.camKick = Math.min(12, game.camKick + 6);
   const affect = (ent, dur) => {
     if (!ent.alive) return;
@@ -750,6 +755,7 @@ function openDoor(d, quiet) {
   d.state = "open"; d.locked = false;
   const c = doorCenter(d);
   addNoise(c.x, c.y, quiet ? TUNE.noiseDoor : TUNE.noiseKick * 0.6, "door", "neutral");
+  sfxAt("door", c.x, c.y);
 }
 
 function closeDoor(d) {
@@ -768,6 +774,7 @@ function kickDoor(d, by) {
   const c = doorCenter(d);
   addNoise(c.x, c.y, TUNE.noiseKick, "kick", by ? by.side : "neutral");
   game.fx.push({ kind: "slam", x: c.x, y: c.y, t: 0.25, max: 0.25 });
+  sfxAt("kick", c.x, c.y);
   // brief stagger for anyone right behind the door
   for (const e of game.enemies) {
     if (e.alive && dist(c.x, c.y, e.x, e.y) < 70) e.stagger = Math.max(e.stagger, TUNE.doorKickStun);
@@ -790,6 +797,7 @@ function chargeDoor(d, by) {
   const c = doorCenter(d);
   addNoise(c.x, c.y, TUNE.noiseBreach, "breach", by ? by.side : "squad");
   game.fx.push({ kind: "explosion", x: c.x, y: c.y, t: 0.5, max: 0.5 });
+  sfxAt("breach", c.x, c.y);
   game.camKick = Math.min(14, game.camKick + 9);
   for (const e of [...game.enemies, ...game.civilians]) {
     if (!e.alive) continue;
@@ -1000,6 +1008,7 @@ function trySurrender(e) {
   if (Math.random() < p) {
     e.state = "surrender"; e.path = null; e.burstLeft = 0;
     game.fx.push({ kind: "surrender", x: e.x, y: e.y, t: 0.8, max: 0.8 });
+    sfxAt("surrender", e.x, e.y);
     return true;
   }
   alertEnemy(e, game.player.x, game.player.y);
@@ -1242,6 +1251,7 @@ function squadMove(s, gx, gy, speed, dt, noisy) {
 
 function squadShout(s) {
   addNoise(s.x, s.y, TUNE.noiseShout, "shout", "squad");
+  sfxAt("shout", s.x, s.y);
   game.fx.push({ kind: "shout", x: s.x, y: s.y, t: 0.5, max: 0.5 });
   for (const e of game.enemies) {
     if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
@@ -1597,6 +1607,64 @@ function contextPrompt() {
   return null;
 }
 
+// ---------------------------------------------------------------- S11b audio (synthesized, no assets)
+let AC = null, masterGain = null, noiseBuf = null;
+function initAudio() {
+  if (AC) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = AC.createGain(); masterGain.gain.value = 0.4; masterGain.connect(AC.destination);
+    noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.5, AC.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  } catch (e) { AC = null; }
+}
+function envGain(vol, t0, dur) {
+  const g = AC.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  return g;
+}
+function playNoise(vol, dur, filterType, freq, pan) {
+  const t0 = AC.currentTime;
+  const src = AC.createBufferSource(); src.buffer = noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = filterType; f.frequency.value = freq;
+  const g = envGain(vol, t0, dur);
+  const p = AC.createStereoPanner ? AC.createStereoPanner() : null; if (p) p.pan.value = pan;
+  src.connect(f); f.connect(g); g.connect(p || masterGain); if (p) p.connect(masterGain);
+  src.start(t0); src.stop(t0 + dur + 0.02);
+}
+function playTone(vol, dur, type, f0, f1, pan) {
+  const t0 = AC.currentTime;
+  const o = AC.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(f0, t0);
+  if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+  const g = envGain(vol, t0, dur);
+  const p = AC.createStereoPanner ? AC.createStereoPanner() : null; if (p) p.pan.value = pan;
+  o.connect(g); g.connect(p || masterGain); if (p) p.connect(masterGain);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const SFX = {
+  shot(v, p)    { playNoise(v * 0.9, 0.09, "highpass", 700, p); playTone(v * 0.5, 0.06, "square", 160 + rand(-20, 20), 90, p); },
+  kick(v, p)    { playTone(v * 0.9, 0.16, "sine", 75, 45, p); playNoise(v * 0.5, 0.1, "lowpass", 320, p); },
+  breach(v, p)  { playTone(v, 0.45, "sine", 55, 30, p); playNoise(v * 0.9, 0.4, "lowpass", 220, p); },
+  bang(v, p)    { playNoise(v, 0.28, "highpass", 1400, p); playTone(v * 0.7, 0.35, "triangle", 2800, 220, p); playTone(v * 0.25, 0.7, "sine", 3800, 3600, p); },
+  shout(v, p)   { playTone(v * 0.6, 0.16, "sawtooth", 210, 150, p); },
+  hit(v, p)     { playNoise(v * 0.7, 0.07, "lowpass", 520, p); playTone(v * 0.5, 0.07, "sine", 110, 70, p); },
+  thud(v, p)    { playTone(v * 0.8, 0.22, "sine", 90, 40, p); playNoise(v * 0.4, 0.15, "lowpass", 260, p); },
+  door(v, p)    { playNoise(v * 0.35, 0.12, "bandpass", 420, p); },
+  click(v, p)   { playTone(v * 0.5, 0.035, "square", 1150, 900, p); },
+  surrender(v, p) { playTone(v * 0.5, 0.09, "sine", 520, 620, p); playTone(v * 0.4, 0.1, "sine", 660, 700, p); },
+};
+function sfxAt(name, x, y) {
+  if (!AC || !game.player || !SFX[name]) return;
+  const d = dist(game.player.x, game.player.y, x, y);
+  const vol = clamp(1 - d / 950, 0, 1);
+  if (vol <= 0.02) return;
+  const pan = clamp((x - game.player.x) / 520, -0.9, 0.9);
+  try { SFX[name](vol, pan); } catch (e) {}
+}
+
 // ---------------------------------------------------------------- S12 game
 const game = {
   state: "menu", paused: false,
@@ -1758,12 +1826,14 @@ function frame(now) {
 }
 
 document.getElementById("btnStart").addEventListener("click", () => {
+  initAudio();
   initGame();
   document.getElementById("menu").classList.add("hidden");
   document.getElementById("debrief").classList.add("hidden");
   game.state = "play";
 });
 document.getElementById("btnRestart").addEventListener("click", () => {
+  initAudio();
   initGame();
   document.getElementById("debrief").classList.add("hidden");
   game.state = "play";
