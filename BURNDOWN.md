@@ -86,22 +86,30 @@ can both drive this file.
 - 06:2x ℹ usage reading (Sam): Fable 35% used / 65% left. Observation for Phase 0: whole night so far (research workflow 374k + review workflow 1.22M subagent tokens + main loop) moved the meter only ~8 points from the 1am reading — consistent with subagent spend not billing to the Fable bucket. UNVERIFIED; Phase 0 still pending.
 - 06:4x ✅ U20 squad voice barks (stacking/set/breaching/reloading/man-down/secured, rate-limited) — committed 98f25b9
 - 07:0x ✅ U21 fourth mission "MARKET ROW" (three buildings, split hostages force squad splitting), map-4 tests + 12 bot runs green — committed b3624d0
-- ▶ NEXT: pause at 8:00am trigger — refresh Handoff, night summary to Sam
+- 07:1x ✅ U22 mission-picker wrap fix + final QA screenshots (menu, breach sequence, wall-charge entry) — committed f68a552
+- 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
 ## Handoff
 
-**Pre-filled 6:5x am; refreshed at the 8am pause.**
+**Final — 8:00am PDT, 2026-08-07. Night closed on schedule.**
 
-Done tonight (all committed and pushed to `claude/tactical-game-research-ner6e1`):
-research doc (6 chapters + synthesis), PRD → v1.1.1, playable game →
-`top_down_tactical_v0.2.html` (4 missions, 3 difficulties, audio, slow-mo
-command time, ROE, mirror peek, wall charges, feint surrender, elite enemies,
-squad auto-cuff + voice barks, noise-radius rings, best-grade persistence,
-in-world order UI), 15-agent adversarial review with all confirmed findings
-fixed, headless test harness (`tests/run.sh`: smoke + 12 bot playthroughs +
-compliance statistics).
+22 work units, 30 commits (1d5ac0a → f68a552), all pushed to
+`claude/tactical-game-research-ner6e1`. Nothing uncommitted, no
+workflows or subagents running at pause.
 
-In-flight at handoff: nothing uncommitted.
+Done tonight: research doc df91a80 (6 chapters + synthesis), PRD e6d7ceb →
+v1.1.1, playable game → `top_down_tactical_v0.2.html` — 4 missions (Compound,
+Safehouse Row, The Plant, Market Row), 3 difficulties with saved best grades,
+synthesized audio 8bc5836, slow-mo command time f0f16cc, squad ROE 56cd5b4,
+mirror peek 29500f6, wall charges e2ca880, feint surrender fd1b557, elite
+enemies b9d26dc, squad auto-cuff + voice barks 98f25b9, noise-radius rings
+b1e277f, in-world order UI 8aea79e, Esc resume + input hygiene 61a056c.
+15-agent adversarial review: all confirmed findings fixed across two batches
+(9957396 AI/orders, 61a056c render/geometry/input) and re-verified. Test
+harness 10e9b7f (`tests/run.sh`): smoke tests, compliance statistics 5688017,
+12 bot playthroughs across all four maps — all green, zero errors.
+
+In-flight at handoff: nothing.
 
 Suggested next session starting points (PRD §6, ranked):
 1. Playtest by a human (Sam) — tuning feedback loop; bot data says squad
