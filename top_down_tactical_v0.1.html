@@ -51,7 +51,7 @@
       <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
-      <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key"></td><td></td></tr>
+      <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad follows orders</h3>
@@ -538,7 +538,7 @@ function makeShooter(x, y, side, hp, weapon) {
 
 function makePlayer(sp) {
   const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, TUNE.rifle);
-  p.bangs = 3; p.shoutCd = 0;
+  p.bangs = 3; p.charges = 2; p.shoutCd = 0;
   return p;
 }
 
@@ -584,6 +584,11 @@ function updatePlayer(p, dt) {
   }
   if (pressed("g") && p.bangs > 0) { throwBang(p, input.mouse.wx, input.mouse.wy); p.bangs--; }
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
+  if (pressed("h")) {
+    if (game.wallCharge) detonateWallCharge();
+    else if (p.charges > 0) plantWallCharge(p);
+    else game.hint = "No wall charges left";
+  }
   if (pressed("q")) {
     const d = nearestDoor(p.x, p.y, 52);
     if (d && d.state === "closed") {
@@ -865,6 +870,40 @@ function chargeDoor(d, by) {
     e.blind = Math.max(e.blind, TUNE.chargeStun * 0.8);
     if (e.side === "enemy") { e.flashedRecently = TUNE.chargeStun; alertEnemy(e, c.x, c.y); }
   }
+}
+
+// ---- wall charges (make your own door)
+function plantWallCharge(p) {
+  const tx = Math.floor((p.x + Math.cos(p.face) * 38) / TILE);
+  const ty = Math.floor((p.y + Math.sin(p.face) * 38) / TILE);
+  if (!isWall(tx, ty)) { game.hint = "Face a wall to plant a charge"; return; }
+  if (tx <= 0 || ty <= 0 || tx >= level.w - 1 || ty >= level.h - 1) { game.hint = "That wall is structural"; return; }
+  if (doorAt(tx, ty)) return;
+  p.charges--;
+  game.wallCharge = { tx, ty };
+  game.hint = "Charge set — [H] to blow it";
+  sfxAt("click", p.x, p.y);
+}
+
+function detonateWallCharge() {
+  const wc = game.wallCharge; if (!wc) return;
+  game.wallCharge = null;
+  level.wall[wc.ty][wc.tx] = 0;   // the wall ceases to exist; LOS, bullets, and pathing all update via the live grid
+  const cx = wc.tx * TILE + TILE / 2, cy = wc.ty * TILE + TILE / 2;
+  game.fx.push({ kind: "explosion", x: cx, y: cy, t: 0.5, max: 0.5 });
+  game.decals.push({ x: cx + rand(-8, 8), y: cy + rand(-8, 8), r: rand(6, 10) });
+  addNoise(cx, cy, TUNE.noiseBreach, "breach", "player");
+  sfxAt("breach", cx, cy);
+  game.camKick = Math.min(14, game.camKick + 9);
+  for (const e of [...game.enemies, ...game.civilians]) {
+    if (!e.alive) continue;
+    if (dist(cx, cy, e.x, e.y) > TUNE.chargeStunRadius) continue;
+    if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;
+    e.stagger = Math.max(e.stagger, TUNE.chargeStun);
+    e.blind = Math.max(e.blind, TUNE.chargeStun * 0.8);
+    if (e.side === "enemy") { e.flashedRecently = TUNE.chargeStun; alertEnemy(e, cx, cy); }
+  }
+  game.stats.breaches++;
 }
 
 // ---- noise
@@ -1453,6 +1492,15 @@ function render() {
   // flashbangs in flight
   ctx.fillStyle = "#aab2ba";
   for (const g of game.bangs) { ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, TAU); ctx.fill(); }
+  // planted wall charge
+  if (game.wallCharge) {
+    const wc = game.wallCharge;
+    ctx.fillStyle = "#ff8c42";
+    ctx.fillRect(wc.tx * TILE + TILE / 2 - 5, wc.ty * TILE + TILE / 2 - 5, 10, 10);
+    ctx.strokeStyle = "#ff8c42"; ctx.setLineDash([3, 3]);
+    ctx.strokeRect(wc.tx * TILE + 2.5, wc.ty * TILE + 2.5, TILE - 5, TILE - 5);
+    ctx.setLineDash([]);
+  }
 
   // fx
   drawFx();
@@ -1601,7 +1649,7 @@ function drawHud() {
   ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
   ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
   ctx.fillStyle = COLORS.hud;
-  ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "   BANGS " + p.bangs, bx, by + 26);
+  ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "   BANGS " + p.bangs + "   CHARGES " + p.charges, bx, by + 26);
   // squad panel (top left)
   game.squad.forEach((s, i) => {
     const sy = 18 + i * 44;
@@ -1748,7 +1796,7 @@ const game = {
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
-  alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null,
+  alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -1771,7 +1819,7 @@ function initGame() {
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = [];
   game.selected = new Set();
-  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0; game.mirror = null;
+  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";

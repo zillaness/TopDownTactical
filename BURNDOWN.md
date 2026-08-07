@@ -67,7 +67,8 @@ can both drive this file.
 - 03:4x ✅ U5 squad ROE toggle (V cycles hold/return/free; return-fire default; entry = weapons free; HUD shows ROE) — committed with this ledger line
 - 03:5x ✅ U6 mirror-under-door peek (Q marks contacts in the room behind a closed door, 4s) — committed with this ledger line
 - 04:0x ✅ U7 second mission "SAFEHOUSE ROW" (two buildings + alley), mission picker on menu, camera clamped to world — committed with this ledger line
-- ▶ NEXT: review-workflow findings (U1) when it lands; then U8 wall charges
+- 04:1x ✅ U8 wall charges (H plant/H blow, wall becomes opening, LOS/pathing live-update, stun through breach) — committed with this ledger line
+- ▶ NEXT: review-workflow findings (U1) when it lands; then U9 feint surrender
 
 ## Handoff
 
