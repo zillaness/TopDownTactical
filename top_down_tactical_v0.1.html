@@ -28,6 +28,10 @@
   .screen td.key { color: #e8b53a; font-family: Consolas, monospace; white-space: nowrap; }
   .btn { margin-top: 24px; padding: 12px 44px; font-size: 16px; letter-spacing: 3px; background: #1d4ed8; color: #fff; border: 0; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
   .btn:hover { background: #2563eb; }
+  #mapPick { display: flex; gap: 10px; margin-top: 22px; }
+  .mapbtn { background: #11161b; border: 1px solid #232c34; color: #aeb8c2; padding: 10px 18px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
+  .mapbtn b { color: #e8eef4; letter-spacing: 1px; }
+  .mapbtn.sel { border-color: #1d4ed8; background: #14203a; }
   .hidden { display: none !important; }
   #debrief .stat { font-size: 14px; margin: 3px 0; }
   #debrief .grade { font-size: 64px; margin: 10px 0; font-weight: 700; }
@@ -59,6 +63,7 @@
       <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
     </table>
   </div>
+  <div id="mapPick"></div>
   <button class="btn" id="btnStart">Breach</button>
 </div>
 
@@ -274,7 +279,8 @@ class MinHeap {
 // ---------------------------------------------------------------- S3 level
 // Legend: # wall  , exterior  . interior  D door  L locked door
 //         P player  s squad  g guard  p patroller  T hostage-taker  h hostage  c civilian
-const MAP_SRC = [
+const MAPS = [
+{ name: "THE COMPOUND", brief: "One building, two entries, executioner deep", src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -305,14 +311,50 @@ const MAP_SRC = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
+] },
+{ name: "SAFEHOUSE ROW", brief: "Two buildings, an alley crossing, hostages far east", src: [
+"##############################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,####L############,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,#.......#.......#,,#",
+"#,,,,,###############,,,,,#.......#.....h.#,,#",
+"#,,,,,#.............#,,,,,#...g...#.......#,,#",
+"#,,,,,#.............#,,,,,#.......#...T...#,,#",
+"#,,,,,#...g.........#,,,,,#.......D.......#,,#",
+"#,,,,,D.............#,,,,,#.......#.....h.#,,#",
+"#,,,,,#.............#,,,,,#.......#.......#,,#",
+"#,,,,,#.............#,,,,,#.......#.......#,,#",
+"#,s,,,#.............#,,,,,#.......#.......#,,#",
+"#,,,,,#######D#######,,,,,#.......####D####,,#",
+"#,,P,,#.............#,,,,,#.......#.......#,,#",
+"#,,,,,#.............#,,,,,#...p...#.......#,,#",
+"#,s,s,#.............#,,,,,#.......#.......#,,#",
+"#,,,,,#.....p.......#,,,,,#.......#.......#,,#",
+"#,,,,,#.............#,,,,,#.......D.......#,,#",
+"#,,,,,#.........c...#,,,,,D.......#...g...#,,#",
+"#,,,,,#.............#,,,,,#.......#.......#,,#",
+"#,,,,,#.............#,,,,,#.c.....#.......#,,#",
+"#,,,,,####D##########,,,,,#.......#.......#,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,#.......#.......#,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,#################,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##############################################",
+] },
 ];
+let MAP_SRC = MAPS[0].src;
 // hard-fail on malformed map data rather than rendering garbage
 (function validateMap() {
-  const w = MAP_SRC[0].length;
-  MAP_SRC.forEach((row, y) => {
-    if (row.length !== w) throw new Error(`MAP_SRC row ${y} length ${row.length} != ${w}`);
-    if (!/^[#,.DLPsgphcT]+$/.test(row)) throw new Error(`MAP_SRC row ${y} has an unknown tile char`);
-  });
+  for (const m of MAPS) {
+    const w = m.src[0].length;
+    m.src.forEach((row, y) => {
+      if (row.length !== w) throw new Error(`${m.name} row ${y} length ${row.length} != ${w}`);
+      if (!/^[#,.DLPsgphcT]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+    });
+  }
 })();
 
 const ROOM_NAMES = { }; // filled after flood fill; index -> label
@@ -1702,7 +1744,7 @@ function sfxAt(name, x, y) {
 
 // ---------------------------------------------------------------- S12 game
 const game = {
-  state: "menu", paused: false, slowmo: false,
+  state: "menu", paused: false, slowmo: false, mapIndex: 0,
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -1720,6 +1762,7 @@ const game = {
 };
 
 function initGame() {
+  MAP_SRC = MAPS[game.mapIndex] ? MAPS[game.mapIndex].src : MAPS[0].src;
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
   game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
@@ -1828,6 +1871,12 @@ function updateCamera(dt) {
   const tx = p.x + Math.cos(ang) * lead, ty = p.y + Math.sin(ang) * lead;
   game.cam.x = lerp(game.cam.x, tx, clamp(dt * TUNE.camLerp, 0, 1));
   game.cam.y = lerp(game.cam.y, ty, clamp(dt * TUNE.camLerp, 0, 1));
+  // keep the view inside the world where the world is bigger than the screen
+  const worldW = level.w * TILE, worldH = level.h * TILE;
+  if (worldW > viewW) game.cam.x = clamp(game.cam.x, viewW / 2, worldW - viewW / 2);
+  else game.cam.x = worldW / 2;
+  if (worldH > viewH) game.cam.y = clamp(game.cam.y, viewH / 2, worldH - viewH / 2);
+  else game.cam.y = worldH / 2;
   game.camKick = Math.max(0, game.camKick - dt * 30);
   game.cam.shakeX = rand(-1, 1) * game.camKick; game.cam.shakeY = rand(-1, 1) * game.camKick;
 }
@@ -1862,6 +1911,18 @@ function frame(now) {
   input.justPressed.clear();
   requestAnimationFrame(frame);
 }
+
+const mapPickEl = document.getElementById("mapPick");
+MAPS.forEach((m, i) => {
+  const b = document.createElement("button");
+  b.className = "mapbtn" + (i === 0 ? " sel" : "");
+  b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span>";
+  b.addEventListener("click", () => {
+    game.mapIndex = i;
+    mapPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === i));
+  });
+  mapPickEl.appendChild(b);
+});
 
 document.getElementById("btnStart").addEventListener("click", () => {
   initAudio();
