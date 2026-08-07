@@ -72,7 +72,8 @@ can both drive this file.
 - 04:3x ✅ U10 PRD synced to v1.1 (shipped features moved into scope, controls table updated) — committed with this ledger line
 - 04:4x ✅ U11 test harness into repo (tests/run.sh: smoke tests + 6 assault-bot playthroughs, both maps, 0 errors) — committed with this ledger line
 - 05:0x ✅ U1a review fixes, AI/orders batch: patroller wander freeze, plan slot reindexing + dead-member pruning, executing-plan re-stack guard, Z recall plan removal, squaddie blocked-shot movement deadlock, taker double-move, shouter-attribution on failed surrender, goal/slot/entry wall-snapping, astar-null order completion, dead-player command lockout + fail-reason ordering, return-ROE engages under alarm — committed with this ledger line
-- ▶ NEXT: U1b render/geometry/input review fixes
+- 05:2x ✅ U1b review fixes, render/geometry/input batch: intel overlays above fog, fx LOS-gating, ghost hostage color, seen-grid wall-face nudge, sweepAxis near-face resolution, closeDoor overlap check, bang bounce axis + wall-hug spawn, blur mouse clear, ~ select-all, menu keyboard access, Esc resume + Restart button, friendly fire on teammates/cuffed, HUD clamp, debrief civilian row, dead TUNE knobs removed, PRD v1.1.1 — committed with this ledger line
+- ▶ NEXT: cross-check verifier verdicts when workflow lands; final screenshots + handoff prep
 
 ## Handoff
 

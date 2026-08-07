@@ -1,6 +1,6 @@
 ---
-file: top_down_tactical_prd_v1.1.md
-version: 1.1
+file: top_down_tactical_prd_v1.1.1.md
+version: 1.1.1
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-07
@@ -51,7 +51,7 @@ If a feature doesn't sharpen one of these, cut it.
 | H | Wall charge: plant on the wall you face, H again to detonate |
 | Space | Tactical pause — world freezes, orders still issuable |
 | Tab (hold) | Command time — world runs at 15% while you order |
-| Esc | Menu |
+| Esc | Menu (Resume continues the run; Restart Mission starts over) |
 
 **Squad command (same cursor, no mode switch):**
 
@@ -97,7 +97,7 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 
 ### 5.4 Doors & breaching
 - States: closed / open / breached; locked doors resist E (kick or charge only).
-- Open (quiet, slow-feeling), kick (instant, loud, staggers defenders behind), charge (squad breach: door ceases to exist, stuns through the doorway with LOS check — DK2's breach-kill zone, tuned to stun for arrest play).
+- Open (quiet), kick (instant, loud, staggers defenders behind), charge (squad breach: door ceases to exist, stuns through the doorway with LOS check — DK2's breach-kill zone, tuned to stun for arrest play). A slow animated door swing is future polish, not current behavior.
 - Squad breach timeline on GO: door action → bang through the gap (if toggled) → staggered entry to interior clear points → shout for compliance → hold. Multiple stacks execute on the same GO.
 
 ### 5.5 Enemy AI
@@ -108,7 +108,7 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 
 ### 5.6 Squad AI
 - Orders: follow / move-and-hold / stack / breach-on-GO. Stacks form on wall-hugging slots beside the frame; plan shows method + READY state above the door.
-- Combat overlay: engage visible threats with 0.18–0.3s reaction, but never through friendlies; entries keep flowing while engaging (points-of-domination flood).
+- Combat overlay: engage visible threats with 0.18–0.3s reaction — gated by ROE (under default return-fire, squadmates engage once the enemy attacks, the team is fired on, or the map alarm is up; pre-alarm they hold for the shout) — and never through friendlies; entries keep flowing while engaging (points-of-domination flood).
 - Pathing opens unlocked doors quietly, kicks locked ones only when directly ordered through them.
 - **Fire discipline (ROE):** hold / return fire (default) / weapons free, cycled with V per selection; breach entries are always weapons free; enemy gunfire opens a 4s return-fire window.
 
@@ -148,3 +148,4 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial PRD, written from tactical_research_v1.0.md alongside prototype v0.1.
 - v1.1 (2026-08-07, burndown night): Synced to shipped state — slow-mo command time, ROE, mirror peek, wall charges, feint surrender, audio, second mission + mission select moved from deferred to §5; deferred list renumbered; control table expanded (Q/H/Tab/V).
+- v1.1.1 (2026-08-07, review pass): ROE engagement rule documented precisely; door-open honesty (no slow swing yet); Esc resume path; friendly fire now applies to teammates and cuffed suspects per 5.1.

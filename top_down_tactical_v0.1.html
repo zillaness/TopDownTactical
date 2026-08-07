@@ -65,6 +65,7 @@
   </div>
   <div id="mapPick"></div>
   <button class="btn" id="btnStart">Breach</button>
+  <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
 </div>
 
 <div id="debrief" class="screen hidden">
@@ -138,7 +139,7 @@ const TUNE = {
   bangBlindEnemy: 3.6, bangBlindFriendly: 1.1, bangSurrenderBonus: 0.45,
 
   // doors
-  doorHp: 60, doorOpenTime: 0.45, doorKickStun: 0.5, chargeStunRadius: 190, chargeStun: 2.2,
+  doorHp: 60, doorKickStun: 0.5, chargeStunRadius: 190, chargeStun: 2.2,
 
   // surrender / compliance
   surrenderBase: 0.10,          // per shout, unmodified
@@ -146,9 +147,6 @@ const TUNE = {
   surrenderOutgunned: 0.28,     // shouted at with 2+ guns on target & target not aiming
   surrenderLastMan: 0.18,       // bonus when last threat alive
   executionTimer: 22,           // s after hostage-taker alerted until execution
-
-  // squad
-  stackSlotGap: 26, goBangDelay: 0.55, squadShootHoldover: 0.35,
 };
 
 function deg(d) { return d * Math.PI / 180; }
@@ -192,8 +190,10 @@ function sweepAxis(x, y, r, dx, dy, solidFn) {
     const cx = clamp(nx, tx * TILE, tx * TILE + TILE), cy = clamp(ny, ty * TILE, ty * TILE + TILE);
     const ddx = nx - cx, ddy = ny - cy, d2 = ddx * ddx + ddy * ddy;
     if (d2 < r * r) {
-      if (dx !== 0) nx = dx > 0 ? tx * TILE - r - 0.01 : tx * TILE + TILE + r + 0.01;
-      if (dy !== 0) ny = dy > 0 ? ty * TILE - r - 0.01 : ty * TILE + TILE + r + 0.01;
+      // resolve to the NEAR face (side the entity came from), never the far one —
+      // resolving by movement direction teleports embedded entities through tiles
+      if (dx !== 0) nx = (x < tx * TILE + TILE / 2) ? tx * TILE - r - 0.01 : tx * TILE + TILE + r + 0.01;
+      if (dy !== 0) ny = (y < ty * TILE + TILE / 2) ? ty * TILE - r - 0.01 : ty * TILE + TILE + r + 0.01;
     }
   }
   return { x: nx, y: ny };
@@ -209,15 +209,15 @@ function raycast(x0, y0, ang, maxDist, blockFn) {
   const tDeltaY = dy !== 0 ? Math.abs(TILE / dy) : Infinity;
   let tMaxX = dx !== 0 ? ((dx > 0 ? (tx + 1) * TILE - x0 : x0 - tx * TILE) / Math.abs(dx)) : Infinity;
   let tMaxY = dy !== 0 ? ((dy > 0 ? (ty + 1) * TILE - y0 : y0 - ty * TILE) / Math.abs(dy)) : Infinity;
-  let t = 0;
-  if (blockFn(tx, ty)) return { x: x0, y: y0, d: 0, hit: true };
+  let t = 0, axis = null;
+  if (blockFn(tx, ty)) return { x: x0, y: y0, d: 0, hit: true, axis: null };
   while (t < maxDist) {
-    if (tMaxX < tMaxY) { t = tMaxX; tMaxX += tDeltaX; tx += stepX; }
-    else               { t = tMaxY; tMaxY += tDeltaY; ty += stepY; }
+    if (tMaxX < tMaxY) { t = tMaxX; tMaxX += tDeltaX; tx += stepX; axis = "x"; }
+    else               { t = tMaxY; tMaxY += tDeltaY; ty += stepY; axis = "y"; }
     if (t > maxDist) break;
-    if (blockFn(tx, ty)) return { x: x0 + dx * t, y: y0 + dy * t, d: t, hit: true };
+    if (blockFn(tx, ty)) return { x: x0 + dx * t, y: y0 + dy * t, d: t, hit: true, axis };
   }
-  return { x: x0 + dx * maxDist, y: y0 + dy * maxDist, d: maxDist, hit: false };
+  return { x: x0 + dx * maxDist, y: y0 + dy * maxDist, d: maxDist, hit: false, axis: null };
 }
 
 // Straight-line LOS between two points against blockFn. True if unobstructed.
@@ -489,8 +489,11 @@ function computeVisPolygon(x, y, maxDist) {
       const tx = Math.floor(sx / TILE), ty = Math.floor(sy / TILE);
       if (inBounds(tx, ty)) seen.grid[ty][tx] = 1;
     }
-    const hx = Math.floor(hit.x / TILE), hy = Math.floor(hit.y / TILE);
-    if (inBounds(hx, hy)) seen.grid[hy][hx] = 1; // the wall face itself
+    // mark the wall tile itself: nudge past the boundary along the ray so -x/-y
+    // faces (which land exactly ON the tile edge) floor into the wall tile
+    const hx = Math.floor((hit.x + Math.cos(ang) * 0.51) / TILE);
+    const hy = Math.floor((hit.y + Math.sin(ang) * 0.51) / TILE);
+    if (inBounds(hx, hy)) seen.grid[hy][hx] = 1;
   }
   return pts;
 }
@@ -524,10 +527,11 @@ window.addEventListener("keydown", e => {
   if (e.repeat) return;
   const k = e.key.toLowerCase();
   input.keys.add(k); input.justPressed.add(k);
-  if (["tab", " "].includes(k)) e.preventDefault();
+  // only hijack Tab/Space during play — menus keep keyboard accessibility
+  if (["tab", " "].includes(k) && typeof game !== "undefined" && game.state === "play") e.preventDefault();
 });
 window.addEventListener("keyup", e => input.keys.delete(e.key.toLowerCase()));
-window.addEventListener("blur", () => input.keys.clear());
+window.addEventListener("blur", () => { input.keys.clear(); input.mouse.down = false; input.mouse.rdown = false; });
 const canvas = document.getElementById("game");
 canvas.addEventListener("mousemove", e => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; });
 canvas.addEventListener("mousedown", e => {
@@ -718,9 +722,12 @@ function updateBullets(dt) {
 
 function firstEntityOnSegment(b, ex, ey) {
   let best = null, bestD = Infinity;
-  const candidates = [];
-  if (b.side !== "player" && b.side !== "squad") { candidates.push(game.player, ...game.squad); }
-  if (b.side !== "enemy") candidates.push(...game.enemies.filter(e => e.state !== "cuffed"));
+  const candidates = [game.player, ...game.squad]; // friendly fire is real — for everyone
+  for (const e of game.enemies) {
+    // enemy rounds pass through fighting comrades, but can hit the surrendered/cuffed
+    if (b.side === "enemy" && e.state !== "surrender" && e.state !== "cuffed") continue;
+    candidates.push(e);
+  }
   candidates.push(...game.hostages, ...game.civilians); // everyone can hit a bystander
   for (const ent of candidates) {
     if (!ent || !ent.alive || ent === b.owner) continue;
@@ -768,10 +775,13 @@ function killEntity(ent, bySide) {
 function throwBang(thrower, txw, tyw) {
   const ang = angleTo(thrower.x, thrower.y, txw, tyw);
   const d = Math.min(dist(thrower.x, thrower.y, txw, tyw), 420);
+  // never spawn inside a wall the thrower is hugging
+  const clear = raycast(thrower.x, thrower.y, ang, thrower.r + 6, solidForMove);
+  const off = clear.hit ? Math.max(1, clear.d - 2) : thrower.r + 6;
   game.bangs.push({
-    x: thrower.x + Math.cos(ang) * (thrower.r + 6), y: thrower.y + Math.sin(ang) * (thrower.r + 6),
+    x: thrower.x + Math.cos(ang) * off, y: thrower.y + Math.sin(ang) * off,
     vx: Math.cos(ang) * TUNE.bangThrowSpeed, vy: Math.sin(ang) * TUNE.bangThrowSpeed,
-    fuse: TUNE.bangFuse, travelLeft: d, side: thrower.side,
+    fuse: TUNE.bangFuse, travelLeft: clear.hit ? 0 : d, side: thrower.side,
   });
   addNoise(thrower.x, thrower.y, 80, "throw", thrower.side);
 }
@@ -783,11 +793,13 @@ function updateBangs(dt) {
       let step = Math.min(g.travelLeft, Math.hypot(g.vx, g.vy) * dt);
       const ang = Math.atan2(g.vy, g.vx);
       const hit = raycast(g.x, g.y, ang, step, solidForMove);
-      if (hit.hit) { // bounce: reflect off the wall face, damp
-        const wallNormalIsX = Math.abs(hit.x - g.x) > Math.abs(hit.y - g.y);
-        if (wallNormalIsX) g.vx *= -0.4; else g.vy *= -0.4;
-        g.x = hit.x - Math.cos(ang) * 2; g.y = hit.y - Math.sin(ang) * 2;
-        g.travelLeft *= 0.4;
+      if (hit.hit) {
+        if (hit.axis === null) { g.travelLeft = 0; g.vx = 0; g.vy = 0; } // started embedded: just sit
+        else { // bounce: reflect the component crossing the face the DDA actually stepped, damp
+          if (hit.axis === "x") g.vx *= -0.4; else g.vy *= -0.4;
+          g.x = hit.x - Math.cos(ang) * 2; g.y = hit.y - Math.sin(ang) * 2;
+          g.travelLeft *= 0.4;
+        }
       } else { g.x = hit.x; g.y = hit.y; g.travelLeft -= step; }
     }
     if (g.fuse <= 0) detonateBang(g);
@@ -838,10 +850,13 @@ function openDoor(d, quiet) {
 
 function closeDoor(d) {
   if (d.state !== "open") return;
-  // don't close a door on top of someone
-  const c = doorCenter(d);
+  // don't close a door on top of someone — true circle-vs-tile overlap, not center distance
   const everyone = [game.player, ...game.squad, ...game.enemies, ...game.hostages, ...game.civilians];
-  for (const e of everyone) if (e && e.alive && dist(c.x, c.y, e.x, e.y) < TILE * 0.8) return;
+  for (const e of everyone) {
+    if (!e || !e.alive) continue;
+    const px2 = clamp(e.x, d.tx * TILE, d.tx * TILE + TILE), py2 = clamp(e.y, d.ty * TILE, d.ty * TILE + TILE);
+    if (dist(e.x, e.y, px2, py2) < e.r + 2) return;
+  }
   d.state = "closed";
   addNoise(c.x, c.y, TUNE.noiseDoor, "door", "neutral");
 }
@@ -1229,7 +1244,7 @@ function issueOrders() {
       else { game.selected.clear(); game.selected.add(i); }
     }
   }
-  if (pressed("4") || pressed("`")) { game.selected.clear(); game.squad.forEach((s, i) => s.alive && game.selected.add(i)); }
+  if (pressed("4") || pressed("`") || pressed("~")) { game.selected.clear(); game.squad.forEach((s, i) => s.alive && game.selected.add(i)); }
   if (pressed("z")) selectedSquaddies().forEach(s => { removeFromPlans(s); s.order = { type: "follow" }; s.path = null; });
   if (pressed("v")) {
     const targets = game.selected.size ? selectedSquaddies() : game.squad.filter(s => s.alive);
@@ -1527,33 +1542,22 @@ function render() {
   for (const s of game.squad) if (s.alive) drawBody(s);
   if (game.player.alive) drawBody(game.player);
 
-  // hostiles & bystanders: only when your side sees them
+  // hostiles & bystanders: draw direct sightings now; ghosts go above the fog later
+  const ghosts = [];
   for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
     if (!e.alive) continue;
     const vis = visibleToPlayerSide(e);
     if (vis === "direct") drawBody(e);
-    else if (vis === "squad") drawGhost(e);
-    else if (game.mirror && game.mirror.t > 0 && roomAt(e.x, e.y) === game.mirror.room) drawGhost(e);
+    else if (vis === "squad") ghosts.push(e);
+    else if (game.mirror && game.mirror.t > 0 && roomAt(e.x, e.y) === game.mirror.room) ghosts.push(e);
   }
 
   // flashbangs in flight
   ctx.fillStyle = "#aab2ba";
   for (const g of game.bangs) { ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, TAU); ctx.fill(); }
-  // planted wall charge
-  if (game.wallCharge) {
-    const wc = game.wallCharge;
-    ctx.fillStyle = "#ff8c42";
-    ctx.fillRect(wc.tx * TILE + TILE / 2 - 5, wc.ty * TILE + TILE / 2 - 5, 10, 10);
-    ctx.strokeStyle = "#ff8c42"; ctx.setLineDash([3, 3]);
-    ctx.strokeRect(wc.tx * TILE + 2.5, wc.ty * TILE + 2.5, TILE - 5, TILE - 5);
-    ctx.setLineDash([]);
-  }
 
   // fx
   drawFx();
-
-  // stack plan markers
-  for (const p of game.plans) drawPlan(p);
 
   // fog: dim everything outside the player's current view
   if (game.player.alive) {
@@ -1575,6 +1579,18 @@ function render() {
   ctx.fillStyle = "#000";
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     if (inBounds(tx, ty) && !seen.grid[ty][tx]) ctx.fillRect(tx * TILE - 0.5, ty * TILE - 0.5, TILE + 1, TILE + 1);
+  }
+
+  // player-intel overlays sit ABOVE the fog — they are UI, not world geometry
+  for (const g of ghosts) drawGhost(g);
+  for (const p of game.plans) drawPlan(p);
+  if (game.wallCharge) {
+    const wc = game.wallCharge;
+    ctx.fillStyle = "#ff8c42";
+    ctx.fillRect(wc.tx * TILE + TILE / 2 - 5, wc.ty * TILE + TILE / 2 - 5, 10, 10);
+    ctx.strokeStyle = "#ff8c42"; ctx.setLineDash([3, 3]);
+    ctx.strokeRect(wc.tx * TILE + 2.5, wc.ty * TILE + 2.5, TILE - 5, TILE - 5);
+    ctx.setLineDash([]);
   }
 
   ctx.restore();
@@ -1632,8 +1648,9 @@ function drawBody(e, dead) {
 }
 
 function drawGhost(e) {
-  ctx.save(); ctx.translate(e.x, e.y); ctx.globalAlpha = 0.5;
-  ctx.strokeStyle = e.side === "enemy" ? COLORS.enemy : COLORS.civilian; ctx.lineWidth = 2;
+  ctx.save(); ctx.translate(e.x, e.y); ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = e.side === "enemy" ? COLORS.enemy : e.side === "hostage" ? COLORS.hostage : COLORS.civilian;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, -10); ctx.lineTo(10, 0); ctx.lineTo(0, 10); ctx.lineTo(-10, 0); ctx.closePath();
   ctx.stroke();
@@ -1656,7 +1673,15 @@ function drawPlan(p) {
 }
 
 function drawFx() {
+  const P = game.player;
   for (const f of game.fx) {
+    // combat fx you couldn't actually see stay hidden; loud events (flash,
+    // explosion, shout rings) deliberately telegraph through walls
+    if ((f.kind === "muzzle" || f.kind === "spark" || f.kind === "blood")
+        && P && !lineOfSight(P.x, P.y, f.x, f.y, opaque)) continue;
+    if (f.kind === "tracer" && P
+        && !lineOfSight(P.x, P.y, f.x, f.y, opaque)
+        && !lineOfSight(P.x, P.y, f.x2, f.y2, opaque)) continue;
     const k = f.t / f.max;
     if (f.kind === "tracer") {
       ctx.strokeStyle = COLORS.tracer; ctx.globalAlpha = k; ctx.lineWidth = 1.5;
@@ -1714,17 +1739,18 @@ function drawHud() {
       ctx.fillText(s.roe === "free" ? "FREE" : s.roe === "hold" ? "HOLD-F" : "RTN", 140, sy + 30);
     }
   });
-  // objectives (top center)
+  // objectives (top center; clamped clear of the squad panel on narrow windows)
   ctx.textAlign = "center";
   const hostTotal = game.hostages.length;
   const hostSec = game.hostages.filter(h => h.secured && h.alive).length;
   const threats = game.enemies.filter(e => e.alive && e.state !== "cuffed").length;
-  ctx.fillStyle = "#0009"; ctx.fillRect(viewW / 2 - 160, 10, 320, game.alarmTimerVisible() ? 52 : 34);
+  const objLeft = Math.max(viewW / 2 - 160, 214), objCx = objLeft + 160;
+  ctx.fillStyle = "#0009"; ctx.fillRect(objLeft, 10, 320, game.alarmTimerVisible() ? 52 : 34);
   ctx.fillStyle = COLORS.hud;
-  ctx.fillText("HOSTAGES " + hostSec + "/" + hostTotal + "   THREATS LEFT " + threats, viewW / 2, 32);
+  ctx.fillText("HOSTAGES " + hostSec + "/" + hostTotal + "   THREATS LEFT " + threats, objCx, 32);
   if (game.alarmTimerVisible()) {
     ctx.fillStyle = game.execT < 8 ? COLORS.danger : COLORS.accent;
-    ctx.fillText("HOSTAGE-TAKER ALERTED — EXECUTION IN " + Math.ceil(game.execT) + "s", viewW / 2, 52);
+    ctx.fillText("HOSTAGE-TAKER ALERTED — EXECUTION IN " + Math.ceil(game.execT) + "s", objCx, 52);
   }
   // hint (bottom center)
   if (game.hint) {
@@ -1839,7 +1865,7 @@ function sfxAt(name, x, y) {
 
 // ---------------------------------------------------------------- S12 game
 const game = {
-  state: "menu", paused: false, slowmo: false, mapIndex: 0,
+  state: "menu", paused: false, slowmo: false, mapIndex: 0, inProgress: false,
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -1870,7 +1896,7 @@ function initGame() {
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
-  game.paused = false; game.slowmo = false;
+  game.paused = false; game.slowmo = false; game.inProgress = true;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -1942,6 +1968,7 @@ function computeGrade() {
 
 function endMission(won, reason) {
   game.state = "debrief";
+  game.inProgress = false;
   const st = game.stats;
   document.getElementById("debriefTitle").textContent = won ? "Mission Complete" : "Mission Failed";
   document.getElementById("debriefGrade").textContent = won ? computeGrade() : "F";
@@ -1952,7 +1979,7 @@ function endMission(won, reason) {
   rows.push(`<div class="stat">Hostages secured: ${st.hostagesSecured}/${game.hostages.length}</div>`);
   rows.push(`<div class="stat">Suspects arrested: ${st.arrests} &nbsp;·&nbsp; killed: ${st.kills}</div>`);
   if (st.surrenderedKilled) rows.push(`<div class="stat" style="color:#ff5555">Surrendered suspects killed: ${st.surrenderedKilled}</div>`);
-  if (st.civsKilledByUs) rows.push(`<div class="stat" style="color:#ff5555">Civilians killed by your team: ${st.civsKilledByUs}</div>`);
+  if (st.civsKilled) rows.push(`<div class="stat" style="color:#ff5555">Civilians dead: ${st.civsKilled} (by your team: ${st.civsKilledByUs})</div>`);
   rows.push(`<div class="stat">Squad lost: ${st.squadLost}/3</div>`);
   rows.push(`<div class="stat">Shots fired: ${st.shotsFired} · Flashbangs: ${st.bangsUsed} · Breaches: ${st.breaches}</div>`);
   document.getElementById("debriefStats").innerHTML = rows.join("");
@@ -1993,7 +2020,12 @@ function frame(now) {
 
   if (game.state === "play") {
     if (pressed(" ")) game.paused = !game.paused;
-    if (pressed("escape")) { game.state = "menu"; document.getElementById("menu").classList.remove("hidden"); }
+    if (pressed("escape")) {
+      game.state = "menu";
+      document.getElementById("menu").classList.remove("hidden");
+      document.getElementById("btnStart").textContent = "Resume";
+      document.getElementById("btnAbort").style.display = "";
+    }
     game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
@@ -2020,19 +2052,21 @@ MAPS.forEach((m, i) => {
   mapPickEl.appendChild(b);
 });
 
-document.getElementById("btnStart").addEventListener("click", () => {
+function startMission(fresh) {
   initAudio();
-  initGame();
+  if (fresh) initGame();
   document.getElementById("menu").classList.add("hidden");
   document.getElementById("debrief").classList.add("hidden");
+  document.getElementById("btnStart").textContent = "Breach";
+  document.getElementById("btnAbort").style.display = "none";
   game.state = "play";
+}
+document.getElementById("btnStart").addEventListener("click", () => {
+  // "Resume" when a run is in progress (menu opened with Esc); fresh breach otherwise
+  startMission(!game.inProgress);
 });
-document.getElementById("btnRestart").addEventListener("click", () => {
-  initAudio();
-  initGame();
-  document.getElementById("debrief").classList.add("hidden");
-  game.state = "play";
-});
+document.getElementById("btnAbort").addEventListener("click", () => startMission(true));
+document.getElementById("btnRestart").addEventListener("click", () => startMission(true));
 
 requestAnimationFrame(frame);
 </script>
