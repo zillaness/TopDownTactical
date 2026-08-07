@@ -130,3 +130,30 @@ game.state = 'play';
 for (let i = 0; i < 600; i++) update(1/60);
 console.log('map3 after 10s idle: alarm =', game.alarm, '| enemies alive:', game.enemies.filter(e => e.alive).length);
 console.log('MAP3 TEST DONE');
+
+// ===== compliance statistics (arrest path regression) =====
+game.mapIndex = 0; game.diffIndex = 1;
+let surr = 0, feints = 0, N = 300;
+for (let i = 0; i < N; i++) {
+  initGame(); game.state = 'play';
+  const e = game.enemies[0];
+  e.flashedRecently = 3; e.blind = 3;           // flashed
+  if (trySurrender(e, game.player)) { surr++; if (e.feint) feints++; }
+}
+const rate = surr / N, feintRate = feints / Math.max(1, surr);
+console.log('flashed surrender rate:', rate.toFixed(2), '(expect ~0.55±0.08)',
+  '| feint share:', feintRate.toFixed(2), '(expect ~0.20±0.08)');
+if (Math.abs(rate - 0.55) > 0.08) console.log('COMPLIANCE RATE OUT OF BAND!');
+if (Math.abs(feintRate - 0.20) > 0.09) console.log('FEINT RATE OUT OF BAND!');
+
+// outgunned: player + 2 squad with LOS, enemy idle
+let surr2 = 0;
+for (let i = 0; i < N; i++) {
+  initGame(); game.state = 'play';
+  const e = game.enemies[0];                    // hall guard at (15,13)
+  game.player.x = e.x - 100; game.player.y = e.y;
+  game.squad.forEach((s, j) => { s.x = e.x - 90; s.y = e.y + (j - 1) * 24; });
+  if (trySurrender(e, game.player)) surr2++;
+}
+console.log('outgunned surrender rate:', (surr2 / N).toFixed(2), '(expect ~0.28±0.08)');
+console.log('COMPLIANCE TEST DONE');

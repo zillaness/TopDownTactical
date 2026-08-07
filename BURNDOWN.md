@@ -79,11 +79,33 @@ can both drive this file.
 - 06:0x ✅ review verdicts cross-checked: both CONFIRMED defects already fixed in U1a/U1b; REFUTED entries were verifiers observing the applied fixes — nothing new to apply
 - 06:0x ✅ U15 difficulty selector (Rookie/Regular/Elite: reaction, execution timer, surrender odds) + best-grade persistence per map+difficulty via localStorage — committed with this ledger line
 - 06:2x ✅ U16 third mission "THE PLANT" (inner secure room: locked door or wall-charge entry; elite + taker inside), map-3 tests + bot runs green — committed with this ledger line
-- ▶ NEXT: U17 squad charge economy + three-mission text sync; then final QA screenshots + handoff prep
+- 06:3x ✅ U17 squad breach-charge economy (2/mission, dry falls back to kick, plan label shows count) + three-mission text sync — committed eb0b179
+- 06:4x ✅ review workflow formally complete (15 agents, 0 errors): both CONFIRMED defects were already fixed in U1a/U1b; QA screenshots verified wall-charge breach + stun into the secure room on THE PLANT
+- 06:5x ✅ U18 compliance statistics regression test — flashed 0.54 (~0.55), feint 0.25 (~0.20), outgunned 0.33 (~0.28), all in band — committed with this ledger line
+- ▶ NEXT: idle until 8:00am pause trigger; on fire: final push, refresh this Handoff, night summary to Sam
 
 ## Handoff
 
-(filled at session end — done list, in-flight state, suggested next starting point)
+**Pre-filled 6:5x am; refreshed at the 8am pause.**
+
+Done tonight (all committed and pushed to `claude/tactical-game-research-ner6e1`):
+research doc (6 chapters + synthesis), PRD → v1.1.1, playable game →
+`top_down_tactical_v0.2.html` (3 missions, 3 difficulties, audio, slow-mo
+command time, ROE, mirror peek, wall charges, feint surrender, elite enemies,
+squad auto-cuff, best-grade persistence, in-world order UI), 15-agent
+adversarial review with all confirmed findings fixed, headless test harness
+(`tests/run.sh`: smoke + 9 bot playthroughs + compliance statistics).
+
+In-flight at handoff: nothing uncommitted.
+
+Suggested next session starting points (PRD §6, ranked):
+1. Playtest by a human (Sam) — tuning feedback loop; bot data says squad
+   survivability and map-3 difficulty are the axes to watch.
+2. Go Silent preset + slow-mo accessibility slider to full pause.
+3. Non-lethal arsenal (taser/beanbag) — deepens the arrest game.
+4. Game title decision — mechanics are proven; theming is unblocked.
+
+Phase 0 (token-burndown skill): still pending — no live meter tonight.
 
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial backlog seeded at project start.
