@@ -939,6 +939,15 @@ function updateEnemy(e, dt) {
   e.blind = Math.max(0, e.blind - dt);
   e.stagger = Math.max(0, e.stagger - dt);
   e.flashedRecently = Math.max(0, e.flashedRecently - dt);
+  if (e.state === "surrender" && e.feint && e.blind <= 0 && e.stagger <= 0) {
+    e.feintT -= dt;
+    if (e.feintT <= 0) {   // the surrender was fake — back up with the weapon
+      e.feint = false; e.state = "suspicious"; e.alerted = true;
+      e.investigate = { x: game.player.x, y: game.player.y }; e.investigateWait = 1;
+      game.fx.push({ kind: "shout", x: e.x, y: e.y, t: 0.5, max: 0.5 });
+      sfxAt("shout", e.x, e.y);
+    }
+  }
   if (e.state === "surrender" || e.state === "cuffed") return;
   updateShooterWeapon(e, dt);
 
@@ -1104,6 +1113,8 @@ function trySurrender(e) {
   if (threatsLeft <= 1) p += TUNE.surrenderLastMan;
   if (Math.random() < p) {
     e.state = "surrender"; e.path = null; e.burstLeft = 0;
+    e.feint = Math.random() < 0.2;          // some surrenders are fake — cuff them before they re-arm
+    e.feintT = rand(2.5, 5);
     game.fx.push({ kind: "surrender", x: e.x, y: e.y, t: 0.8, max: 0.8 });
     sfxAt("surrender", e.x, e.y);
     return true;
@@ -1114,7 +1125,7 @@ function trySurrender(e) {
 
 function cuffEnemy(e) {
   if (e.state !== "surrender") return;
-  e.state = "cuffed";
+  e.state = "cuffed"; e.feint = false;
   game.stats.arrests++;
   game.hint = "Suspect cuffed";
 }
