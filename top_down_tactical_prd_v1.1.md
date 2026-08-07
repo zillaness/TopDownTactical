@@ -1,6 +1,6 @@
 ---
-file: top_down_tactical_prd_v1.0.md
-version: 1.0
+file: top_down_tactical_prd_v1.1.md
+version: 1.1
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-07
@@ -47,7 +47,10 @@ If a feature doesn't sharpen one of these, cut it.
 | F | Kick door (fast, loud, staggers anyone behind it) |
 | G | Throw flashbang at cursor |
 | C | Shout "hands up!" — compliance check on enemies with LOS |
+| Q | Mirror under a closed door — mark contacts in the room (4s) |
+| H | Wall charge: plant on the wall you face, H again to detonate |
 | Space | Tactical pause — world freezes, orders still issuable |
+| Tab (hold) | Command time — world runs at 15% while you order |
 | Esc | Menu |
 
 **Squad command (same cursor, no mode switch):**
@@ -62,6 +65,7 @@ If a feature doesn't sharpen one of these, cut it.
 | T | Toggle flashbang on that breach |
 | X | **GO** — every READY stack breaches simultaneously |
 | Z | Selected: follow me |
+| V | Cycle ROE for selected (or all): hold / return fire / weapons free |
 
 Design rules from research: cursor carries aim + camera + command (never a separate command screen); GO is the only input a set-piece needs mid-fight; camera lead must cover the enemy's lethal range so nothing kills you from outside obtainable information.
 
@@ -99,28 +103,38 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 ### 5.5 Enemy AI
 - States: idle/patrol → suspicious (investigate) → combat (reaction delay 0.42–0.85s, faster when alerted; burst fire with range-scaled error) → hunt last-known-position. Blind/staggered states from bangs, kicks, charges.
 - Surrender: shout-driven compliance roll — base 10%, 55% if flashed, 28% if outgunned (2+ guns, not mid-attack), +18% for the last threat standing. Surrendered suspects are cuffable (E); killing them wrecks the score.
+- **Feint surrender:** ~20% of surrenders are fake — the suspect re-arms after 2.5–5s unless cuffed first. Cuffing is urgent, not bookkeeping.
 - **Hostage-taker:** once the map alerts, he moves to the hostages and a visible execution countdown (22s) runs — paused while he's blind, staggered, or fighting. Timer at zero with a hostage in reach = hostage dies = mission failed. The counter-play is pressure, not speed alone.
 
 ### 5.6 Squad AI
 - Orders: follow / move-and-hold / stack / breach-on-GO. Stacks form on wall-hugging slots beside the frame; plan shows method + READY state above the door.
 - Combat overlay: engage visible threats with 0.18–0.3s reaction, but never through friendlies; entries keep flowing while engaging (points-of-domination flood).
 - Pathing opens unlocked doors quietly, kicks locked ones only when directly ordered through them.
+- **Fire discipline (ROE):** hold / return fire (default) / weapons free, cycled with V per selection; breach entries are always weapons free; enemy gunfire opens a 4s return-fire window.
 
-### 5.7 Mission & scoring (v0.1: one compound, hostage rescue)
+### 5.7 Missions & scoring (v0.1: two hostage-rescue maps, mission select on menu)
+- THE COMPOUND (one building, two entries) and SAFEHOUSE ROW (two buildings across an alley, hostages far east, locked back door).
 - Win: all hostages secured (E in a cleared room) AND all threats dead or cuffed. Lose: player down, or any hostage dies.
 - Debrief: time, arrests vs kills, surrendered-suspect kills, civilian deaths by your team, squad losses, shots, bangs, breaches. Grade S/A/B/C/D — arrests add, kills subtract, ROE violations subtract hard. Score-as-difficulty is the future difficulty knob (SWAT 4's 95/100 Elite model).
 
+### 5.8 Shipped from the deferred list during burndown night 2026-08-07
+- Slow-mo command time (hold Tab, 15% timescale; Space full pause kept).
+- Squad ROE toggle (hold / return / free).
+- Mirror-under-door peek (Q).
+- Wall charges (player-carried, 2 per mission).
+- Feint surrender.
+- Synthesized WebAudio SFX (shots, breaches, bangs, shouts, hits — distance-attenuated, stereo-panned, zero assets).
+- Second mission + mission select.
+
 ## 6. Deferred (future builds, ranked)
 
-1. Slow-mo command mode (~15% timescale while ordering) with accessibility slider to full pause — replaces plain pause as the default mid-fight command state.
-2. Squad ROE toggle (hold / return / free fire) + Go Silent for synced stealth takedowns.
-3. Intel gear: mirror/pole camera under doors, drone, lockpicks, breaching shotgun.
-4. Wall charges + destructible wall material tiers (edit the map's connectivity graph; enemies re-path).
-5. Non-lethal arsenal (taser/beanbag/pepperball) with the no-universal-hard-stop balance rule.
-6. Suspect feint-surrender and re-arm; wandering civilians.
-7. **Operator kits (R6-style, one verb + one constraint each) — explicitly out of the first build per Sam, 2026-08-07.** Enemy-side Siege concepts (traps, jammers, anchors/roamers) come first.
-8. Ballistic penetration through doors/thin walls (DK2's declined #2 request — differentiation lever).
-9. More maps; multi-floor with cutaway UI; pre-mission waypoint plans with go-codes you join as point man; campaign with named squadmates, persistent injuries, stress.
+1. Go Silent mode for synced stealth takedowns; accessibility slider upgrading slow-mo to full pause.
+2. More intel gear: drone, lockpicks, breaching shotgun; squad-carried wall charges and breach-method depth (charge kills vs stuns tuning).
+3. Non-lethal arsenal (taser/beanbag/pepperball) with the no-universal-hard-stop balance rule.
+4. Wandering civilians; destructible wall material tiers.
+5. **Operator kits (R6-style, one verb + one constraint each) — explicitly out of the first build per Sam, 2026-08-07.** Enemy-side Siege concepts (traps, jammers, anchors/roamers) come first.
+6. Ballistic penetration through doors/thin walls (DK2's declined #2 request — differentiation lever).
+7. More maps; multi-floor with cutaway UI; pre-mission waypoint plans with go-codes you join as point man; campaign with named squadmates, persistent injuries, stress.
 
 ## 7. Anti-goals
 
@@ -133,3 +147,4 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial PRD, written from tactical_research_v1.0.md alongside prototype v0.1.
+- v1.1 (2026-08-07, burndown night): Synced to shipped state — slow-mo command time, ROE, mirror peek, wall charges, feint surrender, audio, second mission + mission select moved from deferred to §5; deferred list renumbered; control table expanded (Q/H/Tab/V).

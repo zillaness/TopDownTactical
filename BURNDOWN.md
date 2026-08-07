@@ -69,7 +69,8 @@ can both drive this file.
 - 04:0x ✅ U7 second mission "SAFEHOUSE ROW" (two buildings + alley), mission picker on menu, camera clamped to world — committed with this ledger line
 - 04:1x ✅ U8 wall charges (H plant/H blow, wall becomes opening, LOS/pathing live-update, stun through breach) — committed with this ledger line
 - 04:2x ✅ U9 feint surrender (20% of surrenders fake; re-arm in 2.5-5s unless cuffed) — committed with this ledger line
-- ▶ NEXT: U10 PRD v1.1 sync + polish; review-workflow findings (U1) when it lands
+- 04:3x ✅ U10 PRD synced to v1.1 (shipped features moved into scope, controls table updated) — committed with this ledger line
+- ▶ NEXT: review-workflow findings (U1) — verify phase running; then final browser pass on both maps
 
 ## Handoff
 
