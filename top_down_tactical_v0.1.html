@@ -47,6 +47,7 @@
       <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
+      <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key"></td><td></td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad follows orders</h3>
@@ -541,6 +542,19 @@ function updatePlayer(p, dt) {
   }
   if (pressed("g") && p.bangs > 0) { throwBang(p, input.mouse.wx, input.mouse.wy); p.bangs--; }
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
+  if (pressed("q")) {
+    const d = nearestDoor(p.x, p.y, 52);
+    if (d && d.state === "closed") {
+      const n = doorNormal(d, p.x, p.y);
+      const c = doorCenter(d);
+      const behind = roomAt(c.x - n.x * TILE, c.y - n.y * TILE);
+      if (behind) {
+        game.mirror = { room: behind, t: 4 };
+        addNoise(c.x, c.y, TUNE.noiseDoor, "door", "player");
+        game.hint = "Mirror under the door — contacts marked";
+      }
+    }
+  }
 }
 
 function playerInteract(p) {
@@ -1391,6 +1405,7 @@ function render() {
     const vis = visibleToPlayerSide(e);
     if (vis === "direct") drawBody(e);
     else if (vis === "squad") drawGhost(e);
+    else if (game.mirror && game.mirror.t > 0 && roomAt(e.x, e.y) === game.mirror.room) drawGhost(e);
   }
 
   // flashbangs in flight
@@ -1691,7 +1706,7 @@ const game = {
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
-  alarm: false, execT: TUNE.executionTimer, underFireT: 0,
+  alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -1713,7 +1728,7 @@ function initGame() {
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = [];
   game.selected = new Set();
-  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0;
+  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0; game.mirror = null;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
@@ -1725,6 +1740,7 @@ function initGame() {
 function update(dt) {
   game.stats.time += dt;
   game.underFireT = Math.max(0, game.underFireT - dt);
+  if (game.mirror) { game.mirror.t -= dt; if (game.mirror.t <= 0) game.mirror = null; }
   updatePlayer(game.player, dt);
   for (const s of game.squad) updateSquaddie(s, dt);
   updatePlans(dt);
