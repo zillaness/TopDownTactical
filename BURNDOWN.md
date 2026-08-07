@@ -76,7 +76,9 @@ can both drive this file.
 - 05:3x ✅ U12 in-world command state: selection rings on squaddies, move-order lines + destination markers (above fog) — committed with this ledger line
 - 05:4x ✅ U13 squad auto-cuff in reach + elite enemy kind (120hp, fast react, surrender-resistant, magenta; guards Safehouse Row SE) — committed with this ledger line
 - 05:5x ✅ U14 version bump → top_down_tactical_v0.2.html (full changelog) + project README.md — committed with this ledger line
-- ▶ NEXT: cross-check verifier verdicts when workflow lands; then handoff prep for the 8am pause
+- 06:0x ✅ review verdicts cross-checked: both CONFIRMED defects already fixed in U1a/U1b; REFUTED entries were verifiers observing the applied fixes — nothing new to apply
+- 06:0x ✅ U15 difficulty selector (Rookie/Regular/Elite: reaction, execution timer, surrender odds) + best-grade persistence per map+difficulty via localStorage — committed with this ledger line
+- ▶ NEXT: U16 third mission map; handoff prep before the 8am pause
 
 ## Handoff
 

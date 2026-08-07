@@ -29,6 +29,7 @@
   .btn { margin-top: 24px; padding: 12px 44px; font-size: 16px; letter-spacing: 3px; background: #1d4ed8; color: #fff; border: 0; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
   .btn:hover { background: #2563eb; }
   #mapPick { display: flex; gap: 10px; margin-top: 22px; }
+  #diffPick { display: flex; gap: 8px; margin-top: 12px; }
   .mapbtn { background: #11161b; border: 1px solid #232c34; color: #aeb8c2; padding: 10px 18px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
   .mapbtn b { color: #e8eef4; letter-spacing: 1px; }
   .mapbtn.sel { border-color: #1d4ed8; background: #14203a; }
@@ -64,6 +65,7 @@
     </table>
   </div>
   <div id="mapPick"></div>
+  <div id="diffPick"></div>
   <button class="btn" id="btnStart">Breach</button>
   <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
 </div>
@@ -1002,7 +1004,8 @@ function updateEnemy(e, dt) {
   if (vis) {
     if (e.state !== "combat") {
       e.state = "combat";
-      e.reactT = randIn(e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact);
+      e.reactT = randIn(e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact)
+        * (game.diff ? game.diff.react : 1);
       e.alerted = true; game.alarm = true;
     }
     e.target = vis; e.lastKnown = { x: vis.x, y: vis.y };
@@ -1147,6 +1150,7 @@ function trySurrender(e, shouter) {
   const threatsLeft = game.enemies.filter(x => x.alive && x.state !== "surrender" && x.state !== "cuffed").length;
   if (threatsLeft <= 1) p += TUNE.surrenderLastMan;
   if (e.kind === "elite") p *= 0.4;   // elites don't rattle easily
+  p *= game.diff ? game.diff.surrender : 1;
   if (Math.random() < p) {
     e.state = "surrender"; e.path = null; e.burstLeft = 0;
     e.feint = Math.random() < 0.2;          // some surrenders are fake — cuff them before they re-arm
@@ -1892,8 +1896,14 @@ function sfxAt(name, x, y) {
 }
 
 // ---------------------------------------------------------------- S12 game
+const DIFFICULTIES = [
+  { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 32, surrender: 1.35 },
+  { key: "regular", name: "REGULAR", react: 1.0,  exec: 22, surrender: 1.0 },
+  { key: "elite",   name: "ELITE",   react: 0.75, exec: 15, surrender: 0.75 },
+];
+
 const game = {
-  state: "menu", paused: false, slowmo: false, mapIndex: 0, inProgress: false,
+  state: "menu", paused: false, slowmo: false, mapIndex: 0, diffIndex: 1, inProgress: false,
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -1920,7 +1930,8 @@ function initGame() {
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = [];
   game.selected = new Set();
-  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
+  game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
+  game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
@@ -1998,8 +2009,10 @@ function endMission(won, reason) {
   game.state = "debrief";
   game.inProgress = false;
   const st = game.stats;
+  const grade = won ? computeGrade() : "F";
+  if (won && game.diff) { saveBest(game.mapIndex, game.diff.key, grade); refreshMenu(); }
   document.getElementById("debriefTitle").textContent = won ? "Mission Complete" : "Mission Failed";
-  document.getElementById("debriefGrade").textContent = won ? computeGrade() : "F";
+  document.getElementById("debriefGrade").textContent = grade;
   document.getElementById("debriefGrade").style.color = won ? "#3fc27e" : "#ff5555";
   const rows = [];
   if (!won) rows.push(`<div class="stat" style="color:#ff5555">${reason}</div><br>`);
@@ -2068,17 +2081,48 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// best-grade persistence (per map + difficulty)
+const GRADE_ORDER = ["S", "A", "B", "C", "D"];
+function loadBests() {
+  try { return JSON.parse(localStorage.getItem("tdt_best") || "{}"); } catch (e) { return {}; }
+}
+function saveBest(mapIdx, diffKey, grade) {
+  try {
+    const b = loadBests(), k = mapIdx + ":" + diffKey;
+    if (!b[k] || GRADE_ORDER.indexOf(grade) < GRADE_ORDER.indexOf(b[k])) {
+      b[k] = grade; localStorage.setItem("tdt_best", JSON.stringify(b));
+    }
+  } catch (e) {}
+}
+
 const mapPickEl = document.getElementById("mapPick");
+const diffPickEl = document.getElementById("diffPick");
+function refreshMenu() {
+  const bests = loadBests();
+  const dk = DIFFICULTIES[game.diffIndex].key;
+  mapPickEl.querySelectorAll(".mapbtn").forEach((x, j) => {
+    x.classList.toggle("sel", j === game.mapIndex);
+    const best = bests[j + ":" + dk];
+    const span = x.querySelector(".best");
+    if (span) span.textContent = best ? "best: " + best : "";
+  });
+  diffPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === game.diffIndex));
+}
 MAPS.forEach((m, i) => {
   const b = document.createElement("button");
-  b.className = "mapbtn" + (i === 0 ? " sel" : "");
-  b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span>";
-  b.addEventListener("click", () => {
-    game.mapIndex = i;
-    mapPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === i));
-  });
+  b.className = "mapbtn";
+  b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span><br><span class=\"best\" style=\"color:#e8b53a\"></span>";
+  b.addEventListener("click", () => { game.mapIndex = i; refreshMenu(); });
   mapPickEl.appendChild(b);
 });
+DIFFICULTIES.forEach((d, i) => {
+  const b = document.createElement("button");
+  b.className = "mapbtn";
+  b.innerHTML = "<b>" + d.name + "</b>";
+  b.addEventListener("click", () => { game.diffIndex = i; refreshMenu(); });
+  diffPickEl.appendChild(b);
+});
+refreshMenu();
 
 function startMission(fresh) {
   initAudio();
