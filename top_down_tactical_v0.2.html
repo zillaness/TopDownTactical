@@ -5,7 +5,7 @@
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-07
-  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), two hostage-rescue missions, and restraint scoring.
+  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), three hostage-rescue missions, difficulty tiers, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
 -->
@@ -1313,6 +1313,7 @@ function issueOrders() {
       if (pressed("b")) {
         const order = ["open", "kick", "charge"];
         plan.method = order[(order.indexOf(plan.method) + 1) % order.length];
+        if (plan.method === "charge" && game.squadCharges <= 0) plan.method = "open";
         if (plan.door.locked && plan.method === "open") plan.method = "kick";
       }
       if (pressed("t")) plan.useBang = !plan.useBang;
@@ -1503,7 +1504,10 @@ function updatePlans(dt) {
       const c = doorCenter(p.door);
       // t=0: the door
       if (wasT === 0) {
-        if (p.method === "charge") chargeDoor(p.door, breacher);
+        if (p.method === "charge") {
+          if (game.squadCharges > 0) { game.squadCharges--; chargeDoor(p.door, breacher); }
+          else kickDoor(p.door, breacher);   // dry on charges: kick it instead
+        }
         else if (p.method === "kick") kickDoor(p.door, breacher);
         else openDoor(p.door, true);
       }
@@ -1732,7 +1736,8 @@ function drawPlan(p) {
   ctx.setLineDash([]);
   ctx.font = "10px Consolas, monospace"; ctx.textAlign = "center";
   ctx.fillStyle = ready ? COLORS.ok : COLORS.accent;
-  const label = p.method.toUpperCase() + (p.useBang ? "+BANG" : "") + (ready ? " · READY [X]" : "");
+  const method = p.method === "charge" ? "CHARGE(" + game.squadCharges + ")" : p.method.toUpperCase();
+  const label = method + (p.useBang ? "+BANG" : "") + (ready ? " · READY [X]" : "");
   ctx.fillText(label, c.x, c.y - 14);
 }
 
@@ -1964,6 +1969,7 @@ function initGame() {
   game.selected = new Set();
   game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
   game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
+  game.squadCharges = 2;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
