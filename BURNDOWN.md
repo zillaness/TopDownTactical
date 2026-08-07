@@ -70,6 +70,7 @@ can both drive this file.
 - 04:1x ✅ U8 wall charges (H plant/H blow, wall becomes opening, LOS/pathing live-update, stun through breach) — committed with this ledger line
 - 04:2x ✅ U9 feint surrender (20% of surrenders fake; re-arm in 2.5-5s unless cuffed) — committed with this ledger line
 - 04:3x ✅ U10 PRD synced to v1.1 (shipped features moved into scope, controls table updated) — committed with this ledger line
+- 04:4x ✅ U11 test harness into repo (tests/run.sh: smoke tests + 6 assault-bot playthroughs, both maps, 0 errors) — committed with this ledger line
 - ▶ NEXT: review-workflow findings (U1) — verify phase running; then final browser pass on both maps
 
 ## Handoff
