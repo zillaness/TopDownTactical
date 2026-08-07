@@ -55,7 +55,7 @@
       <tr><td class="key">RMB ground</td><td>move there &middot; hold</td><td class="key">RMB door</td><td>stack on door</td></tr>
       <tr><td class="key">B</td><td>cycle stacked breach: open / kick / charge</td><td class="key">T</td><td>toggle bang on breach</td></tr>
       <tr><td class="key">X</td><td>GO &mdash; execute all queued breaches</td><td class="key">Z</td><td>selected: follow me</td></tr>
-      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key"></td><td></td></tr>
+      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
     </table>
   </div>
   <button class="btn" id="btnStart">Breach</button>
@@ -611,6 +611,7 @@ function tryFire(s, ang) {
   addNoise(s.x, s.y, TUNE.noiseShot, "shot", s.side);
   sfxAt("shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
+  if (s.side === "enemy") game.underFireT = 4;   // squad "return fire" window
   return true;
 }
 
@@ -1069,6 +1070,7 @@ function makeSquaddie(sp, i) {
   s.order = { type: "follow" };
   s.path = null; s.pathI = 0; s.repathT = 0;
   s.reactT = 0; s.engaged = null; s.shoutedAt = 0; s.state = "idle";
+  s.roe = "return"; // hold | return | free
   return s;
 }
 
@@ -1106,6 +1108,13 @@ function issueOrders() {
   }
   if (pressed("4") || pressed("`")) { game.selected.clear(); game.squad.forEach((s, i) => s.alive && game.selected.add(i)); }
   if (pressed("z")) selectedSquaddies().forEach(s => { s.order = { type: "follow" }; s.path = null; });
+  if (pressed("v")) {
+    const targets = game.selected.size ? selectedSquaddies() : game.squad.filter(s => s.alive);
+    const order = ["hold", "return", "free"];
+    const next = order[(order.indexOf((targets[0] || {}).roe || "return") + 1) % order.length];
+    targets.forEach(s => s.roe = next);
+    game.hint = "ROE: " + (next === "hold" ? "HOLD FIRE" : next === "return" ? "RETURN FIRE" : "WEAPONS FREE");
+  }
 
   // RMB: stack on door, or move+hold on ground
   if (pressed("rmb")) {
@@ -1200,7 +1209,10 @@ function updateSquaddie(s, dt) {
   if (threat) {
     s.face = angLerp(s.face, angleTo(s.x, s.y, threat.x, threat.y), dt * 12);
     s.reactT -= dt;
-    if (s.reactT <= 0 && s.stagger <= 0 && clearShot(s, threat)) {
+    // fire discipline: entry = weapons free; otherwise per ROE
+    const mayFire = executingEntry || s.roe === "free"
+      || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0));
+    if (mayFire && s.reactT <= 0 && s.stagger <= 0 && clearShot(s, threat)) {
       tryFire(s, angleTo(s.x, s.y, threat.x, threat.y));
     }
     if (s.ammo <= 0 && s.reloading <= 0) tryReload(s);
@@ -1545,7 +1557,9 @@ function drawHud() {
       ctx.fillStyle = "#333"; ctx.fillRect(22, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(22, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
       ctx.fillStyle = COLORS.hudDim;
-      ctx.fillText(orderLabel(s), 140, sy + 28);
+      ctx.fillText(orderLabel(s), 140, sy + 15);
+      ctx.fillStyle = s.roe === "free" ? COLORS.danger : s.roe === "hold" ? COLORS.hud : COLORS.accent;
+      ctx.fillText(s.roe === "free" ? "FREE" : s.roe === "hold" ? "HOLD-F" : "RTN", 140, sy + 30);
     }
   });
   // objectives (top center)
@@ -1677,7 +1691,7 @@ const game = {
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
-  alarm: false, execT: TUNE.executionTimer,
+  alarm: false, execT: TUNE.executionTimer, underFireT: 0,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -1699,7 +1713,7 @@ function initGame() {
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = [];
   game.selected = new Set();
-  game.alarm = false; game.execT = TUNE.executionTimer;
+  game.alarm = false; game.execT = TUNE.executionTimer; game.underFireT = 0;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
@@ -1710,6 +1724,7 @@ function initGame() {
 
 function update(dt) {
   game.stats.time += dt;
+  game.underFireT = Math.max(0, game.underFireT - dt);
   updatePlayer(game.player, dt);
   for (const s of game.squad) updateSquaddie(s, dt);
   updatePlans(dt);

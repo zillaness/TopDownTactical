@@ -64,7 +64,8 @@ can both drive this file.
 - 03:1x ✅ U2 browser verification via Playwright + fixed fx pruning & seen-grid gaps — committed d5addd8
 - 03:2x ✅ U3 synthesized WebAudio SFX (shot/kick/breach/bang/shout/hit/thud/door/click/surrender, distance+pan) — committed with this ledger line
 - 03:3x ✅ U4 slow-mo command mode (hold Tab → 15% timescale, banner, menu row) — committed with this ledger line
-- ▶ NEXT: U5 squad ROE toggle (hold/return/free fire); review-workflow findings fold in as U1 when it lands
+- 03:4x ✅ U5 squad ROE toggle (V cycles hold/return/free; return-fire default; entry = weapons free; HUD shows ROE) — committed with this ledger line
+- ▶ NEXT: U6 door peek (mirror cam); review-workflow findings fold in as U1 when it lands
 
 ## Handoff
 
