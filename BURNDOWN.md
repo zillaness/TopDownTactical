@@ -15,24 +15,53 @@ partial-completable, and committed on completion — the same discipline
 as a token-burndown night, so `/burndown` and the token-burndown skill
 can both drive this file.
 
+## Burndown night — 2026-08-07 (reset 8:00am PDT / 15:00 UTC)
+
+- Started ~3:00am PDT. Last meter reading (Sam, ~1:15am): Fable 27% used.
+- Stop triggers: primary 8:00am (trig_01LHwvk8gkyiUkZuVAj2zEGc),
+  failsafe 8:12am (trig_01RAGrpt2oHF2M2Wiw7tmmnJ). Pause at 8am — do not
+  burn post-reset quota.
+- Ladder: claude-fable-5 → claude-opus-5 → claude-sonnet-5 → claude-haiku-4-5.
+  Sam asleep → reactive protocol on limit errors (commit, ledger NEXT,
+  /model line posted, subagent redispatch).
+- Phase 0 usage-mechanics experiments: **pending** — no live meter tonight;
+  normal burndown per skill rule.
+
+### Night queue (ranked)
+
+- U1 ◐ Apply confirmed findings from adversarial review workflow (in flight)
+- U2 ☐ In-browser verification: run the game in Chromium/Playwright, screenshot menu + gameplay, fix render bugs
+- U3 ☐ Audio: WebAudio SFX (shots, kick, breach, bang, shout, surrender) — no external assets
+- U4 ☐ Slow-mo command mode (~15% timescale while ordering) with Space full-pause kept
+- U5 ☐ Squad ROE toggle: hold fire / return fire / weapons free
+- U6 ☐ Door peek (mirror/pole cam): reveal room through a closed door, limited uses
+- U7 ☐ Second mission map + mission select on menu
+- U8 ☐ Wall charges (breach through walls, edit connectivity)
+- U9 ☐ Suspect feint-surrender + re-arm
+- U10 ☐ Menu/debrief polish, difficulty as score threshold
+
 ## Backlog (ranked, highest value-per-token first)
 
-1. ☐ Genre & doctrine research doc (`tactical_research_v1.0.md`)
-2. ☐ PRD (`top_down_tactical_prd_v1.0.md`)
-3. ☐ Prototype v0.1: player operator — WASD move, mouse aim, shoot, walls, line-of-sight
-4. ☐ Prototype v0.1: enemies with vision, reaction time, and lethal return fire
-5. ☐ Prototype v0.1: doors (kick/open), breach interactions, flashbangs
-6. ☐ Prototype v0.1: squad AI — follow, hold, move-to, stack-on-door, breach-on-GO
-7. ☐ Prototype v0.1: hostage rescue objective + mission end states + restraint scoring
-8. ☐ Prototype v0.1: HUD (squad status, ammo, order UI), pause-to-command
-9. ☐ Playtest pass: tune lethality, enemy reaction, squad competence
-10. ☐ Backlog after v0.1: more maps, operator kits (R6-style), suspect compliance/arrests, sound propagation, marksman/breacher classes, go-code multi-door sync breach, drone/mirror recon, non-lethal loadouts, campaign structure
+1. ☑ Genre & doctrine research doc (`tactical_research_v1.0.md`)
+2. ☑ PRD (`top_down_tactical_prd_v1.0.md`)
+3. ☑ Prototype v0.1: player operator — WASD move, mouse aim, shoot, walls, line-of-sight
+4. ☑ Prototype v0.1: enemies with vision, reaction time, and lethal return fire
+5. ☑ Prototype v0.1: doors (kick/open), breach interactions, flashbangs
+6. ☑ Prototype v0.1: squad AI — follow, hold, move-to, stack-on-door, breach-on-GO
+7. ☑ Prototype v0.1: hostage rescue objective + mission end states + restraint scoring
+8. ☑ Prototype v0.1: HUD (squad status, ammo, order UI), pause-to-command
+9. ◐ Review/playtest pass: adversarial review workflow + confirmed fixes (in progress)
+10. ☐ Future builds (ranked in PRD §6): slow-mo command mode, squad ROE toggle, intel gear (mirror/drone/lockpicks), wall charges, non-lethal arsenal, feint-surrender, operator kits (Sam: not first build), ballistic penetration, more maps/multi-floor, campaign layer
 
 ## Ledger
 
 - 2026-08-07 ℹ usage reading (Sam): Fable 27% used / 73% left — full headroom, no ladder action
 - 2026-08-07 ℹ scope call (Sam): no R6-style operator kits in first build → moved to future-build backlog
-- 2026-08-07 ▶ NEXT: research workflow running (6 agents); then write research doc
+- 2026-08-07 ✅ project scaffold (GOAL.md, BURNDOWN.md, /goal, /burndown) — committed 1d5ac0a
+- 2026-08-07 ✅ prototype v0.1 core (12 sections, smoke-tested) — committed 06495a0
+- 2026-08-07 ✅ research doc, 6-chapter sweep + synthesis — committed df91a80
+- 2026-08-07 ✅ PRD v1.0 — committed e6d7ceb
+- 2026-08-07 ▶ NEXT: apply confirmed findings from review workflow, then final push
 
 ## Handoff
 
