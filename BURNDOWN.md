@@ -83,7 +83,8 @@ can both drive this file.
 - 06:4x ✅ review workflow formally complete (15 agents, 0 errors): both CONFIRMED defects were already fixed in U1a/U1b; QA screenshots verified wall-charge breach + stun into the secure room on THE PLANT
 - 06:5x ✅ U18 compliance statistics regression test — flashed 0.54 (~0.55), feint 0.25 (~0.20), outgunned 0.33 (~0.28), all in band — committed with this ledger line
 - 07:0x ✅ U19 noise-radius rings for player-side emissions (stealth system made learnable) — committed with this ledger line
-- ▶ NEXT: idle until 8:00am pause trigger; on fire: final push, refresh this Handoff, night summary to Sam
+- 06:2x ℹ usage reading (Sam): Fable 35% used / 65% left. Observation for Phase 0: whole night so far (research workflow 374k + review workflow 1.22M subagent tokens + main loop) moved the meter only ~8 points from the 1am reading — consistent with subagent spend not billing to the Fable bucket. UNVERIFIED; Phase 0 still pending.
+- ▶ NEXT: U20 squad barks; U21 fourth mission if time; pause at 8:00am trigger
 
 ## Handoff
 
