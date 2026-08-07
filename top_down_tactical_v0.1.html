@@ -55,6 +55,7 @@
       <tr><td class="key">RMB ground</td><td>move there &middot; hold</td><td class="key">RMB door</td><td>stack on door</td></tr>
       <tr><td class="key">B</td><td>cycle stacked breach: open / kick / charge</td><td class="key">T</td><td>toggle bang on breach</td></tr>
       <tr><td class="key">X</td><td>GO &mdash; execute all queued breaches</td><td class="key">Z</td><td>selected: follow me</td></tr>
+      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key"></td><td></td></tr>
     </table>
   </div>
   <button class="btn" id="btnStart">Breach</button>
@@ -1566,11 +1567,16 @@ function drawHud() {
   // context prompt
   const prompt = contextPrompt();
   if (prompt) { ctx.fillStyle = COLORS.hud; ctx.fillText(prompt, viewW / 2, viewH - 62); }
-  // paused banner
+  // paused / slow-mo banner
   if (game.paused) {
     ctx.fillStyle = "#000b"; ctx.fillRect(viewW / 2 - 220, viewH / 2 - 130, 440, 40);
     ctx.fillStyle = COLORS.accent; ctx.font = "16px Consolas, monospace";
     ctx.fillText("TACTICAL PAUSE — orders active, [SPACE] to resume", viewW / 2, viewH / 2 - 104);
+    ctx.font = "13px Consolas, monospace";
+  } else if (game.slowmo) {
+    ctx.fillStyle = "rgba(40,80,160,0.10)"; ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = "#7fb0ff"; ctx.font = "14px Consolas, monospace"; ctx.textAlign = "center";
+    ctx.fillText("COMMAND — release [TAB] to resume", viewW / 2, viewH / 2 - 110);
     ctx.font = "13px Consolas, monospace";
   }
   // crosshair with spread gap
@@ -1667,7 +1673,7 @@ function sfxAt(name, x, y) {
 
 // ---------------------------------------------------------------- S12 game
 const game = {
-  state: "menu", paused: false,
+  state: "menu", paused: false, slowmo: false,
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -1697,7 +1703,7 @@ function initGame() {
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
-  game.paused = false;
+  game.paused = false; game.slowmo = false;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -1812,10 +1818,11 @@ function frame(now) {
   if (game.state === "play") {
     if (pressed(" ")) game.paused = !game.paused;
     if (pressed("escape")) { game.state = "menu"; document.getElementById("menu").classList.remove("hidden"); }
-    issueOrders();                    // orders work while paused — that's the point
+    game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
+    issueOrders();                    // orders work while paused/slowed — that's the point
     if (!game.paused) {
-      update(dt);
-      updateCamera(dt);
+      update(game.slowmo ? dt * 0.15 : dt);
+      updateCamera(dt);               // camera stays smooth in real time
     }
     updateHint(dt);
     if (game.player) game.visPoly = computeVisPolygon(game.player.x, game.player.y, TUNE.playerViewDist);
