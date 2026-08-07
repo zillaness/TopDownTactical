@@ -19,8 +19,8 @@ missions, three difficulty tiers, best grades saved per mission.
 self-contained file — no build, no dependencies.
 
 **Test:** `tests/run.sh` — syntax check, headless smoke tests (map integrity,
-pathing, breach pipeline, feints, wall charges), and six assault-bot
-end-to-end playthroughs across both missions.
+pathing, breach pipeline, feints, wall charges, compliance statistics), and
+twelve assault-bot end-to-end playthroughs across all four missions.
 
 | File | What it is |
 |---|---|

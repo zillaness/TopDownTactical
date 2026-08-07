@@ -84,7 +84,9 @@ can both drive this file.
 - 06:5x ✅ U18 compliance statistics regression test — flashed 0.54 (~0.55), feint 0.25 (~0.20), outgunned 0.33 (~0.28), all in band — committed with this ledger line
 - 07:0x ✅ U19 noise-radius rings for player-side emissions (stealth system made learnable) — committed with this ledger line
 - 06:2x ℹ usage reading (Sam): Fable 35% used / 65% left. Observation for Phase 0: whole night so far (research workflow 374k + review workflow 1.22M subagent tokens + main loop) moved the meter only ~8 points from the 1am reading — consistent with subagent spend not billing to the Fable bucket. UNVERIFIED; Phase 0 still pending.
-- ▶ NEXT: U20 squad barks; U21 fourth mission if time; pause at 8:00am trigger
+- 06:4x ✅ U20 squad voice barks (stacking/set/breaching/reloading/man-down/secured, rate-limited) — committed 98f25b9
+- 07:0x ✅ U21 fourth mission "MARKET ROW" (three buildings, split hostages force squad splitting), map-4 tests + 12 bot runs green — committed b3624d0
+- ▶ NEXT: pause at 8:00am trigger — refresh Handoff, night summary to Sam
 
 ## Handoff
 
@@ -92,11 +94,12 @@ can both drive this file.
 
 Done tonight (all committed and pushed to `claude/tactical-game-research-ner6e1`):
 research doc (6 chapters + synthesis), PRD → v1.1.1, playable game →
-`top_down_tactical_v0.2.html` (3 missions, 3 difficulties, audio, slow-mo
+`top_down_tactical_v0.2.html` (4 missions, 3 difficulties, audio, slow-mo
 command time, ROE, mirror peek, wall charges, feint surrender, elite enemies,
-squad auto-cuff, best-grade persistence, in-world order UI), 15-agent
-adversarial review with all confirmed findings fixed, headless test harness
-(`tests/run.sh`: smoke + 9 bot playthroughs + compliance statistics).
+squad auto-cuff + voice barks, noise-radius rings, best-grade persistence,
+in-world order UI), 15-agent adversarial review with all confirmed findings
+fixed, headless test harness (`tests/run.sh`: smoke + 12 bot playthroughs +
+compliance statistics).
 
 In-flight at handoff: nothing uncommitted.
 
