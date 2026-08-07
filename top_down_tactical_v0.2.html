@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.1.html
-  version: 0.1
+  file: top_down_tactical_v0.2.html
+  version: 0.2
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-07
-  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO). Hostage rescue mission with restraint scoring.
+  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), two hostage-rescue missions, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
-  build_progress: COMPLETE — sections 12/12 filled, smoke-tested headless
+  build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.1 (working title)</title>
+<title>Top-Down Tactical v0.2 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -43,7 +43,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.1 prototype &mdash; working title &mdash; hostage rescue</h2>
+  <h2>v0.2 prototype &mdash; working title &mdash; hostage rescue</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -2099,7 +2099,16 @@ document.getElementById("btnRestart").addEventListener("click", () => startMissi
 requestAnimationFrame(frame);
 </script>
 <!-- CHANGELOG
-  v0.1 (2026-08-07): Initial prototype frame.
+  v0.1 (2026-08-07): Initial prototype — point-man control, LOS fog, doors/breaching,
+    flashbangs, enemy AI with surrender/arrests, executioner timer, squad stack-and-GO,
+    hostage rescue win/loss + grading.
+  v0.2 (2026-08-07, burndown night): Synthesized audio; slow-mo command time (Tab);
+    squad ROE (V); mirror peek (Q); wall charges (H); feint surrender; second mission
+    SAFEHOUSE ROW + mission select; camera world clamp; elite enemy kind; squad
+    auto-cuffing; in-world selection rings and order lines; Esc resume + Restart;
+    two review-workflow fix batches (plan integrity, movement deadlocks, fog-layered
+    intel overlays, LOS-gated fx, near-face collision resolution, friendly fire on
+    teammates/cuffed, input hygiene).
 -->
 </body>
 </html>

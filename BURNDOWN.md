@@ -75,7 +75,8 @@ can both drive this file.
 - 05:2x ✅ U1b review fixes, render/geometry/input batch: intel overlays above fog, fx LOS-gating, ghost hostage color, seen-grid wall-face nudge, sweepAxis near-face resolution, closeDoor overlap check, bang bounce axis + wall-hug spawn, blur mouse clear, ~ select-all, menu keyboard access, Esc resume + Restart button, friendly fire on teammates/cuffed, HUD clamp, debrief civilian row, dead TUNE knobs removed, PRD v1.1.1 — committed with this ledger line
 - 05:3x ✅ U12 in-world command state: selection rings on squaddies, move-order lines + destination markers (above fog) — committed with this ledger line
 - 05:4x ✅ U13 squad auto-cuff in reach + elite enemy kind (120hp, fast react, surrender-resistant, magenta; guards Safehouse Row SE) — committed with this ledger line
-- ▶ NEXT: U14 version bump v0.1→v0.2 + README; cross-check verifier verdicts when workflow lands
+- 05:5x ✅ U14 version bump → top_down_tactical_v0.2.html (full changelog) + project README.md — committed with this ledger line
+- ▶ NEXT: cross-check verifier verdicts when workflow lands; then handoff prep for the 8am pause
 
 ## Handoff
 
