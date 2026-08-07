@@ -333,7 +333,7 @@ const MAPS = [
 "#,s,s,#.............#,,,,,#.......#.......#,,#",
 "#,,,,,#.....p.......#,,,,,#.......#.......#,,#",
 "#,,,,,#.............#,,,,,#.......D.......#,,#",
-"#,,,,,#.........c...#,,,,,D.......#...g...#,,#",
+"#,,,,,#.........c...#,,,,,D.......#...E...#,,#",
 "#,,,,,#.............#,,,,,#.......#.......#,,#",
 "#,,,,,#.............#,,,,,#.c.....#.......#,,#",
 "#,,,,,####D##########,,,,,#.......#.......#,,#",
@@ -352,7 +352,7 @@ let MAP_SRC = MAPS[0].src;
     const w = m.src[0].length;
     m.src.forEach((row, y) => {
       if (row.length !== w) throw new Error(`${m.name} row ${y} length ${row.length} != ${w}`);
-      if (!/^[#,.DLPsgphcT]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#,.DLPsgphcTE]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
   }
 })();
@@ -393,6 +393,7 @@ function parseLevel() {
     else if (ch === "s") level.spawns.squad.push({ x: cx, y: cy });
     else if (ch === "g") level.spawns.enemies.push({ x: cx, y: cy, kind: "guard" });
     else if (ch === "p") level.spawns.enemies.push({ x: cx, y: cy, kind: "patrol" });
+    else if (ch === "E") level.spawns.enemies.push({ x: cx, y: cy, kind: "elite" });
     else if (ch === "T") level.spawns.enemies.push({ x: cx, y: cy, kind: "taker" });
     else if (ch === "h") level.spawns.hostages.push({ x: cx, y: cy });
     else if (ch === "c") level.spawns.civilians.push({ x: cx, y: cy });
@@ -943,8 +944,10 @@ function addNoise(x, y, radius, type, side) {
 
 // ---------------------------------------------------------------- S9 enemy & civilian AI
 function makeEnemy(sp) {
-  const e = makeShooter(sp.x, sp.y, "enemy", TUNE.enemyHp, TUNE.akm);
-  e.kind = sp.kind;                  // guard | patrol | taker
+  const elite = sp.kind === "elite";
+  const weapon = elite ? { ...TUNE.akm, spreadBase: deg(2.2), burst: [3, 6] } : TUNE.akm;
+  const e = makeShooter(sp.x, sp.y, "enemy", elite ? 120 : TUNE.enemyHp, weapon);
+  e.kind = sp.kind;                  // guard | patrol | taker | elite
   e.state = "idle";                  // idle | suspicious | hunt | combat | surrender | cuffed
   e.alerted = false;
   e.target = null; e.reactT = 0; e.lastKnown = null;
@@ -998,7 +1001,8 @@ function updateEnemy(e, dt) {
 
   if (vis) {
     if (e.state !== "combat") {
-      e.state = "combat"; e.reactT = randIn(e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact);
+      e.state = "combat";
+      e.reactT = randIn(e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact);
       e.alerted = true; game.alarm = true;
     }
     e.target = vis; e.lastKnown = { x: vis.x, y: vis.y };
@@ -1142,6 +1146,7 @@ function trySurrender(e, shouter) {
   }
   const threatsLeft = game.enemies.filter(x => x.alive && x.state !== "surrender" && x.state !== "cuffed").length;
   if (threatsLeft <= 1) p += TUNE.surrenderLastMan;
+  if (e.kind === "elite") p *= 0.4;   // elites don't rattle easily
   if (Math.random() < p) {
     e.state = "surrender"; e.path = null; e.burstLeft = 0;
     e.feint = Math.random() < 0.2;          // some surrenders are fake — cuff them before they re-arm
@@ -1351,6 +1356,12 @@ function updateSquaddie(s, dt) {
   }
   if (threat && !s.engaged) s.reactT = randIn(TUNE.squadReact);
   s.engaged = threat;
+
+  // zip-cuff surrendered suspects in reach when not fighting
+  if (!threat && s.stagger <= 0) {
+    const cuffable = nearestEntity(game.enemies, s.x, s.y, 45, e => e.alive && e.state === "surrender");
+    if (cuffable) cuffEnemy(cuffable);
+  }
 
   const executingEntry = s.order.type === "entry";
   if (threat) {
@@ -1635,7 +1646,7 @@ function drawBody(e, dead) {
   else if (e.side === "squad") col = COLORS.squad;
   else if (e.side === "hostage") col = e.secured ? COLORS.ok : COLORS.hostage;
   else if (e.side === "civ") col = COLORS.civilian;
-  else if (e.side === "enemy") col = e.state === "cuffed" ? COLORS.cuffed : e.state === "surrender" ? COLORS.surrendered : COLORS.enemy;
+  else if (e.side === "enemy") col = e.state === "cuffed" ? COLORS.cuffed : e.state === "surrender" ? COLORS.surrendered : e.kind === "elite" ? "#b03a8c" : COLORS.enemy;
   if (dead) {
     ctx.fillStyle = COLORS.corpse; ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = "#2a1515"; ctx.lineWidth = 2;
