@@ -1584,6 +1584,23 @@ function render() {
   // player-intel overlays sit ABOVE the fog — they are UI, not world geometry
   for (const g of ghosts) drawGhost(g);
   for (const p of game.plans) drawPlan(p);
+  // selection rings + move-order lines
+  ctx.lineWidth = 1.5;
+  game.selected.forEach(i => {
+    const s = game.squad[i];
+    if (!s || !s.alive) return;
+    ctx.strokeStyle = COLORS.player; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r + 6, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  for (const s of game.squad) {
+    if (!s.alive || s.order.type !== "move") continue;
+    ctx.strokeStyle = "rgba(63,194,126,0.5)"; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.order.x, s.order.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = COLORS.squad;
+    ctx.strokeRect(s.order.x - 5, s.order.y - 5, 10, 10);
+  }
   if (game.wallCharge) {
     const wc = game.wallCharge;
     ctx.fillStyle = "#ff8c42";
