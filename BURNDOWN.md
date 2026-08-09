@@ -87,6 +87,7 @@ can both drive this file.
 - 06:4x ✅ U20 squad voice barks (stacking/set/breaching/reloading/man-down/secured, rate-limited) — committed 98f25b9
 - 07:0x ✅ U21 fourth mission "MARKET ROW" (three buildings, split hostages force squad splitting), map-4 tests + 12 bot runs green — committed b3624d0
 - 07:1x ✅ U22 mission-picker wrap fix + final QA screenshots (menu, breach sequence, wall-charge entry) — committed f68a552
+- (post-reset, Opus) ✅ U23 SVG sprite set integrated: 21 Codex-authored assets inlined at S0, tinted-canvas rasterizer, drawBody/drawDoor on sprites with circle fallback, handedness Y-flip wired, camera zoom (1.6, live [ ]) so the art reads. Game → v0.3.
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
 ## Handoff

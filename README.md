@@ -15,8 +15,15 @@ point man — WASD to move, mouse to aim and shoot — while commanding a 3-man 
 squad through stacks, synchronized breaches, and hostage rescues. Four
 missions, three difficulty tiers, best grades saved per mission.
 
-**Play:** open `top_down_tactical_v0.2.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.3.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
+
+**Art:** the 21-asset SVG sprite set lives inline in section S0 of the HTML,
+between the `--- BEGIN SPRITES ---` / `--- END SPRITES ---` markers, so it can
+be regenerated and swapped wholesale. Contract: `viewBox="0 0 64 64"`, pivot at
+(32,32), authored facing **east (+X)**, faction color as a literal `#TEAMCOLOR`
+token. Handedness is a **Y-flip** (`ctx.scale(1,-1)`), never an X-flip — sprites
+face +X, so a unit's left and right lie on the Y axis.
 
 **Test:** `tests/run.sh` — syntax check, headless smoke tests (map integrity,
 pathing, breach pipeline, feints, wall charges, compliance statistics), and
@@ -24,7 +31,7 @@ twelve assault-bot end-to-end playthroughs across all four missions.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.2.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.3.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.1.1.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |

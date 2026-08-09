@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.2.html
-  version: 0.2
+  file: top_down_tactical_v0.3.html
+  version: 0.3
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-07
-  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), four hostage-rescue missions, difficulty tiers, and restraint scoring.
+  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), four hostage-rescue missions, difficulty tiers, SVG operator sprites with handedness mirroring, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
 -->
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.2 (working title)</title>
+<title>Top-Down Tactical v0.3 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -45,7 +45,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.2 prototype &mdash; working title &mdash; hostage rescue</h2>
+  <h2>v0.3 prototype &mdash; working title &mdash; hostage rescue</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -54,6 +54,7 @@
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
+      <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key"></td><td></td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad follows orders</h3>
@@ -96,6 +97,35 @@
 //   S11 rendering
 //   S12 game state, mission logic, loop, HUD
 // =====================================================================
+
+// ---------------------------------------------------------------- S0 sprites
+// SPRITE SET v1.0 — flat SVG, viewBox 0 0 64 64, pivot (32,32), authored facing EAST (+X).
+// #TEAMCOLOR is swapped per faction at rasterization time. Replace this whole block to
+// swap art wholesale. --- BEGIN SPRITES ---
+const SPRITES = {
+  player: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M27 17H37L43 22L47 29V35L43 42L37 47H27L21 42L17 35V29L21 22Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 34H39L43 33H49L52 35H60V38H52L49 40H41L37 39H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><rect x="42" y="29" width="7" height="5" rx="1" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="7" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  squad_rifleman: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M28 19H36L42 23L45 29V35L42 41L36 45H28L22 41L19 35V29L22 23Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 34H40L44 33H50L53 35H60V38H52L49 39H40L36 40H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="6" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  squad_breacher: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M26 19H31V22H29V42H31V45H26V42H27V22H26Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M28 18H36L42 22L46 29V35L42 42L36 46H28L22 42L18 35V29L22 22Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 32H45L49 30H60V42H49L45 40H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="6" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  squad_support: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M23 21H27V24H29V40H27V43H23L20 39L18 35V29L20 25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M27 17H37L43 22L47 29V35L43 42L37 47H27L21 42L17 35V29L21 22Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 32H45L49 33H59V40H49L46 41H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M36 40H48V54H36Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="7" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  squad_shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path data-part="torso" d="M21 25H35L43 30V39L35 45H26L20 39V30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 37L28 37L32 40L36 35L41 38L35 44L30 46L24 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="34" r="7" fill="#3a444e" stroke="#12171c" stroke-width="2"/><path data-part="weapon" d="M37 35H46L50 37V40H42V44H38V40H36V37Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle data-part="firing-hand" cx="38" cy="38" r="3" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><rect data-part="shield" x="28" y="14" width="30" height="13" rx="3" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><rect data-part="vision-port" x="45" y="18" width="10" height="4" rx="1" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><path data-part="strap-anchor" d="M31 23H37V28H31Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/></svg>`,
+  enemy_guard: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M32 19C40 19 45 24 45 32S40 45 32 45S20 40 20 32S24 19 32 19Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 34H40L44 33H50L52 35H60V38H51L48 40H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M40 39L48 40L46 47H40Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="6" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  enemy_patrol: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M26 25L21 24L22 29L18 34L27 36Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M31 20C39 20 44 25 44 32S39 44 31 44S20 39 20 32S24 20 31 20Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 34H41L45 33H51L53 35H60V38H51L48 40H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M41 39L50 41L47 49H40Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="32" r="6" fill="#3a444e" stroke="#12171c" stroke-width="2"/><path d="M27 29Q32 25 38 29V33Q32 30 27 34Z" fill="#d8e4ee" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  enemy_elite: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M27 17H37L43 21L47 28V36L43 43L37 47H27L21 43L17 36V28L21 21Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M19 27H31V39H19Z" fill="#d8e4ee" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M25 33H46L50 34H55V35H60V39H54V40H50L47 41H25Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M40 40H47L49 48H41L37 41Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M27 24L32 20L39 22L42 28V36L38 41H29L25 36V28Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  enemy_taker: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M31 20C39 20 44 25 44 32S39 44 31 44S21 39 21 32S24 20 31 20Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="weapon" d="M40 33H55V35H59V39H40Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M46 38H52V51H46Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="support-arm" d="M24 25L28 25L37 30L46 33L45 38L36 34L25 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path data-part="firing-arm" d="M24 38L28 38L31 42L35 35L39 38L33 47L28 46L23 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="31" r="6" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle data-part="firing-hand" cx="34" cy="37" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle data-part="support-hand" cx="46" cy="35" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  surrendered: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><circle cx="21" cy="24" r="6" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><circle cx="21" cy="40" r="6" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><path d="M24 22Q32 18 40 23V41Q32 46 24 42Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M36 24L49 14L54 19L41 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M36 40L49 50L54 45L41 34Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="53" cy="16" r="4" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="53" cy="48" r="4" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="38" cy="32" r="7" fill="#3a444e" stroke="#12171c" stroke-width="2"/></svg>`,
+  cuffed: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M24 28L11 17L7 22L20 34Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M23 36L14 52L8 49L18 33Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M20 25L29 21H38L45 25V39L38 43H29L20 39Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M33 25L28 17L23 20L27 31Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M33 39L28 47L23 44L27 33Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="47" cy="32" r="8" fill="#3a444e" stroke="#12171c" stroke-width="2"/><rect x="24" y="29" width="6" height="6" rx="1" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  hostage: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><circle cx="24" cy="24" r="7" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><circle cx="24" cy="40" r="7" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><path d="M23 22Q31 18 39 23L44 32L39 41Q31 46 23 42L19 32Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="32" r="7" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="39" cy="24" r="5" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="39" cy="40" r="5" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  hostage_secured: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><circle cx="24" cy="24" r="7" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><circle cx="24" cy="40" r="7" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><path d="M23 22Q31 18 39 23L44 32L39 41Q31 46 23 42L19 32Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M38 10L44 18L38 26L32 18Z" fill="#d8e4ee" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="32" r="7" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="39" cy="24" r="5" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="39" cy="40" r="5" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  civilian: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="32" r="11" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/><circle cx="36" cy="32" r="6" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><path d="M25 27Q31 20 39 24L41 29Q32 26 25 32Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M25 37Q31 44 39 40L41 35Q32 38 25 32Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/></svg>`,
+  corpse: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M27 27L14 17L8 23L22 34Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M25 36L16 53L9 49L19 33Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M35 25L48 12L53 17L40 30Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M35 37L54 42L51 49L33 43Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M21 25L31 21L42 25L46 36L38 44L26 42L19 34Z" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="47" cy="29" r="6" fill="#TEAMCOLOR" stroke="#12171c" stroke-width="2"/></svg>`,
+  door_closed: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect x="5" y="24" width="54" height="16" rx="2" fill="#3a444e" stroke="#12171c" stroke-width="2"/><rect x="9" y="28" width="42" height="8" rx="1" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><circle cx="53" cy="32" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  door_open: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M5 28H18V36H5Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M46 28H59V36H46Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M14.2 30.6L21.8 33.4L32.4 4.3L24.8 1.5Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="18" cy="32" r="4" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  door_breached: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M5 24H19L23 29L19 32L23 36L18 40H5Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M59 24H45L41 28L46 32L42 37L47 40H59Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M25 29L31 32L25 35Z" fill="#d8e4ee" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><path d="M39 28L34 32L40 35Z" fill="#d8e4ee" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/></svg>`,
+  prop_flashbang: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M25 24Q25 21 28 21H36Q39 21 39 24V42Q39 45 36 45H28Q25 45 25 42Z" fill="#3a444e" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><rect x="27" y="26" width="10" height="5" rx="1" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><path d="M34 21V16H43V21H39V27" fill="none" stroke="#12171c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="43" cy="18" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+  prop_wallcharge: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M24 26C15 17 20 12 32 18C44 11 50 17 41 27" fill="none" stroke="#12171c" stroke-width="7" stroke-linecap="round"/><path d="M24 26C15 17 20 12 32 18C44 11 50 17 41 27" fill="none" stroke="#3a444e" stroke-width="4" stroke-linecap="round"/><rect x="21" y="25" width="22" height="22" rx="3" fill="#3a444e" stroke="#12171c" stroke-width="2"/><path d="M26 30H38V42H26Z" fill="#12171c" stroke="#12171c" stroke-width="2" stroke-linejoin="round"/><circle cx="36" cy="32" r="3" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/><path d="M28 47V54H36V47" fill="none" stroke="#12171c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M28 47V54H36V47" fill="none" stroke="#3a444e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  prop_mirror: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path d="M13 51L45 19" fill="none" stroke="#12171c" stroke-width="8" stroke-linecap="round"/><path d="M13 51L45 19" fill="none" stroke="#3a444e" stroke-width="5" stroke-linecap="round"/><circle cx="13" cy="51" r="7" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle cx="46" cy="18" r="9" fill="#3a444e" stroke="#12171c" stroke-width="2"/><circle cx="46" cy="18" r="5" fill="#d8e4ee" stroke="#12171c" stroke-width="2"/></svg>`,
+};
+// --- END SPRITES ---
 
 // ---------------------------------------------------------------- S1 constants
 const TILE = 32;                 // px per tile
@@ -620,6 +650,7 @@ function makeShooter(x, y, side, hp, weapon) {
     x, y, r: TUNE.bodyRadius, face: 0, hp, maxHp: hp, alive: true, side,
     weapon, ammo: weapon.mag, reloading: 0, cooldown: 0, recoil: 0,
     blind: 0, stagger: 0, moving: false, walking: false,
+    handed: "right",   // "left" mirrors the sprite across the facing axis
   };
 }
 
@@ -1259,7 +1290,8 @@ function trySecureHostage(h) {
 // civilians & hostages just cower; they die if hit
 function makeCivilian(sp, isHostage) {
   return { x: sp.x, y: sp.y, r: 9, face: rand(0, TAU), hp: 40, alive: true,
-           side: isHostage ? "hostage" : "civ", secured: false, blind: 0, stagger: 0, cower: 0 };
+           side: isHostage ? "hostage" : "civ", secured: false, blind: 0, stagger: 0, cower: 0,
+           handed: "right" };
 }
 function updateCivilian(c, dt) {
   if (!c.alive) return;
@@ -1290,6 +1322,7 @@ function makeSquaddie(sp, i) {
   const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480 };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
+  s.slot = i;
   s.order = { type: "follow" };
   s.path = null; s.pathI = 0; s.repathT = 0;
   s.reactT = 0; s.engaged = null; s.shoutedAt = 0; s.state = "idle";
@@ -1615,11 +1648,15 @@ function render() {
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, viewW, viewH);
   const cam = game.cam;
   ctx.save();
-  ctx.translate(viewW / 2 - cam.x + cam.shakeX, viewH / 2 - cam.y + cam.shakeY);
+  const Z = game.zoom;
+  ctx.translate(viewW / 2, viewH / 2);
+  ctx.scale(Z, Z);
+  ctx.translate(-cam.x + cam.shakeX, -cam.y + cam.shakeY);
 
   // world tiles (only ever-seen ones are drawn at all)
-  const x0 = Math.floor((cam.x - viewW / 2) / TILE) - 1, x1 = Math.ceil((cam.x + viewW / 2) / TILE) + 1;
-  const y0 = Math.floor((cam.y - viewH / 2) / TILE) - 1, y1 = Math.ceil((cam.y + viewH / 2) / TILE) + 1;
+  const halfW = viewW / (2 * Z), halfH = viewH / (2 * Z);
+  const x0 = Math.floor((cam.x - halfW) / TILE) - 1, x1 = Math.ceil((cam.x + halfW) / TILE) + 1;
+  const y0 = Math.floor((cam.y - halfH) / TILE) - 1, y1 = Math.ceil((cam.y + halfH) / TILE) + 1;
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     if (!inBounds(tx, ty) || !seen.grid[ty][tx]) continue;
     const px = tx * TILE, py = ty * TILE;
@@ -1675,7 +1712,7 @@ function render() {
     ctx.save();
     // build a path = big rect minus vis polygon (evenodd)
     ctx.beginPath();
-    ctx.rect(cam.x - viewW, cam.y - viewH, viewW * 2, viewH * 2);
+    ctx.rect(cam.x - halfW * 2, cam.y - halfH * 2, halfW * 4, halfH * 4);
     if (poly && poly.length) {
       ctx.moveTo(poly[0].x, poly[0].y);
       for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
@@ -1724,9 +1761,72 @@ function render() {
   drawHud();
 }
 
+// ---- sprite rasterization: SVG source -> tinted offscreen canvas, once, at load.
+// Drawing an <img> of an SVG every frame is far too slow; we bake each
+// (sprite, tint) pair into a bitmap and blit that instead.
+const SPRITE_PX = 40;              // on-screen size; body radius lands at ~10px
+const SPRITE_SS = 3;               // supersample factor for crisp downscale
+const spriteCache = new Map();
+
+function getSprite(key, tint) {
+  if (typeof Image === "undefined" || !SPRITES[key]) return null;   // headless: fall back
+  const ck = key + "|" + tint;
+  let e = spriteCache.get(ck);
+  if (e) return e;
+  e = { canvas: document.createElement("canvas"), ready: false };
+  const S = SPRITE_PX * SPRITE_SS;
+  e.canvas.width = S; e.canvas.height = S;
+  const c2 = e.canvas.getContext("2d");
+  const img = new Image();
+  img.onload = () => { c2.drawImage(img, 0, 0, S, S); e.ready = true; };
+  img.src = "data:image/svg+xml;charset=utf-8," +
+            encodeURIComponent(SPRITES[key].split("#TEAMCOLOR").join(tint));
+  spriteCache.set(ck, e);
+  return e;
+}
+
+const SQUAD_SPRITES = ["squad_rifleman", "squad_breacher", "squad_support"];
+
+function spriteFor(e, dead) {
+  if (dead) return { key: "corpse", tint: COLORS.corpse };
+  if (e.side === "player") return { key: "player", tint: COLORS.player };
+  if (e.side === "squad")  return { key: SQUAD_SPRITES[e.slot % 3] || "squad_rifleman", tint: COLORS.squad };
+  if (e.side === "enemy") {
+    if (e.state === "cuffed")    return { key: "cuffed", tint: COLORS.cuffed };
+    if (e.state === "surrender") return { key: "surrendered", tint: COLORS.surrendered };
+    const k = e.kind === "elite" ? "enemy_elite" : e.kind === "taker" ? "enemy_taker"
+            : e.kind === "patrol" ? "enemy_patrol" : "enemy_guard";
+    return { key: k, tint: e.kind === "elite" ? "#b03a8c" : COLORS.enemy };
+  }
+  if (e.side === "hostage") return e.secured
+    ? { key: "hostage_secured", tint: COLORS.ok }
+    : { key: "hostage", tint: COLORS.hostage };
+  if (e.side === "civ") return { key: "civilian", tint: COLORS.civilian };
+  return null;
+}
+
+// Handedness is a Y-flip, NOT an X-flip: sprites face +X, so the unit's
+// left/right lie along ±Y. Flipping X would reverse the facing direction.
+function blitSprite(sp, x, y, ang, handed) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  if (handed === "left") ctx.scale(1, -1);
+  ctx.drawImage(sp.canvas, -SPRITE_PX / 2, -SPRITE_PX / 2, SPRITE_PX, SPRITE_PX);
+  ctx.restore();
+}
+
 function drawDoor(d) {
   const c = doorCenter(d);
-  const col = d.state === "breached" ? COLORS.doorBreached : d.locked ? COLORS.doorLocked : d.state === "open" ? COLORS.doorOpen : COLORS.doorClosed;
+  const key = d.state === "breached" ? "door_breached" : d.state === "open" ? "door_open" : "door_closed";
+  const tint = d.state === "breached" ? COLORS.doorBreached : d.locked ? COLORS.doorLocked
+             : d.state === "open" ? COLORS.doorOpen : COLORS.doorClosed;
+  const sp = getSprite(key, tint);
+  if (sp && sp.ready) {
+    blitSprite(sp, c.x, c.y, d.orient === "v" ? Math.PI / 2 : 0);
+    return;
+  }
+  const col = tint;
   ctx.fillStyle = col;
   ctx.save(); ctx.translate(c.x, c.y);
   if (d.orient === "v") ctx.rotate(Math.PI / 2);
@@ -1739,6 +1839,24 @@ function drawDoor(d) {
 }
 
 function drawBody(e, dead) {
+  // sprite path (falls through to the procedural circles if art isn't loaded)
+  const s = spriteFor(e, dead);
+  const sp = s ? getSprite(s.key, s.tint) : null;
+  if (sp && sp.ready) {
+    blitSprite(sp, e.x, e.y, e.face || 0, e.handed);
+    if (!dead && e.blind > 0) {
+      ctx.fillStyle = "rgba(255,255,200,0.5)";
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU); ctx.fill();
+    }
+    if (!dead && (e.side === "player" || e.side === "squad")) {
+      const k = 1 / game.zoom;   // keep the pip a constant size on screen
+      ctx.fillStyle = "#000a"; ctx.fillRect(e.x - 12 * k, e.y - e.r - 9 * k, 24 * k, 4 * k);
+      ctx.fillStyle = e.hp > 40 ? COLORS.ok : COLORS.danger;
+      ctx.fillRect(e.x - 12 * k, e.y - e.r - 9 * k, 24 * k * clamp(e.hp / e.maxHp, 0, 1), 4 * k);
+    }
+    return;
+  }
+
   ctx.save(); ctx.translate(e.x, e.y);
   let col = COLORS.enemy;
   if (e.side === "player") col = COLORS.player;
@@ -1793,7 +1911,7 @@ function drawPlan(p) {
     ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, TAU); ctx.stroke();
   }
   ctx.setLineDash([]);
-  ctx.font = "10px Consolas, monospace"; ctx.textAlign = "center";
+  ctx.font = (10 / game.zoom).toFixed(1) + "px Consolas, monospace"; ctx.textAlign = "center";
   ctx.fillStyle = ready ? COLORS.ok : COLORS.accent;
   const method = p.method === "charge" ? "CHARGE(" + game.squadCharges + ")" : p.method.toUpperCase();
   const label = method + (p.useBang ? "+BANG" : "") + (ready ? " · READY [X]" : "");
@@ -1830,7 +1948,7 @@ function drawFx() {
       ctx.fillStyle = COLORS.blood; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x + Math.cos(f.ang) * (1 - k) * 10, f.y + Math.sin(f.ang) * (1 - k) * 10, 5, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
     } else if (f.kind === "bark") {
-      ctx.font = "11px Consolas, monospace"; ctx.textAlign = "center";
+      ctx.font = (11 / game.zoom).toFixed(1) + "px Consolas, monospace"; ctx.textAlign = "center";
       ctx.globalAlpha = Math.min(1, k * 2);
       ctx.fillStyle = "#0009"; ctx.fillText(f.text, f.x + 1, f.y - 14 - (1 - k) * 12 + 1);
       ctx.fillStyle = "#d8e4ee"; ctx.fillText(f.text, f.x, f.y - 14 - (1 - k) * 12);
@@ -1843,7 +1961,8 @@ function drawFx() {
       ctx.strokeStyle = f.kind === "shout" ? "#fff" : COLORS.accent; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x, f.y, (1 - k) * 40 + 8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
     } else if (f.kind === "surrender") {
-      ctx.fillStyle = "#fff"; ctx.globalAlpha = k; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+      ctx.fillStyle = "#fff"; ctx.globalAlpha = k;
+      ctx.font = (11 / game.zoom).toFixed(1) + "px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("HANDS UP!", f.x, f.y - 16); ctx.globalAlpha = 1;
     }
   }
@@ -1911,7 +2030,7 @@ function drawHud() {
   }
   // crosshair with spread gap
   const m = input.mouse;
-  const spreadPx = Math.tan(currentSpread(p) / 2) * dist(p.x, p.y, m.wx, m.wy);
+  const spreadPx = Math.tan(currentSpread(p) / 2) * dist(p.x, p.y, m.wx, m.wy) * game.zoom;
   const gap = clamp(4 + spreadPx, 4, 60);
   ctx.strokeStyle = p.blind > 0 ? COLORS.danger : "#ffffffcc"; ctx.lineWidth = 1.5;
   for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
@@ -2010,6 +2129,10 @@ const DIFFICULTIES = [
 
 const game = {
   state: "menu", paused: false, slowmo: false, mapIndex: 0, diffIndex: 1, inProgress: false,
+  // Sprites are authored for ~40px, so the camera comes in for the art to read.
+  // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
+  // (up to 520px) already exceeds the viewport. Tune live with [ and ].
+  zoom: 1.6,
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -2144,9 +2267,10 @@ function updateCamera(dt) {
   game.cam.y = lerp(game.cam.y, ty, clamp(dt * TUNE.camLerp, 0, 1));
   // keep the view inside the world where the world is bigger than the screen
   const worldW = level.w * TILE, worldH = level.h * TILE;
-  if (worldW > viewW) game.cam.x = clamp(game.cam.x, viewW / 2, worldW - viewW / 2);
+  const hw = viewW / (2 * game.zoom), hh = viewH / (2 * game.zoom);
+  if (worldW > hw * 2) game.cam.x = clamp(game.cam.x, hw, worldW - hw);
   else game.cam.x = worldW / 2;
-  if (worldH > viewH) game.cam.y = clamp(game.cam.y, viewH / 2, worldH - viewH / 2);
+  if (worldH > hh * 2) game.cam.y = clamp(game.cam.y, hh, worldH - hh);
   else game.cam.y = worldH / 2;
   game.camKick = Math.max(0, game.camKick - dt * 30);
   game.cam.shakeX = rand(-1, 1) * game.camKick; game.cam.shakeY = rand(-1, 1) * game.camKick;
@@ -2163,8 +2287,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   // mouse world coords (needs current camera)
-  input.mouse.wx = input.mouse.x - viewW / 2 + game.cam.x;
-  input.mouse.wy = input.mouse.y - viewH / 2 + game.cam.y;
+  input.mouse.wx = (input.mouse.x - viewW / 2) / game.zoom + game.cam.x;
+  input.mouse.wy = (input.mouse.y - viewH / 2) / game.zoom + game.cam.y;
 
   if (game.state === "play") {
     if (pressed(" ")) game.paused = !game.paused;
@@ -2174,6 +2298,8 @@ function frame(now) {
       document.getElementById("btnStart").textContent = "Resume";
       document.getElementById("btnAbort").style.display = "";
     }
+    if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
+    if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
     game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
@@ -2260,6 +2386,12 @@ requestAnimationFrame(frame);
     two review-workflow fix batches (plan integrity, movement deadlocks, fog-layered
     intel overlays, LOS-gated fx, near-face collision resolution, friendly fire on
     teammates/cuffed, input hygiene).
+  v0.3 (2026-08-07): Flat SVG sprite set (21 assets) replaces procedural circles —
+    operators, militants, compliance states, doors and props, authored facing east
+    with a (32,32) pivot and a #TEAMCOLOR token swapped per faction at raster time.
+    Sprites bake once to tinted offscreen canvases. Handedness supported via a Y-axis
+    flip (sprites face +X, so left/right lie on the Y axis). Camera zoom added so the
+    art reads, adjustable live with [ and ]. Circle rendering retained as fallback.
 -->
 </body>
 </html>
