@@ -54,7 +54,7 @@
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
-      <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key"></td><td></td></tr>
+      <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad follows orders</h3>
@@ -173,6 +173,13 @@ const TUNE = {
 
   // doors
   doorHp: 60, doorKickStun: 0.5, chargeStunRadius: 190, chargeStun: 2.2,
+
+  // handedness & the corner game
+  eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
+  leftHandedRate: 0.1,              // ~1 in 10, as in life
+  shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
+  supportSideSpread: 2.3,           // accuracy cost of shooting off the weak shoulder
+  supportSideReact: 1.35,           // slower to break a shot off the weak shoulder
 
   // surrender / compliance
   surrenderBase: 0.10,          // per shout, unmodified
@@ -609,7 +616,10 @@ function canSee(ax, ay, bx, by, maxDist, faceAng, fovArc) {
 
 // Is this entity visible to the player side? Returns "direct" | "squad" | null.
 function visibleToPlayerSide(ent) {
-  if (game.player.alive && canSee(game.player.x, game.player.y, ent.x, ent.y, TUNE.playerViewDist)) return "direct";
+  if (game.player.alive) {
+    const eye = game.eye || game.player;
+    if (canSee(eye.x, eye.y, ent.x, ent.y, TUNE.playerViewDist)) return "direct";
+  }
   for (const s of game.squad) {
     if (s.alive && canSee(s.x, s.y, ent.x, ent.y, TUNE.aiViewDistAlert, s.face, deg(160))) return "squad";
   }
@@ -650,7 +660,9 @@ function makeShooter(x, y, side, hp, weapon) {
     x, y, r: TUNE.bodyRadius, face: 0, hp, maxHp: hp, alive: true, side,
     weapon, ammo: weapon.mag, reloading: 0, cooldown: 0, recoil: 0,
     blind: 0, stagger: 0, moving: false, walking: false,
-    handed: "right",   // "left" mirrors the sprite across the facing axis
+    handed: "right",          // "left" mirrors the sprite across the facing axis
+    shoulder: "strong",       // "support" = rifle transitioned to the weak shoulder
+    pendingShoulder: "strong", swapT: 0,
   };
 }
 
@@ -664,7 +676,48 @@ function currentSpread(s) {
   const t = s.weapon;
   let sp = t.spreadBase + s.recoil;
   if (s.moving) sp += s.walking ? (t.spreadWalkMove ?? t.spreadMove * 0.45) : t.spreadMove;
+  if (s.shoulder === "support") sp *= TUNE.supportSideSpread;
   return sp;
+}
+
+// ---- handedness and the eye/muzzle offset (the corner game)
+//
+// A shooter's eye and muzzle sit off to their shooting shoulder, not on their
+// centerline. Roll out around a corner on that side and the eye clears the
+// wall while the body is still masked — you see them first. Roll out the other
+// way and your body clears before your eye does. Enemies always test line of
+// sight against the BODY centre, so that asymmetry is the whole mechanic.
+function shootingSide(s) {
+  const hand = s.handed === "left" ? -1 : 1;
+  return s.shoulder === "support" ? -hand : hand;   // +1 = unit's right (+Y local)
+}
+
+function eyePoint(s) {
+  const lat = s.face + Math.PI / 2 * shootingSide(s);
+  const x = s.x + Math.cos(s.face) * TUNE.eyeForward + Math.cos(lat) * TUNE.eyeLateral;
+  const y = s.y + Math.sin(s.face) * TUNE.eyeForward + Math.sin(lat) * TUNE.eyeLateral;
+  const t = tileAt(x, y);
+  // never let the eye slip inside geometry — fall back to the body centre
+  if (isWall(t.tx, t.ty) || (doorAt(t.tx, t.ty) || {}).state === "closed") return { x: s.x, y: s.y };
+  return { x, y };
+}
+
+function rollHandedness() {
+  return Math.random() < TUNE.leftHandedRate ? "left" : "right";
+}
+
+function updateShoulder(s, dt) {
+  if (s.swapT > 0) {
+    s.swapT -= dt;
+    if (s.swapT <= 0) s.shoulder = s.pendingShoulder;
+  }
+}
+
+function swapShoulder(s) {
+  if (s.swapT > 0) return;
+  s.pendingShoulder = s.shoulder === "support" ? "strong" : "support";
+  s.swapT = TUNE.shoulderSwapTime;
+  sfxAt("click", s.x, s.y);
 }
 
 function updatePlayer(p, dt) {
@@ -672,6 +725,7 @@ function updatePlayer(p, dt) {
   p.blind = Math.max(0, p.blind - dt);
   p.stagger = Math.max(0, p.stagger - dt);
   p.shoutCd = Math.max(0, p.shoutCd - dt);
+  updateShoulder(p, dt);
 
   // movement
   let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
@@ -691,7 +745,8 @@ function updatePlayer(p, dt) {
 
   // weapon
   updateShooterWeapon(p, dt);
-  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0) tryFire(p, p.face);
+  if (pressed("n")) swapShoulder(p);
+  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0) tryFire(p, p.face);
   if (pressed("r")) tryReload(p);
 
   // interactions
@@ -784,8 +839,9 @@ function tryFire(s, ang) {
   s.recoil = Math.min(s.weapon.recoilMax ?? deg(6), s.recoil + (s.weapon.recoil ?? deg(1.4)));
   const spread = currentSpread(s);
   const a = ang + rand(-spread / 2, spread / 2);
+  const eye = eyePoint(s);   // rounds leave from the muzzle, which is off-centre
   game.bullets.push({
-    x: s.x + Math.cos(a) * (s.r + 4), y: s.y + Math.sin(a) * (s.r + 4),
+    x: eye.x + Math.cos(a) * 4, y: eye.y + Math.sin(a) * 4,
     ang: a, speed: s.weapon.speed, dmg: s.weapon.dmg, side: s.side,
     traveled: 0, range: s.weapon.range, alive: true, owner: s,
   });
@@ -1064,6 +1120,7 @@ function makeEnemy(sp) {
   e.investigate = null; e.investigateWait = 0;
   e.path = null; e.pathI = 0; e.repathT = 0;
   e.homeFace = rand(0, TAU); e.face = e.homeFace;
+  e.handed = rollHandedness();
   e.wanderT = rand(2, 6);
   e.flashedRecently = 0;
   return e;
@@ -1323,6 +1380,7 @@ function makeSquaddie(sp, i) {
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
+  s.handed = rollHandedness();
   s.order = { type: "follow" };
   s.path = null; s.pathI = 0; s.repathT = 0;
   s.reactT = 0; s.engaged = null; s.shoutedAt = 0; s.state = "idle";
@@ -1461,6 +1519,7 @@ function updateSquaddie(s, dt) {
   s.blind = Math.max(0, s.blind - dt);
   s.stagger = Math.max(0, s.stagger - dt);
   if (s._barkCd) s._barkCd -= dt;
+  updateShoulder(s, dt);
   updateShooterWeapon(s, dt);
 
   // combat overlay: engage nearest visible threat unless blind/staggered
@@ -1728,6 +1787,14 @@ function render() {
     if (inBounds(tx, ty) && !seen.grid[ty][tx]) ctx.fillRect(tx * TILE - 0.5, ty * TILE - 0.5, TILE + 1, TILE + 1);
   }
 
+  // shoulder pip: shows which side your eye is on, so the corner game is learnable
+  if (game.player.alive && game.eye) {
+    const p = game.player, k = 1 / game.zoom;
+    ctx.strokeStyle = p.swapT > 0 ? COLORS.danger : (p.shoulder === "support" ? COLORS.accent : COLORS.player);
+    ctx.lineWidth = 2 * k;
+    ctx.beginPath(); ctx.arc(game.eye.x, game.eye.y, 3.5 * k * 1.6, 0, TAU); ctx.stroke();
+  }
+
   // player-intel overlays sit ABOVE the fog — they are UI, not world geometry
   for (const g of ghosts) drawGhost(g);
   for (const p of game.plans) drawPlan(p);
@@ -1972,13 +2039,17 @@ function drawHud() {
   const p = game.player;
   ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
   // player status (bottom left)
-  const bx = 18, by = viewH - 64;
-  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 240, 62);
+  const bx = 18, by = viewH - 74;
+  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 240, 76);
   ctx.fillStyle = COLORS.hud; ctx.fillText("POINT MAN (YOU)", bx, by - 4);
   ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
   ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
   ctx.fillStyle = COLORS.hud;
+  const shoulderTxt = p.swapT > 0 ? "SWAPPING"
+    : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
   ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "   BANGS " + p.bangs + "   CHARGES " + p.charges, bx, by + 26);
+  ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
+  ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
   // squad panel (top left)
   game.squad.forEach((s, i) => {
     const sy = 18 + i * 44;
@@ -2307,7 +2378,11 @@ function frame(now) {
       updateCamera(dt);               // camera stays smooth in real time
     }
     updateHint(dt);
-    if (game.player) game.visPoly = computeVisPolygon(game.player.x, game.player.y, TUNE.playerViewDist);
+    if (game.player) {
+      const eye = eyePoint(game.player);   // you see from the muzzle, not your belly button
+      game.eye = eye;
+      game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
+    }
     render();
   }
   input.justPressed.clear();

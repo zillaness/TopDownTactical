@@ -176,3 +176,58 @@ game.state = 'play';
 for (let i = 0; i < 600; i++) update(1/60);
 console.log('map4 after 10s idle: alarm =', game.alarm, '| enemies alive:', game.enemies.filter(e => e.alive).length);
 console.log('MAP4 TEST DONE');
+
+(function cornerTests(){
+// ===== corner advantage =====
+game.mapIndex = 0; game.diffIndex = 1; initGame(); game.state = 'play';
+
+// eye must actually sit off-centre, on the correct side
+const p = game.player;
+p.x = 500; p.y = 500; p.face = 0;              // facing east; unit's right is +Y
+p.handed = 'right'; p.shoulder = 'strong'; p.swapT = 0;
+const eR = eyePoint(p);
+p.shoulder = 'support';
+const eS = eyePoint(p);
+p.shoulder = 'strong'; p.handed = 'left';
+const eL = eyePoint(p);
+p.handed = 'right';
+console.log('facing east @ (500,500):');
+console.log('  right/strong  eye y=', eR.y.toFixed(1), eR.y > 500 ? '(+Y = unit right) OK' : 'WRONG SIDE');
+console.log('  right/support eye y=', eS.y.toFixed(1), eS.y < 500 ? '(-Y = unit left) OK' : 'WRONG SIDE');
+console.log('  left/strong   eye y=', eL.y.toFixed(1), Math.abs(eL.y - eS.y) < 0.01 ? '(mirrors support) OK' : 'MISMATCH');
+
+// concrete LOS asymmetry: open the office door, then edge east along the hall.
+// The strong-side eye should clear the doorway at a different x than the weak side.
+const door = doorAt(22, 13); openDoor(door, true);
+function firstSight(handed, shoulder) {
+  p.handed = handed; p.shoulder = shoulder; p.swapT = 0;
+  p.y = 15 * TILE + TILE / 2; p.face = -Math.PI / 2;   // facing NORTH up the wall
+  for (let x = 18 * TILE; x < 26 * TILE; x += 0.5) {
+    p.x = x;
+    const eye = eyePoint(p);
+    if (lineOfSight(eye.x, eye.y, 22 * TILE + 16, 10 * TILE, opaque)) return x;
+  }
+  return null;
+}
+const a = firstSight('right', 'strong');
+const b = firstSight('right', 'support');
+console.log('facing north, first x that sees into the north room:');
+console.log('  strong shoulder :', a === null ? 'never' : a.toFixed(1));
+console.log('  support shoulder:', b === null ? 'never' : b.toFixed(1));
+console.log('  asymmetric?', (a !== null && b !== null && a !== b) ? 'YES — corner advantage is live'
+            : 'NO — mechanic is not producing a difference');
+p.shoulder = 'strong'; p.handed = 'right';
+
+let lefties = 0; const NH = 4000;
+for (let i = 0; i < NH; i++) if (rollHandedness() === 'left') lefties++;
+const lr = lefties / NH;
+console.log('left-handed rate:', lr.toFixed(3), '(target 0.10)', Math.abs(lr - 0.10) < 0.02 ? 'OK' : 'OUT OF BAND');
+
+p.moving = false; p.recoil = 0; p.shoulder = 'strong';
+const sStrong = currentSpread(p);
+p.shoulder = 'support';
+const sSupport = currentSpread(p);
+p.shoulder = 'strong';
+console.log('spread penalty ratio:', (sSupport / sStrong).toFixed(2), '(target 2.30)');
+console.log('CORNER TEST DONE');
+})();
