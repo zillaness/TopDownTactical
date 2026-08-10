@@ -165,7 +165,7 @@ const TUNE = {
 
   // noise radii (px)
   noiseShot: 560, noiseKick: 330, noiseBreach: 760, noiseShout: 260,
-  noiseRunStep: 100, noiseDoor: 60, noiseBangBlast: 700,
+  noiseRunStep: 100, noiseDoor: 60, noiseBangBlast: 700, noiseGlass: 340,
 
   // flashbang
   bangFuse: 1.0, bangRadius: 230, bangThrowSpeed: 420,
@@ -173,6 +173,9 @@ const TUNE = {
 
   // doors
   doorHp: 60, doorKickStun: 0.5, chargeStunRadius: 190, chargeStun: 2.2,
+  // breaching charges are explosives, not stun grenades: they maim what is
+  // behind the wall. Lethal radius is short, wounding radius reaches further.
+  blastLethal: 46, blastWound: 105, blastDmg: 120,
 
   // handedness & the corner game
   eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
@@ -324,7 +327,7 @@ const MAPS = [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,##############################D###,#",
+"#,,,,,,,,,####W#########W########W######D###,#",
 "#,,,,,,,,,#.......#..........#.......#.....#,#",
 "#,,,,,,,,,#.......#..........#.......#.....#,#",
 "#,,,,,,,,,#.......#.......c..#.......#.....#,#",
@@ -357,7 +360,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,####L############,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,##W#L#####W######,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,#.......#.......#,,#",
 "#,,,,,###############,,,,,#.......#.....h.#,,#",
 "#,,,,,#.............#,,,,,#...g...#.......#,,#",
@@ -389,7 +392,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,###############################,,,,,,#",
+"#,,,,,,,#####W#######W#########W#######,,,,,,#",
 "#,,,,,,,#.............................#,,,,,,#",
 "#,,,,,,,#...g.........................#,,,,,,#",
 "#,,,,,,,#.....................p.......#,,,,,,#",
@@ -425,7 +428,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,###########,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,#.........#,,,,,,,,,,,,,,,#",
-"#,,,#############,,#......h..#,,######L#####,#",
+"#,,,#####W#######,,#......h..#,,###W##L#####,#",
 "#,,,#...........#,,#.........#,,#..........#,#",
 "#,,,#...........#,,#..g......#,,#.......h..#,#",
 "#,,,#...g.......#,,#.........#,,#.E..T.....#,#",
@@ -456,7 +459,7 @@ let MAP_SRC = MAPS[0].src;
     const w = m.src[0].length;
     m.src.forEach((row, y) => {
       if (row.length !== w) throw new Error(`${m.name} row ${y} length ${row.length} != ${w}`);
-      if (!/^[#,.DLPsgphcTE]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#,.DLWPsgphcTE]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
   }
 })();
@@ -466,6 +469,8 @@ const ROOM_NAMES = { }; // filled after flood fill; index -> label
 const level = {
   w: 0, h: 0,
   wall: [],      // 1 = structural wall
+  window: [],    // 1 = window: blocks movement, transparent to sight and bullets
+  windowAt: new Map(),
   interior: [],  // 1 = interior floor (for render + room logic)
   room: [],      // room id per tile (0 = exterior/none)
   doors: [],     // Door objects
@@ -476,7 +481,8 @@ const level = {
 function parseLevel() {
   const rows = MAP_SRC;
   level.h = rows.length; level.w = rows[0].length;
-  level.doors = []; level.doorAt = new Map();
+  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map();
+  level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -485,6 +491,12 @@ function parseLevel() {
     const ch = rows[y][x];
     const cx = x * TILE + TILE / 2, cy = y * TILE + TILE / 2;
     if (ch === "#") { level.wall[y][x] = 1; continue; }
+    if (ch === "W") {
+      level.window[y][x] = 1;
+      const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#" || rows[y][x - 1] === "W" || rows[y][x + 1] === "W");
+      level.windowAt.set(x + "," + y, { tx: x, ty: y, orient: horiz ? "h" : "v", broken: false });
+      continue;
+    }
     if (ch === "D" || ch === "L") {
       const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#");
       const door = { tx: x, ty: y, orient: horiz ? "h" : "v", state: "closed",
@@ -531,10 +543,13 @@ function parseLevel() {
 function inBounds(tx, ty) { return tx >= 0 && ty >= 0 && tx < level.w && ty < level.h; }
 function isWall(tx, ty) { return !inBounds(tx, ty) || level.wall[ty][tx] === 1; }
 function doorAt(tx, ty) { return level.doorAt.get(tx + "," + ty); }
+function windowAt(tx, ty) { return level.windowAt.get(tx + "," + ty); }
+// a window frame still blocks a body even once the glass is gone
+function isWindow(tx, ty) { return inBounds(tx, ty) && level.window[ty][tx] === 1; }
 
-// blocks movement: walls + closed/locked doors (open or breached doors pass)
+// blocks movement: walls + windows + closed/locked doors (open or breached doors pass)
 function solidForMove(tx, ty) {
-  if (isWall(tx, ty)) return true;
+  if (isWall(tx, ty) || isWindow(tx, ty)) return true;
   const d = doorAt(tx, ty);
   return !!(d && d.state === "closed");
 }
@@ -544,8 +559,9 @@ function opaque(tx, ty) {
   const d = doorAt(tx, ty);
   return !!(d && d.state === "closed");
 }
-// pathfinding traversability: doors are traversable (AI opens them); walls not
-function passForPath(tx, ty) { return !isWall(tx, ty); }
+// pathfinding traversability: doors are traversable (AI opens them); walls and
+// window frames are not — you can shoot and throw through a window, not walk it
+function passForPath(tx, ty) { return !isWall(tx, ty) && !isWindow(tx, ty); }
 // extra path cost: closed doors cost time; locked doors are near-forbidden for squad
 function pathCostSquad(tx, ty) {
   const d = doorAt(tx, ty); if (!d) return 0;
@@ -560,14 +576,14 @@ function roomAt(x, y) { const t = tileAt(x, y); return inBounds(t.tx, t.ty) ? le
 
 // snap a point to the nearest standable tile center (not wall, not door threshold)
 function nearestPassable(x, y) {
+  const ok = (tx, ty) => inBounds(tx, ty) && !isWall(tx, ty) && !isWindow(tx, ty) && !doorAt(tx, ty);
   const t = tileAt(x, y);
-  if (inBounds(t.tx, t.ty) && !isWall(t.tx, t.ty) && !doorAt(t.tx, t.ty)) return { x, y };
+  if (ok(t.tx, t.ty)) return { x, y };
   for (let r = 1; r <= 4; r++) {
     for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
       if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
       const nx = t.tx + ox, ny = t.ty + oy;
-      if (inBounds(nx, ny) && !isWall(nx, ny) && !doorAt(nx, ny))
-        return { x: nx * TILE + TILE / 2, y: ny * TILE + TILE / 2 };
+      if (ok(nx, ny)) return { x: nx * TILE + TILE / 2, y: ny * TILE + TILE / 2 };
     }
   }
   return { x, y };
@@ -868,6 +884,12 @@ function updateBullets(dt) {
       if (d && d.state === "closed") damageDoor(d, b.dmg * 0.5);
       game.fx.push({ kind: "spark", x: ex, y: ey, t: 0.12, max: 0.12 });
     }
+    // rounds pass through glass but shatter it on the way
+    {
+      const gt = tileAt(b.x, b.y), gt2 = tileAt(nx, ny);
+      const w = windowAt(gt.tx, gt.ty) || windowAt(gt2.tx, gt2.ty);
+      if (w) breakWindow(w, b.side);
+    }
     // entity hit along segment
     const victim = firstEntityOnSegment(b, ex, ey);
     if (victim) { applyHit(victim.ent, b, victim.x, victim.y); stopped = true; ex = victim.x; ey = victim.y; }
@@ -949,13 +971,23 @@ function throwBang(thrower, txw, tyw) {
 }
 
 function updateBangs(dt) {
-  for (const g of game.bangs) {
+  outer: for (const g of game.bangs) {
     g.fuse -= dt;
     if (g.travelLeft > 0) {
       let step = Math.min(g.travelLeft, Math.hypot(g.vx, g.vy) * dt);
       const ang = Math.atan2(g.vy, g.vx);
       const hit = raycast(g.x, g.y, ang, step, solidForMove);
       if (hit.hit) {
+        // glass is not a wall: a thrown grenade goes through it, loudly
+        const ht = hitTile(hit, ang);
+        const win = windowAt(ht.tx, ht.ty);
+        if (win) {
+          breakWindow(win, g.side);
+          const past = Math.min(g.travelLeft, step + TILE);
+          g.x += Math.cos(ang) * past; g.y += Math.sin(ang) * past;
+          g.travelLeft -= past;
+          continue;
+        }
         if (hit.axis === null) { g.travelLeft = 0; g.vx = 0; g.vy = 0; } // started embedded: just sit
         else { // bounce: reflect the component crossing the face the DDA actually stepped, damp
           if (hit.axis === "x") g.vx *= -0.4; else g.vy *= -0.4;
@@ -1054,13 +1086,32 @@ function chargeDoor(d, by) {
   game.fx.push({ kind: "explosion", x: c.x, y: c.y, t: 0.5, max: 0.5 });
   sfxAt("breach", c.x, c.y);
   game.camKick = Math.min(14, game.camKick + 9);
-  for (const e of [...game.enemies, ...game.civilians]) {
+  applyBlast(c.x, c.y, by ? by.side : "squad");
+  for (const e of [...game.enemies, ...game.civilians, ...game.hostages]) {
     if (!e.alive) continue;
     if (dist(c.x, c.y, e.x, e.y) > TUNE.chargeStunRadius) continue;
     if (!lineOfSight(c.x, c.y, e.x, e.y, opaque)) continue;
     e.stagger = Math.max(e.stagger, TUNE.chargeStun);
     e.blind = Math.max(e.blind, TUNE.chargeStun * 0.8);
     if (e.side === "enemy") { e.flashedRecently = TUNE.chargeStun; alertEnemy(e, c.x, c.y); }
+  }
+}
+
+// Blast damage with falloff, attributed to whoever set the charge — so killing
+// a hostage with your own breach lands on your ROE score, as it should.
+function applyBlast(cx, cy, side) {
+  const victims = [game.player, ...game.squad, ...game.enemies, ...game.hostages, ...game.civilians];
+  for (const e of victims) {
+    if (!e || !e.alive) continue;
+    const d = dist(cx, cy, e.x, e.y);
+    if (d > TUNE.blastWound) continue;
+    if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;   // the wall shields the far side
+    const t = clamp(1 - (d - TUNE.blastLethal) / (TUNE.blastWound - TUNE.blastLethal), 0, 1);
+    const dmg = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
+    if (dmg <= 0) continue;
+    e.hp -= dmg;
+    game.fx.push({ kind: "blood", x: e.x, y: e.y, ang: angleTo(cx, cy, e.x, e.y), t: 0.4, max: 0.4 });
+    if (e.hp <= 0) killEntity(e, side);
   }
 }
 
@@ -1087,7 +1138,8 @@ function detonateWallCharge() {
   addNoise(cx, cy, TUNE.noiseBreach, "breach", "player");
   sfxAt("breach", cx, cy);
   game.camKick = Math.min(14, game.camKick + 9);
-  for (const e of [...game.enemies, ...game.civilians]) {
+  applyBlast(cx, cy, "player");
+  for (const e of [...game.enemies, ...game.civilians, ...game.hostages]) {
     if (!e.alive) continue;
     if (dist(cx, cy, e.x, e.y) > TUNE.chargeStunRadius) continue;
     if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;
@@ -1098,12 +1150,31 @@ function detonateWallCharge() {
   game.stats.breaches++;
 }
 
+// ---- windows
+function breakWindow(w, side) {
+  if (!w || w.broken) return false;
+  w.broken = true;
+  const cx = w.tx * TILE + TILE / 2, cy = w.ty * TILE + TILE / 2;
+  addNoise(cx, cy, TUNE.noiseGlass, "glass", side || "neutral");
+  sfxAt("glass", cx, cy);
+  game.fx.push({ kind: "glass", x: cx, y: cy, t: 0.35, max: 0.35 });
+  return true;
+}
+
+// tile a ray actually terminated in (the hit point sits exactly on the boundary)
+function hitTile(hit, ang) {
+  return tileAt(hit.x + Math.cos(ang) * 0.6, hit.y + Math.sin(ang) * 0.6);
+}
+
 // ---- noise
 function addNoise(x, y, radius, type, side) {
   game.noises.push({ x, y, radius, type, side });
-  // your own noise is visualized so the stealth system is learnable (DK2 pain point)
-  if ((side === "player" || side === "squad") && radius >= 100) {
-    game.fx.push({ kind: "noisering", x, y, r: radius, t: 0.55, max: 0.55 });
+  // Noise is the enemy's information channel, so it has to be visible to be
+  // learnable. Your own emissions always show; anyone else's shows if it is
+  // loud enough that your operator would plainly hear it.
+  const mine = side === "player" || side === "squad";
+  if ((mine && radius >= 100) || radius >= 300) {
+    game.fx.push({ kind: "noisering", x, y, r: radius, type, mine, t: 0.7, max: 0.7 });
   }
 }
 
@@ -1731,6 +1802,20 @@ function render() {
   ctx.fillStyle = COLORS.blood;
   for (const d of game.decals) { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill(); }
 
+  // windows
+  for (const w of level.windowAt.values()) {
+    if (!seen.grid[w.ty][w.tx]) continue;
+    const wx = w.tx * TILE, wy = w.ty * TILE;
+    ctx.strokeStyle = w.broken ? "#5b6b76" : "#7fc8e8";
+    ctx.lineWidth = w.broken ? 2 : 4;
+    if (w.broken) ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    if (w.orient === "h") { ctx.moveTo(wx + 2, wy + TILE / 2); ctx.lineTo(wx + TILE - 2, wy + TILE / 2); }
+    else { ctx.moveTo(wx + TILE / 2, wy + 2); ctx.lineTo(wx + TILE / 2, wy + TILE - 2); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   // doors
   for (const d of level.doors) {
     const t = tileAt(d.tx * TILE, d.ty * TILE);
@@ -1793,6 +1878,18 @@ function render() {
     ctx.strokeStyle = p.swapT > 0 ? COLORS.danger : (p.shoulder === "support" ? COLORS.accent : COLORS.player);
     ctx.lineWidth = 2 * k;
     ctx.beginPath(); ctx.arc(game.eye.x, game.eye.y, 3.5 * k * 1.6, 0, TAU); ctx.stroke();
+  }
+
+  // alert markers: close the loop between a noise you made and a man reacting
+  ctx.textAlign = "center";
+  ctx.font = "bold " + (13 / game.zoom).toFixed(1) + "px Consolas, monospace";
+  for (const e of game.enemies) {
+    if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
+    if (!visibleToPlayerSide(e)) continue;
+    const mark = e.state === "combat" ? "!" : (e.state === "suspicious" || e.state === "hunt") ? "?" : null;
+    if (!mark) continue;
+    ctx.fillStyle = mark === "!" ? COLORS.danger : COLORS.accent;
+    ctx.fillText(mark, e.x, e.y - e.r - 8 / game.zoom);
   }
 
   // player-intel overlays sit ABOVE the fog — they are UI, not world geometry
@@ -2008,6 +2105,15 @@ function drawFx() {
     } else if (f.kind === "explosion") {
       ctx.fillStyle = "#ffae42"; ctx.globalAlpha = k * 0.9;
       ctx.beginPath(); ctx.arc(f.x, f.y, 60 * (1.4 - k * 0.4), 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+    } else if (f.kind === "glass") {
+      ctx.strokeStyle = "#bfe8ff"; ctx.globalAlpha = k; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU + f.x;
+        ctx.beginPath(); ctx.moveTo(f.x, f.y);
+        ctx.lineTo(f.x + Math.cos(a) * (1 - k) * 22, f.y + Math.sin(a) * (1 - k) * 22);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
     } else if (f.kind === "spark") {
       ctx.fillStyle = "#ffd27a"; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
@@ -2021,9 +2127,18 @@ function drawFx() {
       ctx.fillStyle = "#d8e4ee"; ctx.fillText(f.text, f.x, f.y - 14 - (1 - k) * 12);
       ctx.globalAlpha = 1;
     } else if (f.kind === "noisering") {
-      ctx.strokeStyle = "#e8b53a"; ctx.globalAlpha = k * 0.22; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.75 + (1 - k) * 0.25), 0, TAU); ctx.stroke();
-      ctx.globalAlpha = 1;
+      const NOISE_COL = { shot: "#ffd27a", bang: "#ffffff", breach: "#ff8c42", doorbreak: "#ff8c42",
+                          glass: "#7fc8e8", kick: "#e8b53a", shout: "#ffffff", steps: "#8a9aa8",
+                          bodyfall: "#c98a8a", door: "#8a9aa8" };
+      // An expanding pulse, not the literal audible circle — a gunshot's real
+      // radius is wider than the screen and just reads as a stray arc.
+      const peak = clamp(f.r * 0.42, 26, 210);
+      ctx.strokeStyle = NOISE_COL[f.type] || "#e8b53a";
+      ctx.globalAlpha = k * k * (f.mine ? 0.55 : 0.7);
+      ctx.lineWidth = (f.mine ? 1.5 : 2.5) / game.zoom;
+      if (!f.mine) ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(f.x, f.y, peak * (1 - k) + 4, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
     } else if (f.kind === "shout" || f.kind === "slam") {
       ctx.strokeStyle = f.kind === "shout" ? "#fff" : COLORS.accent; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x, f.y, (1 - k) * 40 + 8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2179,6 +2294,7 @@ const SFX = {
   hit(v, p)     { playNoise(v * 0.7, 0.07, "lowpass", 520, p); playTone(v * 0.5, 0.07, "sine", 110, 70, p); },
   thud(v, p)    { playTone(v * 0.8, 0.22, "sine", 90, 40, p); playNoise(v * 0.4, 0.15, "lowpass", 260, p); },
   door(v, p)    { playNoise(v * 0.35, 0.12, "bandpass", 420, p); },
+  glass(v, p)   { playNoise(v * 0.7, 0.22, "highpass", 3200, p); playTone(v * 0.3, 0.14, "triangle", 2600, 1400, p); },
   click(v, p)   { playTone(v * 0.5, 0.035, "square", 1150, 900, p); },
   surrender(v, p) { playTone(v * 0.5, 0.09, "sine", 520, 620, p); playTone(v * 0.4, 0.1, "sine", 660, 700, p); },
 };

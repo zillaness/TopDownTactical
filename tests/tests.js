@@ -231,3 +231,49 @@ p.shoulder = 'strong';
 console.log('spread penalty ratio:', (sSupport / sStrong).toFixed(2), '(target 2.30)');
 console.log('CORNER TEST DONE');
 })();
+
+(function windowAndBlastTests(){
+// ===== windows =====
+game.mapIndex = 0; game.diffIndex = 1; initGame(); game.state = 'play';
+const wins = [...level.windowAt.values()];
+console.log('windows parsed:', wins.length, wins.map(w=>`${w.tx},${w.ty}${w.orient}`).join(' '));
+const w0 = wins[0];
+console.log('window blocks movement:', solidForMove(w0.tx, w0.ty), '(want true)');
+console.log('window blocks sight   :', opaque(w0.tx, w0.ty), '(want false)');
+console.log('window blocks pathing :', !passForPath(w0.tx, w0.ty), '(want true)');
+
+// throw a bang at a window from the open side; it should break and pass through
+const cx = w0.tx*TILE + TILE/2, cy = w0.ty*TILE + TILE/2;
+const p = game.player;
+p.x = cx; p.y = cy + TILE*3;            // stand south of it
+game.noises = [];
+throwBang(p, cx, cy - TILE*3);          // aim north, through the glass
+for (let i = 0; i < 40 && game.bangs.length; i++) updateBangs(1/60);
+console.log('window broken by grenade:', w0.broken, '(want true)');
+const glassNoise = game.noises.some(n => n.type === 'glass');
+console.log('breaking emitted noise  :', glassNoise, '(want true)');
+
+// a bullet through a second window should shatter it too
+const w1 = wins[1];
+if (w1) {
+  const bx = w1.tx*TILE + TILE/2, by = w1.ty*TILE + TILE/2;
+  p.x = bx; p.y = by + TILE*2; p.face = -Math.PI/2; p.cooldown = 0; p.reloading = 0; p.ammo = 30;
+  tryFire(p, -Math.PI/2);
+  for (let i = 0; i < 20; i++) updateBullets(1/60);
+  console.log('window broken by bullet :', w1.broken, '(want true)');
+}
+
+// ===== breach blast harms bystanders =====
+initGame(); game.state = 'play';
+const h = game.hostages[0];
+const bx2 = h.x + 30, by2 = h.y;        // charge goes off a stride away
+const hpBefore = h.hp;
+applyBlast(bx2, by2, 'player');
+console.log('hostage hp', hpBefore, '->', Math.round(h.hp), '| alive:', h.alive,
+            '| counted against us:', game.stats.hostagesDead);
+initGame(); game.state = 'play';
+const h2 = game.hostages[0];
+applyBlast(h2.x + 200, h2.y, 'player');  // well outside the wound radius
+console.log('hostage far from blast unhurt:', h2.hp === 40, '(want true)');
+console.log('WINDOW+BLAST TEST DONE');
+})();
