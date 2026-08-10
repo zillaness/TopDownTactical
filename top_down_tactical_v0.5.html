@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.4.html
-  version: 0.4
+  file: top_down_tactical_v0.5.html
+  version: 0.5
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-07
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.4 (working title)</title>
+<title>Top-Down Tactical v0.5 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -31,6 +31,7 @@
   #mapPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; max-width: 900px; }
   .mapbtn { max-width: 210px; }
   #diffPick { display: flex; gap: 8px; margin-top: 12px; }
+  #ammoPick { display: flex; gap: 8px; margin-top: 10px; }
   .mapbtn { background: #11161b; border: 1px solid #232c34; color: #aeb8c2; padding: 10px 18px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
   .mapbtn b { color: #e8eef4; letter-spacing: 1px; }
   .mapbtn.sel { border-color: #1d4ed8; background: #14203a; }
@@ -45,7 +46,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.4 prototype &mdash; working title &mdash; six missions</h2>
+  <h2>v0.5 prototype &mdash; working title &mdash; six missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -68,6 +69,7 @@
   </div>
   <div id="mapPick"></div>
   <div id="diffPick"></div>
+  <div id="ammoPick"></div>
   <button class="btn" id="btnStart">Breach</button>
   <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
 </div>
@@ -149,11 +151,11 @@ const TUNE = {
   losRays: 280,
 
   // player weapon (carbine)
-  rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500,
+  rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
            spreadBase: deg(1.2), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
            recoil: deg(1.1), recoilMax: deg(7), recoilDecay: deg(14), range: 900 },
   // enemy weapon
-  akm:   { dmg: 26, rpm: 420, mag: 30, reload: 2.6, speed: 1300,
+  akm:   { dmg: 26, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
            spreadBase: deg(3.2), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 800 },
 
   // lethality
@@ -193,6 +195,33 @@ const TUNE = {
 };
 
 function deg(d) { return d * Math.PI / 180; }
+
+// ---- barrier materials
+// `opaque` is cover-for-the-eyes; `resist` is cover-for-bullets. A material can
+// be one without the other: drywall hides you completely and stops nothing, so
+// it is concealment, not cover — shoot through it if you have eyes some other way.
+const MATERIALS = {
+  air:        { resist: 0,    opaque: false, spall: 0,  defl: 0,       dmgKeep: 1,    col: null },
+  concrete:   { resist: 999,  opaque: true,  spall: 5,  defl: 0,       dmgKeep: 0,    col: "#39434d" },
+  brick:      { resist: 30,   opaque: true,  spall: 11, defl: deg(9),  dmgKeep: 0.45, col: "#6b4a3f" },
+  wood:       { resist: 13,   opaque: true,  spall: 6,  defl: deg(6),  dmgKeep: 0.65, col: "#6b5535" },
+  drywall:    { resist: 5,    opaque: true,  spall: 3,  defl: deg(3.5),dmgKeep: 0.85, col: "#4a5058" },
+  glass:      { resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#7fc8e8" },
+  sheetmetal: { resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#5a6570" },
+  engine:     { resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#2f3841" },
+};
+
+// ---- ammunition: penetration is caliber x projectile, and the two trade off
+const AMMO = {
+  fmj:  { name: "5.56 FMJ",  pen: 26, dmgMul: 1.00 },
+  hp:   { name: "5.56 HP",   pen: 4,  dmgMul: 1.30 },   // will not cross drywall
+  ap:   { name: "5.56 AP",   pen: 46, dmgMul: 0.85 },
+  x39:  { name: "7.62 FMJ",  pen: 32, dmgMul: 1.00 },
+  pistol:{name: "9mm FMJ",   pen: 12, dmgMul: 1.00 },
+  bird: { name: "BIRDSHOT",  pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
+  buck: { name: "BUCKSHOT",  pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
+  slug: { name: "SLUG",      pen: 34, dmgMul: 1.70 },
+};
 
 const COLORS = {
   floorIn: "#1d232a", floorOut: "#151a16", wall: "#39434d", wallEdge: "#4d5964",
@@ -554,6 +583,7 @@ function parseLevel() {
   level.h = rows.length; level.w = rows[0].length;
   level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
+  level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
   level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -561,7 +591,12 @@ function parseLevel() {
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
     const ch = rows[y][x];
     const cx = x * TILE + TILE / 2, cy = y * TILE + TILE / 2;
-    if (ch === "#") { level.wall[y][x] = 1; continue; }
+    if (ch === "#" || ch === "=" || ch === "-" || ch === "%" || ch === "@") {
+      level.wall[y][x] = 1;
+      level.mat[y][x] = ch === "=" ? "brick" : ch === "-" ? "drywall"
+                      : ch === "%" ? "sheetmetal" : ch === "@" ? "engine" : "concrete";
+      continue;
+    }
     if (ch === "W") {
       level.window[y][x] = 1;
       const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#" || rows[y][x - 1] === "W" || rows[y][x + 1] === "W");
@@ -587,6 +622,17 @@ function parseLevel() {
     else if (ch === "h") level.spawns.hostages.push({ x: cx, y: cy });
     else if (ch === "c") level.spawns.civilians.push({ x: cx, y: cy });
   }
+  // Anything still plain concrete that has interior floor on BOTH opposite sides
+  // is an internal partition, not structure — call it drywall. That gives every
+  // map sensible materials without hand-editing, and explicit =, -, %, @ still win.
+  const floorAt = (x, y) => inBounds(x, y) && !level.wall[y][x] && !level.window[y][x] && level.interior[y][x];
+  for (let y = 1; y < level.h - 1; y++) for (let x = 1; x < level.w - 1; x++) {
+    if (level.mat[y][x] !== "concrete") continue;
+    const horiz = floorAt(x - 1, y) && floorAt(x + 1, y);
+    const vert  = floorAt(x, y - 1) && floorAt(x, y + 1);
+    if (horiz || vert) level.mat[y][x] = "drywall";
+  }
+
   // flood-fill room ids over walkable tiles; doors are boundaries between rooms
   let nextRoom = 1;
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
@@ -617,6 +663,19 @@ function inBounds(tx, ty) { return tx >= 0 && ty >= 0 && tx < level.w && ty < le
 function isWall(tx, ty) { return !inBounds(tx, ty) || level.wall[ty][tx] === 1; }
 function doorAt(tx, ty) { return level.doorAt.get(tx + "," + ty); }
 function windowAt(tx, ty) { return level.windowAt.get(tx + "," + ty); }
+
+// what a round actually meets at this tile
+function materialAt(tx, ty) {
+  if (!inBounds(tx, ty)) return MATERIALS.concrete;
+  const w = windowAt(tx, ty);
+  if (w) return w.broken ? MATERIALS.air : MATERIALS.glass;
+  const d = doorAt(tx, ty);
+  if (d) return d.state === "closed" ? MATERIALS.wood : MATERIALS.air;
+  const key = level.mat[ty] && level.mat[ty][tx];
+  return key ? MATERIALS[key] : MATERIALS.air;
+}
+// anything a round has to resolve against, penetrable or not
+function blocksBullet(tx, ty) { return materialAt(tx, ty).resist > 0; }
 // a window frame still blocks a body even once the glass is gone
 function isWindow(tx, ty) { return inBounds(tx, ty) && level.window[ty][tx] === 1; }
 
@@ -626,11 +685,10 @@ function solidForMove(tx, ty) {
   const d = doorAt(tx, ty);
   return !!(d && d.state === "closed");
 }
-// blocks sight: walls + closed doors
+// blocks sight: whatever the material says. Drywall is opaque but not bulletproof.
 function opaque(tx, ty) {
-  if (isWall(tx, ty)) return true;
-  const d = doorAt(tx, ty);
-  return !!(d && d.state === "closed");
+  if (!inBounds(tx, ty)) return true;
+  return materialAt(tx, ty).opaque;
 }
 // pathfinding traversability: doors are traversable (AI opens them); walls and
 // window frames are not — you can shoot and throw through a window, not walk it
@@ -758,6 +816,7 @@ function makeShooter(x, y, side, hp, weapon) {
 function makePlayer(sp) {
   const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, TUNE.rifle);
   p.bangs = 3; p.charges = 2; p.shoutCd = 0;
+  p.ammoType = game.ammoChoice || "fmj";
   return p;
 }
 
@@ -927,13 +986,23 @@ function tryFire(s, ang) {
   s.ammo--; s.cooldown = 60 / s.weapon.rpm;
   s.recoil = Math.min(s.weapon.recoilMax ?? deg(6), s.recoil + (s.weapon.recoil ?? deg(1.4)));
   const spread = currentSpread(s);
-  const a = ang + rand(-spread / 2, spread / 2);
   const eye = eyePoint(s);   // rounds leave from the muzzle, which is off-centre
-  game.bullets.push({
-    x: eye.x + Math.cos(a) * 4, y: eye.y + Math.sin(a) * 4,
-    ang: a, speed: s.weapon.speed, dmg: s.weapon.dmg, side: s.side,
-    traveled: 0, range: s.weapon.range, alive: true, owner: s,
-  });
+  const round = AMMO[s.ammoType || s.weapon.ammo || "fmj"] || AMMO.fmj;
+  // glass deflects the first round through it; after that the hole is open
+  const t0 = tileAt(eye.x + Math.cos(ang) * TILE, eye.y + Math.sin(ang) * TILE);
+  const glassAhead = windowAt(t0.tx, t0.ty);
+  const glassPenalty = (glassAhead && !glassAhead.broken) ? deg(4.5) : 0;
+  const shots = round.pellets || 1;
+  for (let i = 0; i < shots; i++) {
+    const cone = round.pellets ? round.spread : spread;
+    const a = ang + rand(-cone / 2, cone / 2) + rand(-glassPenalty, glassPenalty);
+    game.bullets.push({
+      x: eye.x + Math.cos(a) * 4, y: eye.y + Math.sin(a) * 4,
+      ang: a, speed: s.weapon.speed, dmg: s.weapon.dmg * round.dmgMul / (round.pellets ? 1.6 : 1),
+      pen: round.pen * (s.weapon.penMul || 1), side: s.side,
+      traveled: 0, range: s.weapon.range, alive: true, owner: s,
+    });
+  }
   game.fx.push({ kind: "muzzle", x: s.x + Math.cos(ang) * (s.r + 6), y: s.y + Math.sin(ang) * (s.r + 6), ang, t: 0.05, max: 0.05 });
   addNoise(s.x, s.y, TUNE.noiseShot, "shot", s.side);
   sfxAt("shot", s.x, s.y);
@@ -942,33 +1011,91 @@ function tryFire(s, ang) {
   return true;
 }
 
+// Fragments thrown off a struck barrier. This is why hugging a wall in a
+// firefight hurts — and why standing off it, where more sightlines reach you,
+// is a real trade rather than a free win.
+function applySpall(x, y, mat, side) {
+  if (!mat.spall) return;
+  const R = 34;
+  for (const e of [game.player, ...game.squad, ...game.enemies, ...game.hostages, ...game.civilians]) {
+    if (!e || !e.alive) continue;
+    const d = dist(x, y, e.x, e.y);
+    if (d > R) continue;
+    const dmg = mat.spall * (1 - d / R);
+    if (dmg <= 0.5) continue;
+    e.hp -= dmg;
+    game.fx.push({ kind: "spark", x: e.x, y: e.y, t: 0.1, max: 0.1 });
+    if (e.hp <= 0) killEntity(e, side);
+  }
+}
+
+// Decide what a round does at a barrier: skip along it, punch through, or die.
+function resolveBarrier(b, hit) {
+  const t = hitTile(hit, b.ang);
+  const mat = materialAt(t.tx, t.ty);
+  game.fx.push({ kind: "spark", x: hit.x, y: hit.y, t: 0.12, max: 0.12 });
+  applySpall(hit.x, hit.y, mat, b.side);
+
+  const win = windowAt(t.tx, t.ty);
+  const door = doorAt(t.tx, t.ty);
+  if (door && door.state === "closed") damageDoor(door, b.dmg * 0.5);
+
+  // Grazing incidence: a round striking a hard surface almost parallel to it
+  // skips and runs along the wall instead of burying itself.
+  const cosInc = hit.axis === "x" ? Math.abs(Math.cos(b.ang)) : Math.abs(Math.sin(b.ang));
+  if (hit.axis && cosInc < 0.26 && mat.resist >= 10 && Math.random() < 0.75) {
+    b.ang = hit.axis === "x" ? Math.PI - b.ang : -b.ang;
+    b.ang += rand(-deg(3), deg(3));
+    b.dmg *= 0.7; b.pen *= 0.6; b.ricochets = (b.ricochets || 0) + 1;
+    b.x += Math.cos(b.ang) * 1.5; b.y += Math.sin(b.ang) * 1.5;
+    if (b.ricochets > 2) b.alive = false;
+    return;
+  }
+
+  if (win) breakWindow(win, b.side);
+
+  // Penetration: caliber-and-projectile against material resistance.
+  if (b.pen > mat.resist) {
+    b.pen -= mat.resist;
+    b.dmg *= mat.dmgKeep;
+    b.ang += rand(-mat.defl, mat.defl);          // it comes out crooked
+    // step past the tile we just punched through
+    const skip = TILE * 1.05;
+    b.x = hit.x + Math.cos(b.ang) * skip;
+    b.y = hit.y + Math.sin(b.ang) * skip;
+    b.traveled += skip;
+    applySpall(b.x, b.y, mat, b.side);           // spall sprays the far side too
+    if (b.dmg < 4) b.alive = false;
+    return;
+  }
+  b.alive = false;
+}
+
 function updateBullets(dt) {
   for (const b of game.bullets) {
     if (!b.alive) continue;
-    let step = b.speed * dt;
-    if (b.traveled + step > b.range) step = b.range - b.traveled;
-    const nx = b.x + Math.cos(b.ang) * step, ny = b.y + Math.sin(b.ang) * step;
-    // wall / closed-door hit
-    const hit = raycast(b.x, b.y, b.ang, step, opaque);
-    let ex = nx, ey = ny, stopped = false;
-    if (hit.hit) { ex = hit.x; ey = hit.y; stopped = true;
-      const t = tileAt(ex + Math.cos(b.ang), ey + Math.sin(b.ang));
-      const d = doorAt(t.tx, t.ty);
-      if (d && d.state === "closed") damageDoor(d, b.dmg * 0.5);
-      game.fx.push({ kind: "spark", x: ex, y: ey, t: 0.12, max: 0.12 });
+    let budget = b.speed * dt;
+    if (b.traveled + budget > b.range) budget = b.range - b.traveled;
+    let guard = 0;
+    while (b.alive && budget > 0.5 && guard++ < 6) {
+      const hit = raycast(b.x, b.y, b.ang, budget, blocksBullet);
+      const ex = hit.hit ? hit.x : b.x + Math.cos(b.ang) * budget;
+      const ey = hit.hit ? hit.y : b.y + Math.sin(b.ang) * budget;
+      const victim = firstEntityOnSegment(b, ex, ey);
+      if (victim) {
+        game.fx.push({ kind: "tracer", x: b.x, y: b.y, x2: victim.x, y2: victim.y, t: 0.06, max: 0.06 });
+        applyHit(victim.ent, b, victim.x, victim.y);
+        b.alive = false;
+        break;
+      }
+      game.fx.push({ kind: "tracer", x: b.x, y: b.y, x2: ex, y2: ey, t: 0.06, max: 0.06 });
+      const seg = dist(b.x, b.y, ex, ey);
+      budget -= seg; b.traveled += seg;
+      b.x = ex; b.y = ey;
+      if (!hit.hit) break;
+      resolveBarrier(b, hit);
     }
-    // rounds pass through glass but shatter it on the way
-    {
-      const gt = tileAt(b.x, b.y), gt2 = tileAt(nx, ny);
-      const w = windowAt(gt.tx, gt.ty) || windowAt(gt2.tx, gt2.ty);
-      if (w) breakWindow(w, b.side);
-    }
-    // entity hit along segment
-    const victim = firstEntityOnSegment(b, ex, ey);
-    if (victim) { applyHit(victim.ent, b, victim.x, victim.y); stopped = true; ex = victim.x; ey = victim.y; }
-    game.fx.push({ kind: "tracer", x: b.x, y: b.y, x2: ex, y2: ey, t: 0.06, max: 0.06 });
-    b.x = ex; b.y = ey; b.traveled += step;
-    if (stopped || b.traveled >= b.range) b.alive = false;
+    if (b.traveled >= b.range) b.alive = false;
   }
   game.bullets = game.bullets.filter(b => b.alive);
 }
@@ -1523,8 +1650,14 @@ function processNoises() {
 // ---------------------------------------------------------------- S10 squad
 const SQUAD_NAMES = ["REYES", "OKAFOR", "DANE"];
 
+const SQUAD_LOADOUT = [
+  { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 },                          // rifleman, M4
+  { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7, reload: 3.2 },     // breacher, shotgun
+  { ammo: "fmj",  rpm: 700, dmg: 30, range: 950, mag: 100, reload: 5.0 },   // support, SAW
+];
+
 function makeSquaddie(sp, i) {
-  const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480 };
+  const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480, ...(SQUAD_LOADOUT[i % 3] || {}) };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
@@ -1868,8 +2001,17 @@ function render() {
     if (!inBounds(tx, ty) || !seen.grid[ty][tx]) continue;
     const px = tx * TILE, py = ty * TILE;
     if (level.wall[ty][tx]) {
-      ctx.fillStyle = COLORS.wall; ctx.fillRect(px, py, TILE, TILE);
+      const mat = MATERIALS[level.mat[ty][tx]] || MATERIALS.concrete;
+      ctx.fillStyle = mat.col || COLORS.wall; ctx.fillRect(px, py, TILE, TILE);
       ctx.fillStyle = COLORS.wallEdge; ctx.fillRect(px, py, TILE, 3);
+      // partitions read as hatched so you can see what is only concealment
+      if (mat.resist < 20) {
+        ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, py + TILE); ctx.lineTo(px + TILE, py);
+        ctx.moveTo(px, py + TILE / 2); ctx.lineTo(px + TILE / 2, py);
+        ctx.stroke();
+      }
     } else {
       ctx.fillStyle = level.interior[ty][tx] ? COLORS.floorIn : COLORS.floorOut;
       ctx.fillRect(px, py, TILE, TILE);
@@ -2254,7 +2396,9 @@ function drawHud() {
   ctx.fillStyle = COLORS.hud;
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
-  ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "   BANGS " + p.bangs + "   CHARGES " + p.charges, bx, by + 26);
+  const rnd = AMMO[p.ammoType] || AMMO.fmj;
+  ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "  " + rnd.name
+               + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 26);
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
   // squad panel (top left)
@@ -2314,10 +2458,39 @@ function drawHud() {
   const m = input.mouse;
   const spreadPx = Math.tan(currentSpread(p) / 2) * dist(p.x, p.y, m.wx, m.wy) * game.zoom;
   const gap = clamp(4 + spreadPx, 4, 60);
-  ctx.strokeStyle = p.blind > 0 ? COLORS.danger : "#ffffffcc"; ctx.lineWidth = 1.5;
+  const hazard = lineOfFireHazard(p);
+  ctx.strokeStyle = hazard ? COLORS.danger : p.blind > 0 ? COLORS.danger : "#ffffffcc";
+  ctx.lineWidth = hazard ? 2.5 : 1.5;
   for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
     ctx.beginPath(); ctx.moveTo(m.x + ox * gap, m.y + oy * gap); ctx.lineTo(m.x + ox * (gap + 7), m.y + oy * (gap + 7)); ctx.stroke();
   }
+  if (hazard) {
+    ctx.fillStyle = COLORS.danger; ctx.textAlign = "center"; ctx.font = "12px Consolas, monospace";
+    ctx.fillText("CHECK FIRE", m.x, m.y - gap - 14);
+    const sx = (hazard.x - game.cam.x) * game.zoom + viewW / 2;
+    const sy = (hazard.y - game.cam.y) * game.zoom + viewH / 2;
+    ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx, sy, 14, 0, TAU); ctx.stroke();
+  }
+}
+
+// Who your muzzle is currently pointed through. The squad already refuses
+// unsafe shots via clearShot(); the player gets a warning instead of a veto.
+function lineOfFireHazard(p) {
+  if (!p.alive) return null;
+  const eye = game.eye || p;
+  const reach = Math.min(p.weapon.range, 700);
+  const ex = eye.x + Math.cos(p.face) * reach, ey = eye.y + Math.sin(p.face) * reach;
+  const wall = raycast(eye.x, eye.y, p.face, reach, opaque);
+  const stopX = wall.hit ? wall.x : ex, stopY = wall.hit ? wall.y : ey;
+  let best = null, bestD = Infinity;
+  for (const e of [...game.squad, ...game.hostages, ...game.civilians,
+                   ...game.enemies.filter(x => x.state === "surrender" || x.state === "cuffed")]) {
+    if (!e || !e.alive || e === p) continue;
+    const h = segCircle(eye.x, eye.y, stopX, stopY, e.x, e.y, e.r + 3);
+    if (h && h.d < bestD) { bestD = h.d; best = e; }
+  }
+  return best;
 }
 
 function orderLabel(s) {
@@ -2416,6 +2589,7 @@ const game = {
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6,
+  ammoChoice: "fmj",   // chosen at the briefing: penetration vs over-penetration
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -2675,6 +2849,7 @@ function saveBest(mapIdx, diffKey, grade) {
 
 const mapPickEl = document.getElementById("mapPick");
 const diffPickEl = document.getElementById("diffPick");
+const ammoPickEl = document.getElementById("ammoPick");
 function refreshMenu() {
   const bests = loadBests();
   const dk = DIFFICULTIES[game.diffIndex].key;
@@ -2685,6 +2860,7 @@ function refreshMenu() {
     if (span) span.textContent = best ? "best: " + best : "";
   });
   diffPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === game.diffIndex));
+  ammoPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.ammo === game.ammoChoice));
 }
 MAPS.forEach((m, i) => {
   const b = document.createElement("button");
@@ -2699,6 +2875,19 @@ DIFFICULTIES.forEach((d, i) => {
   b.innerHTML = "<b>" + d.name + "</b>";
   b.addEventListener("click", () => { game.diffIndex = i; refreshMenu(); });
   diffPickEl.appendChild(b);
+});
+
+const AMMO_CHOICES = [
+  { key: "fmj", note: "punches drywall — and whatever is behind it" },
+  { key: "hp",  note: "hits harder, stops at the first wall" },
+  { key: "ap",  note: "defeats hard cover, less effect on flesh" },
+];
+AMMO_CHOICES.forEach(c => {
+  const b = document.createElement("button");
+  b.className = "mapbtn"; b.dataset.ammo = c.key;
+  b.innerHTML = "<b>" + AMMO[c.key].name + "</b><br><span>" + c.note + "</span>";
+  b.addEventListener("click", () => { game.ammoChoice = c.key; refreshMenu(); });
+  ammoPickEl.appendChild(b);
 });
 refreshMenu();
 
@@ -2746,6 +2935,15 @@ requestAnimationFrame(frame);
     Mission framework: objectives are pluggable (rescue, neutralize, capture,
     eliminate, extract) with HVT and extraction-zone tiles; two new missions —
     FLIGHT 214 (aircraft assault) and HIGH VALUE (capture and extract).
+  v0.5 (2026-08-07): Ballistics. Barriers have materials, and cover for the eyes is
+    separated from cover for bullets — drywall partitions are opaque but stop almost
+    nothing, so with intel from another source you can shoot through them. Rounds
+    penetrate by caliber and projectile (FMJ and AP cross drywall, hollow point does
+    not), lose damage and come out deflected, skip along hard surfaces struck at
+    grazing angles, and throw spall that wounds anyone hugging the barrier. Glass
+    deflects the first round through it. Ammunition is chosen at the briefing.
+    Squad weapons differentiated: M4, buckshot, belt-fed. CHECK FIRE warning when a
+    friendly, hostage or surrendered suspect is in the player's line of fire.
 -->
 </body>
 </html>

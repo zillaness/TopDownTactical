@@ -322,3 +322,86 @@ checkMissionEnd(1/60);
 console.log('capture: mission state after both ->', game.state, '(want debrief)');
 console.log('MISSION TEST DONE');
 })();
+
+(function ballisticsTests(){
+console.log('--- ballistics ---');
+game.mapIndex = 0; game.diffIndex = 1; initGame(); game.state = 'play';
+
+// material classification: exterior shell should be concrete, interior dividers drywall
+let conc = 0, dry = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+  if (level.mat[y][x] === 'concrete') conc++;
+  if (level.mat[y][x] === 'drywall') dry++;
+}
+console.log('materials: concrete=' + conc + ' drywall(partition)=' + dry,
+            dry > 0 ? 'OK' : 'NO PARTITIONS CLASSIFIED');
+
+// find an interior partition and fire FMJ then HP at it point blank
+let part = null;
+for (let y = 1; y < level.h-1 && !part; y++) for (let x = 1; x < level.w-1; x++)
+  if (level.mat[y][x] === 'drywall') { part = {x, y}; break; }
+console.log('test partition at', part.x + ',' + part.y, '| opaque(blocks sight):', opaque(part.x, part.y),
+            '| resist:', materialAt(part.x, part.y).resist);
+
+function fireAt(ammoKey, fromDX) {
+  game.bullets = [];
+  const b = {
+    x: (part.x + fromDX) * TILE + 16, y: part.y * TILE + 16,
+    ang: fromDX < 0 ? 0 : Math.PI, speed: 1500,
+    dmg: 34 * AMMO[ammoKey].dmgMul, pen: AMMO[ammoKey].pen,
+    side: 'player', traveled: 0, range: 900, alive: true, owner: null,
+  };
+  game.bullets.push(b);
+  for (let i = 0; i < 8 && game.bullets.length; i++) updateBullets(1/240);
+  // did it end up on the far side of the partition?
+  const past = fromDX < 0 ? b.x > (part.x + 1) * TILE : b.x < part.x * TILE;
+  return { alive: b.alive, past, dmg: b.dmg.toFixed(1) };
+}
+const fmj = fireAt('fmj', -1);
+const hp  = fireAt('hp',  -1);
+const ap  = fireAt('ap',  -1);
+console.log('FMJ through drywall:', fmj.past ? 'PENETRATED' : 'stopped', '| dmg left', fmj.dmg);
+console.log('HP  through drywall:', hp.past ? 'PENETRATED' : 'stopped', '| dmg left', hp.dmg);
+console.log('AP  through drywall:', ap.past ? 'PENETRATED' : 'stopped', '| dmg left', ap.dmg);
+console.log('  expected: FMJ and AP penetrate, HP stops ->',
+            (fmj.past && ap.past && !hp.past) ? 'CORRECT' : 'WRONG');
+
+// concrete must stop everything
+let conctile = null;
+for (let x = 1; x < level.w-1 && !conctile; x++) if (level.mat[0][x] === 'concrete') conctile = {x, y:0};
+game.bullets = [];
+const cb = { x: conctile.x*TILE+16, y: 2*TILE, ang: -Math.PI/2, speed: 1500, dmg: 34,
+             pen: AMMO.ap.pen, side:'player', traveled:0, range:900, alive:true, owner:null };
+game.bullets.push(cb);
+for (let i = 0; i < 8 && game.bullets.length; i++) updateBullets(1/240);
+console.log('AP vs concrete:', cb.alive ? 'PENETRATED (WRONG)' : 'stopped (correct)');
+
+// spall: fragments off a struck barrier wound whoever is hugging it
+initGame(); game.state='play';
+const vic = game.enemies[0];
+const impact = { x: vic.x + 18, y: vic.y };      // a round strikes 18px away
+const before = vic.hp;
+applySpall(impact.x, impact.y, MATERIALS.brick, 'player');
+console.log('spall at 18px: hp', before, '->', vic.hp.toFixed(1),
+            vic.hp < before ? 'CORRECT (wall-hugging hurts)' : 'WRONG (no spall)');
+const far = game.enemies[1]; const fb = far.hp;
+applySpall(far.x + 60, far.y, MATERIALS.brick, 'player');
+console.log('spall at 60px: hp', fb, '->', far.hp.toFixed(1),
+            far.hp === fb ? 'CORRECT (out of fragment range)' : 'WRONG');
+
+// grazing ricochet: nearly parallel to the top wall, drifting into it.
+// The skip is probabilistic (75%), so fire a volley and assert most skip.
+initGame(); game.state='play';
+let skipped = 0, trials = 20;
+for (let k = 0; k < trials; k++) {
+  game.bullets = [];
+  const rb = { x: 20*TILE, y: 1*TILE + 6, ang: -deg(4), speed: 1500, dmg: 34,
+               pen: AMMO.fmj.pen, side:'player', traveled:0, range:900, alive:true, owner:null };
+  game.bullets.push(rb);
+  for (let i = 0; i < 40 && game.bullets.length; i++) updateBullets(1/240);
+  if (rb.ricochets > 0) skipped++;
+}
+console.log('grazing volley: ' + skipped + '/' + trials + ' skipped along the wall',
+            skipped >= trials * 0.5 ? 'CORRECT' : 'WRONG (rounds burying in the wall)');
+console.log('BALLISTICS TEST DONE');
+})();

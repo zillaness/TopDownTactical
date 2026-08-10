@@ -16,7 +16,7 @@ squad through stacks, synchronized breaches, and hostage rescues. Six
 missions across four objective types, three difficulty tiers, best grades
 saved per mission.
 
-**Play:** open `top_down_tactical_v0.4.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.5.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 21-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -32,7 +32,7 @@ sixteen assault-bot end-to-end playthroughs across all six missions.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.4.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.5.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.1.1.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |

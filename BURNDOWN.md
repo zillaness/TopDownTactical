@@ -94,6 +94,11 @@ can both drive this file.
 - (Opus) ✅ U27 noise made legible: type-coloured expanding pulses for every significant sound, dashed for sounds you did not make, plus ?/! alert markers over enemies you can see
 - (Opus) ✅ U28 mission framework: objectives are pluggable (rescue / neutralize / capture / eliminate / extract), HVT and extraction-zone tiles, objective-driven HUD and win-loss. Two new missions — FLIGHT 214 (aircraft assault, 4 hostages in a cabin, locked cockpit) and HIGH VALUE (capture the principal alive, walk him to the vehicle). Game → v0.4
 - ▶ NEXT: remaining mission content on the now-existing framework — ship boarding, extreme rendition, assassination, compound infiltration (needs an `undetected` objective)
+- (Opus) ✅ U29 ballistics: material system (concrete/brick/drywall/glass/sheet metal/engine), concealment vs cover separated, caliber+projectile penetration with damage loss and deflection, grazing ricochet along walls, spall wounding wall-huggers, glass first-shot deflection. Interior partitions auto-classified as drywall so every map gets materials for free
+- (Opus) ✅ U30 ammunition: FMJ / HP / AP chosen at the briefing, plus buckshot and belt-fed squad loadouts; HUD shows the loaded round
+- (Opus) ✅ U31 CHECK FIRE warning — the squad already refused unsafe shots via clearShot(); the player now gets a red crosshair and a ring on whoever is in the line. Added after bot testing showed the player had no equivalent of the discipline the AI already had
+- ℹ correction: FLIGHT 214 was never reliably winnable by the test bot. An earlier claim that it was came from a single lucky run. Isolation testing (spall off / penetration off / both off) showed ballistics are NOT the cause — the bot simply fires down a packed tube with no fire discipline. Map fairness for a human is still unmeasured
+- ▶ NEXT: cars as multi-tile props (sheet metal + engine block) and the extreme-rendition mission; ship boarding; assassination; compound infiltration with an `undetected` objective
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
 ## Handoff
