@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.3.html
-  version: 0.3
+  file: top_down_tactical_v0.4.html
+  version: 0.4
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-07
-  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), four hostage-rescue missions, difficulty tiers, SVG operator sprites with handedness mirroring, and restraint scoring.
+  description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
 -->
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.3 (working title)</title>
+<title>Top-Down Tactical v0.4 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -45,7 +45,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.3 prototype &mdash; working title &mdash; hostage rescue</h2>
+  <h2>v0.4 prototype &mdash; working title &mdash; six missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -323,7 +323,8 @@ class MinHeap {
 // Legend: # wall  , exterior  . interior  D door  L locked door
 //         P player  s squad  g guard  p patroller  T hostage-taker  h hostage  c civilian
 const MAPS = [
-{ name: "THE COMPOUND", brief: "One building, two entries, executioner deep", src: [
+{ name: "THE COMPOUND", brief: "One building, two entries, executioner deep",
+  type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -355,7 +356,8 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "SAFEHOUSE ROW", brief: "Two buildings, an alley crossing, hostages far east", src: [
+{ name: "SAFEHOUSE ROW", brief: "Two buildings, an alley crossing, hostages far east",
+  type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -387,7 +389,8 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "THE PLANT", brief: "Inner secure room — pick the lock open, or make your own door", src: [
+{ name: "THE PLANT", brief: "Inner secure room — pick the lock open, or make your own door",
+  type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -419,7 +422,8 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "MARKET ROW", brief: "Three buildings, hostages split — one squad can't be everywhere", src: [
+{ name: "MARKET ROW", brief: "Three buildings, hostages split — one squad can't be everywhere",
+  type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -451,6 +455,72 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
+{ name: "FLIGHT 214", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
+  type: "AIRCRAFT ASSAULT", objectives: ["rescue", "neutralize"], src: [
+"##############################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,#####D#######W###############W#######,,,#",
+"#,,,,##.......#.......#.......#..........#,,,#",
+"#,#####.......#..h....#.......#..p.......#,,,#",
+"#,#...#..p....#.......#..g...h#..........#,,,#",
+"#,#.T.#.......#....c..#.......#......c...#,,,#",
+"#,#...L..................................#,,,#",
+"#,#...#..................................#,,,#",
+"#,#.h.#.....g.#.....h.#.......#..........#,,,#",
+"#,#...#.......#.......#....c..#..........#,,,#",
+"#,#####.......#..c....#.......#....g.....#,,,#",
+"#,,,,##.......#.......#.......#..........#,,,#",
+"#,,,,#####################W#########D#####,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,P,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,s,s,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,s,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##############################################",
+] },
+{ name: "HIGH VALUE", brief: "Take the principal alive and walk him to the vehicle",
+  type: "CAPTURE & EXTRACT", objectives: ["capture", "extract"], src: [
+"##############################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,########W############W#####,,,,,,#",
+"#,,,,,,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,#...........#.....g.......#,,,,,,#",
+"#,,,,,,,,,,,#...........#.........V...L,,,,,,#",
+"#,,,,,,,,,,,#...........#....E........#,,,,,,#",
+"#,,,,,,,,,,,#...........D.............#,,,,,,#",
+"#,,,,,,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,#...........#######D#######,,,,,,#",
+"#,XXX,,,,,,,#..c........#.............#,,,,,,#",
+"#,XXP,,,,,,,D...........#.............#,,,,,,#",
+"#,XXXs,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,######D######.............#,,,,,,#",
+"#,,,,,,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,#...........#..........c..#,,,,,,#",
+"#,,,,,,,,,,,#...........D.............#,,,,,,#",
+"#,,,,,,,,,,,#....g......#.....p.......#,,,,,,#",
+"#,,,,,,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,#........p..#.........g...#,,,,,,#",
+"#,,,,,,,,,,,#...........#.............#,,,,,,#",
+"#,,,,,,,,,,,########D#########W########,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##############################################",
+] },
 ];
 let MAP_SRC = MAPS[0].src;
 // hard-fail on malformed map data rather than rendering garbage
@@ -459,7 +529,7 @@ let MAP_SRC = MAPS[0].src;
     const w = m.src[0].length;
     m.src.forEach((row, y) => {
       if (row.length !== w) throw new Error(`${m.name} row ${y} length ${row.length} != ${w}`);
-      if (!/^[#,.DLWPsgphcTE]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#,.DLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
   }
 })();
@@ -475,13 +545,14 @@ const level = {
   room: [],      // room id per tile (0 = exterior/none)
   doors: [],     // Door objects
   doorAt: new Map(), // "tx,ty" -> Door
+  extraction: [],   // tiles the team exfils through
   spawns: { player: null, squad: [], enemies: [], hostages: [], civilians: [] },
 };
 
 function parseLevel() {
   const rows = MAP_SRC;
   level.h = rows.length; level.w = rows[0].length;
-  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map();
+  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -511,6 +582,8 @@ function parseLevel() {
     else if (ch === "p") level.spawns.enemies.push({ x: cx, y: cy, kind: "patrol" });
     else if (ch === "E") level.spawns.enemies.push({ x: cx, y: cy, kind: "elite" });
     else if (ch === "T") level.spawns.enemies.push({ x: cx, y: cy, kind: "taker" });
+    else if (ch === "V") level.spawns.enemies.push({ x: cx, y: cy, kind: "hvt" });
+    else if (ch === "X") level.extraction.push({ tx: x, ty: y });
     else if (ch === "h") level.spawns.hostages.push({ x: cx, y: cy });
     else if (ch === "c") level.spawns.civilians.push({ x: cx, y: cy });
   }
@@ -1181,8 +1254,11 @@ function addNoise(x, y, radius, type, side) {
 // ---------------------------------------------------------------- S9 enemy & civilian AI
 function makeEnemy(sp) {
   const elite = sp.kind === "elite";
-  const weapon = elite ? { ...TUNE.akm, spreadBase: deg(2.2), burst: [3, 6] } : TUNE.akm;
-  const e = makeShooter(sp.x, sp.y, "enemy", elite ? 120 : TUNE.enemyHp, weapon);
+  // the HVT is a principal, not a shooter: lightly armed and quick to fold
+  const hvt = sp.kind === "hvt";
+  const weapon = elite ? { ...TUNE.akm, spreadBase: deg(2.2), burst: [3, 6] }
+               : hvt ? { ...TUNE.akm, dmg: 18, spreadBase: deg(6), burst: [1, 2] } : TUNE.akm;
+  const e = makeShooter(sp.x, sp.y, "enemy", elite ? 120 : hvt ? 55 : TUNE.enemyHp, weapon);
   e.kind = sp.kind;                  // guard | patrol | taker | elite
   e.state = "idle";                  // idle | suspicious | hunt | combat | surrender | cuffed
   e.alerted = false;
@@ -1385,6 +1461,7 @@ function trySurrender(e, shouter) {
   const threatsLeft = game.enemies.filter(x => x.alive && x.state !== "surrender" && x.state !== "cuffed").length;
   if (threatsLeft <= 1) p += TUNE.surrenderLastMan;
   if (e.kind === "elite") p *= 0.4;   // elites don't rattle easily
+  if (e.kind === "hvt") p *= 2.0;     // the principal is not here to die for it
   p *= game.diff ? game.diff.surrender : 1;
   if (Math.random() < p) {
     e.state = "surrender"; e.path = null; e.burstLeft = 0;
@@ -1802,6 +1879,19 @@ function render() {
   ctx.fillStyle = COLORS.blood;
   for (const d of game.decals) { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill(); }
 
+  // extraction zone
+  if (level.extraction.length) {
+    const pulse = 0.25 + 0.12 * Math.sin(game.stats.time * 3);
+    ctx.fillStyle = "rgba(63,194,126," + pulse.toFixed(2) + ")";
+    ctx.strokeStyle = COLORS.ok; ctx.lineWidth = 1.5 / game.zoom; ctx.setLineDash([5, 4]);
+    for (const z of level.extraction) {
+      if (!seen.grid[z.ty][z.tx]) continue;
+      ctx.fillRect(z.tx * TILE, z.ty * TILE, TILE, TILE);
+      ctx.strokeRect(z.tx * TILE + 1, z.ty * TILE + 1, TILE - 2, TILE - 2);
+    }
+    ctx.setLineDash([]);
+  }
+
   // windows
   for (const w of level.windowAt.values()) {
     if (!seen.grid[w.ty][w.tx]) continue;
@@ -1959,8 +2049,10 @@ function spriteFor(e, dead) {
     if (e.state === "cuffed")    return { key: "cuffed", tint: COLORS.cuffed };
     if (e.state === "surrender") return { key: "surrendered", tint: COLORS.surrendered };
     const k = e.kind === "elite" ? "enemy_elite" : e.kind === "taker" ? "enemy_taker"
+            : e.kind === "hvt" ? "enemy_elite"
             : e.kind === "patrol" ? "enemy_patrol" : "enemy_guard";
-    return { key: k, tint: e.kind === "elite" ? "#b03a8c" : COLORS.enemy };
+    const tint = e.kind === "elite" ? "#b03a8c" : e.kind === "hvt" ? "#e8eef4" : COLORS.enemy;
+    return { key: k, tint };
   }
   if (e.side === "hostage") return e.secured
     ? { key: "hostage_secured", tint: COLORS.ok }
@@ -2184,16 +2276,20 @@ function drawHud() {
   });
   // objectives (top center; clamped clear of the squad panel on narrow windows)
   ctx.textAlign = "center";
-  const hostTotal = game.hostages.length;
-  const hostSec = game.hostages.filter(h => h.secured && h.alive).length;
-  const threats = game.enemies.filter(e => e.alive && e.state !== "cuffed").length;
-  const objLeft = Math.max(viewW / 2 - 160, 214), objCx = objLeft + 160;
-  ctx.fillStyle = "#0009"; ctx.fillRect(objLeft, 10, 320, game.alarmTimerVisible() ? 52 : 34);
-  ctx.fillStyle = COLORS.hud;
-  ctx.fillText("HOSTAGES " + hostSec + "/" + hostTotal + "   THREATS LEFT " + threats, objCx, 32);
+  const objLeft = Math.max(viewW / 2 - 190, 214), objCx = objLeft + 190;
+  const rows = game.mission.objectives.length;
+  ctx.fillStyle = "#0009";
+  ctx.fillRect(objLeft, 10, 380, 22 + rows * 16 + (game.alarmTimerVisible() ? 18 : 0));
+  ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText(game.mission.type, objCx, 26);
+  game.mission.objectives.forEach((k, i) => {
+    const o = OBJECTIVES[k];
+    ctx.fillStyle = o.done() ? COLORS.ok : COLORS.hud;
+    ctx.fillText((o.done() ? "✓ " : "· ") + o.label(), objCx, 42 + i * 16);
+  });
   if (game.alarmTimerVisible()) {
     ctx.fillStyle = game.execT < 8 ? COLORS.danger : COLORS.accent;
-    ctx.fillText("HOSTAGE-TAKER ALERTED — EXECUTION IN " + Math.ceil(game.execT) + "s", objCx, 52);
+    ctx.fillText("EXECUTION IN " + Math.ceil(game.execT) + "s", objCx, 42 + rows * 16 + 2);
   }
   // hint (bottom center)
   if (game.hint) {
@@ -2337,7 +2433,8 @@ const game = {
 };
 
 function initGame() {
-  MAP_SRC = MAPS[game.mapIndex] ? MAPS[game.mapIndex].src : MAPS[0].src;
+  game.mission = MAPS[game.mapIndex] || MAPS[0];
+  MAP_SRC = game.mission.src;
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
   game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
@@ -2398,18 +2495,75 @@ function updateExecutionTimer(dt) {
   }
 }
 
+// ---------------------------------------------------------------- objectives
+// A mission is a list of objective keys. Each reports its own progress label,
+// whether it is satisfied, and whether it has been irrecoverably blown.
+function hvtUnit() { return game.enemies.find(e => e.kind === "hvt") || null; }
+function threatsLeft() { return game.enemies.filter(e => e.alive && e.state !== "cuffed").length; }
+function inExtraction(ent) {
+  if (!level.extraction.length) return false;
+  const t = tileAt(ent.x, ent.y);
+  return level.extraction.some(z => z.tx === t.tx && z.ty === t.ty);
+}
+
+const OBJECTIVES = {
+  rescue: {
+    label() {
+      const tot = game.hostages.length;
+      return "HOSTAGES " + game.hostages.filter(h => h.alive && h.secured).length + "/" + tot;
+    },
+    done() { return game.hostages.length > 0 && game.hostages.every(h => h.alive && h.secured); },
+    failed() { return game.stats.hostagesDead > 0 ? "A hostage was killed." : null; },
+  },
+  neutralize: {
+    label() { return "THREATS " + threatsLeft(); },
+    done() { return threatsLeft() === 0; },
+    failed() { return null; },
+  },
+  capture: {
+    label() {
+      const h = hvtUnit();
+      return "HVT " + (!h ? "—" : h.state === "cuffed" ? "IN CUSTODY" : !h.alive ? "DEAD" : "AT LARGE");
+    },
+    done() { const h = hvtUnit(); return !!h && h.alive && h.state === "cuffed"; },
+    failed() { const h = hvtUnit(); return h && !h.alive ? "The HVT was killed. He was wanted alive." : null; },
+  },
+  eliminate: {
+    label() { const h = hvtUnit(); return "TARGET " + (!h ? "—" : h.alive ? "ALIVE" : "DOWN"); },
+    done() { const h = hvtUnit(); return !!h && !h.alive; },
+    failed() { return null; },
+  },
+  extract: {
+    label() { return "EXFIL " + (inExtraction(game.player) ? "AT POINT" : "PENDING"); },
+    done() {
+      // exfil is only meaningful once the rest of the task is finished
+      const others = game.mission.objectives.filter(k => k !== "extract");
+      if (!others.every(k => OBJECTIVES[k].done())) return false;
+      return inExtraction(game.player);
+    },
+    failed() { return null; },
+  },
+};
+
+function missionFailure() {
+  for (const k of game.mission.objectives) {
+    const f = OBJECTIVES[k].failed();
+    if (f) return f;
+  }
+  return null;
+}
+
 function checkMissionEnd(dt) {
   if (game.state !== "play") return;
-  if (game.stats.hostagesDead > 0) { endMission(false, "A hostage was killed."); return; }
+  const blown = missionFailure();
+  if (blown) { endMission(false, blown); return; }
   if (!game.player.alive) {
     game.paused = false;               // no pausing your way out of being dead
     game.playerDeadT += dt;
     if (game.playerDeadT > 1.2) endMission(false, "You went down. The stack has no point man.");
     return;
   }
-  const hostOk = game.hostages.length > 0 && game.hostages.every(h => h.alive && h.secured);
-  const threats = game.enemies.filter(e => e.alive && e.state !== "cuffed").length;
-  if (hostOk && threats === 0) endMission(true, "");
+  if (game.mission.objectives.every(k => OBJECTIVES[k].done())) endMission(true, "");
 }
 
 function computeGrade() {
@@ -2583,6 +2737,15 @@ requestAnimationFrame(frame);
     Sprites bake once to tinted offscreen canvases. Handedness supported via a Y-axis
     flip (sprites face +X, so left/right lie on the Y axis). Camera zoom added so the
     art reads, adjustable live with [ and ]. Circle rendering retained as fallback.
+  v0.4 (2026-08-07): Handedness and the corner game — the eye and muzzle sit on the
+    shooting shoulder so the visibility polygon and bullets originate there, while
+    enemies still test LOS against the body centre; ~10% left-handed; N re-shoulders
+    at a cost. Breaching charges now wound and kill, attributed for ROE scoring.
+    Windows: solid to bodies, transparent to sight and bullets, shattered loudly by
+    thrown grenades. Noise rendered as type-coloured pulses with ?/! alert markers.
+    Mission framework: objectives are pluggable (rescue, neutralize, capture,
+    eliminate, extract) with HVT and extraction-zone tiles; two new missions —
+    FLIGHT 214 (aircraft assault) and HIGH VALUE (capture and extract).
 -->
 </body>
 </html>

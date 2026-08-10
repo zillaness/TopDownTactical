@@ -92,6 +92,8 @@ can both drive this file.
 - (Opus) ✅ U25 breach blasts wound and kill: falloff damage from door and wall charges, LOS-shielded, attributed to the player's team for ROE scoring
 - (Opus) ✅ U26 windows: transparent to sight and bullets, solid to bodies; grenades punch through and shatter them loudly; 10 placed across the four maps
 - (Opus) ✅ U27 noise made legible: type-coloured expanding pulses for every significant sound, dashed for sounds you did not make, plus ?/! alert markers over enemies you can see
+- (Opus) ✅ U28 mission framework: objectives are pluggable (rescue / neutralize / capture / eliminate / extract), HVT and extraction-zone tiles, objective-driven HUD and win-loss. Two new missions — FLIGHT 214 (aircraft assault, 4 hostages in a cabin, locked cockpit) and HIGH VALUE (capture the principal alive, walk him to the vehicle). Game → v0.4
+- ▶ NEXT: remaining mission content on the now-existing framework — ship boarding, extreme rendition, assassination, compound infiltration (needs an `undetected` objective)
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
 ## Handoff

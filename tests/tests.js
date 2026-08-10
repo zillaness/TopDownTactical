@@ -277,3 +277,48 @@ applyBlast(h2.x + 200, h2.y, 'player');  // well outside the wound radius
 console.log('hostage far from blast unhurt:', h2.hp === 40, '(want true)');
 console.log('WINDOW+BLAST TEST DONE');
 })();
+
+(function missionTests(){
+console.log('--- mission framework ---');
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m; game.diffIndex = 1; initGame(); game.state = 'play';
+  const ps = level.spawns.player, st = tileAt(ps.x, ps.y);
+  let unreachable = 0;
+  for (const h of level.spawns.hostages) {
+    const t = tileAt(h.x, h.y);
+    if (!astar(st.tx, st.ty, t.tx, t.ty, passForPath, pathCostSquad)) unreachable++;
+  }
+  for (const e of level.spawns.enemies) {
+    const t = tileAt(e.x, e.y);
+    if (!astar(st.tx, st.ty, t.tx, t.ty, passForPath, pathCostEnemy)) unreachable++;
+  }
+  let exfilOk = 'n/a';
+  if (level.extraction.length) {
+    const z = level.extraction[0];
+    exfilOk = astar(st.tx, st.ty, z.tx, z.ty, passForPath, pathCostSquad) ? 'reachable' : 'UNREACHABLE';
+  }
+  // 10s idle must not self-alarm
+  for (let i = 0; i < 600; i++) update(1/60);
+  console.log(`${MAPS[m].name.padEnd(14)} ${MAPS[m].type.padEnd(18)} [${MAPS[m].objectives.join(', ')}]`);
+  console.log(`   hostages=${game.hostages.length} enemies=${game.enemies.length} hvt=${hvtUnit()?'yes':'no'} ` +
+              `exfil=${exfilOk} unreachable=${unreachable} idleAlarm=${game.alarm}`);
+  if (unreachable) console.log('   !! UNREACHABLE SPAWNS');
+}
+
+// capture semantics: killing the HVT fails, cuffing him wins with exfil
+game.mapIndex = MAPS.findIndex(m => m.objectives.includes('capture'));
+initGame(); game.state = 'play';
+let h = hvtUnit();
+h.hp = 0; killEntity(h, 'player');
+console.log('capture: HVT killed ->', JSON.stringify(missionFailure()));
+initGame(); game.state = 'play';
+h = hvtUnit(); h.state = 'surrender'; h.feint = false; cuffEnemy(h);
+console.log('capture: HVT cuffed -> capture done =', OBJECTIVES.capture.done(),
+            '| extract done (not at point) =', OBJECTIVES.extract.done());
+const z = level.extraction[0];
+game.player.x = z.tx*TILE + 16; game.player.y = z.ty*TILE + 16;
+console.log('capture: player at exfil -> extract done =', OBJECTIVES.extract.done());
+checkMissionEnd(1/60);
+console.log('capture: mission state after both ->', game.state, '(want debrief)');
+console.log('MISSION TEST DONE');
+})();

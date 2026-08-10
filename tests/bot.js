@@ -57,4 +57,6 @@ for (let r = 0; r < 3; r++) totalErrs += botRun(0, 'r' + r);
 for (let r = 0; r < 3; r++) totalErrs += botRun(1, 'r' + r);
 for (let r = 0; r < 3; r++) totalErrs += botRun(2, 'r' + r);
 for (let r = 0; r < 3; r++) totalErrs += botRun(3, 'r' + r);
+for (let r = 0; r < 2; r++) totalErrs += botRun(4, 'r' + r);
+for (let r = 0; r < 2; r++) totalErrs += botRun(5, 'r' + r);
 console.log('BOT RUNS DONE, total update errors:', totalErrs);
