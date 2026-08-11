@@ -537,3 +537,88 @@ console.log('  muzzle flash offset from the centreline: ' +
             flash && Math.abs(flash.y - eye.y) < 0.5 ? 'CORRECT (on the muzzle)' : 'WRONG (on the body)');
 console.log('FEEDBACK TEST DONE');
 })();
+
+(function playbookTests(){
+console.log('--- playbook: formation geometry and points of domination ---');
+
+// the wedge must never put a man on the point man's firing line
+game.mapIndex = 0; initGame(); game.state = 'play';
+let worstBore = 180, minPair = 999;
+for (let f = 0; f < 12; f++) {
+  game.player.face = (f / 12) * TAU;
+  const st = game.squad.map(s => { s._wedgeAng = undefined; return wedgeStation(s, 1); });
+  st.forEach(p => {
+    const off = Math.abs(angDiff(game.player.face, angleTo(game.player.x, game.player.y, p.x, p.y))) * 180 / Math.PI;
+    if (off < worstBore) worstBore = off;
+  });
+  for (let i = 0; i < st.length; i++) for (let j = i + 1; j < st.length; j++) {
+    const sep = Math.abs(angDiff(angleTo(game.player.x, game.player.y, st[i].x, st[i].y),
+                                 angleTo(game.player.x, game.player.y, st[j].x, st[j].y))) * 180 / Math.PI;
+    if (sep < minPair) minPair = sep;
+  }
+}
+console.log('  closest wedge station to your bore, over 12 headings: ' + worstBore.toFixed(0) + '°',
+            worstBore > 35 ? 'CORRECT (nobody downrange of you)' : 'WRONG');
+console.log('  smallest bearing gap between two teammates: ' + minPair.toFixed(0) + '°',
+            minPair > 25 ? 'CORRECT (no two share a bearing)' : 'WRONG');
+
+// points of domination: opposite sides, out of the funnel, inside the room
+let tested = 0, bad = [], sameRoom = 0;
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m; initGame();
+  for (const d of level.doors) {
+    const c = doorCenter(d);
+    const n = doorNormal(d, c.x + TILE * 2, c.y + TILE * 2);
+    const pts = dominationPoints(d, n);
+    if (pts.length !== 3) { bad.push(MAPS[m].name + ' wrong count'); continue; }
+    tested++;
+    const inward = { x: -n.x, y: -n.y }, lat = { x: n.y === 0 ? 0 : 1, y: n.x === 0 ? 0 : 1 };
+    const side = p => (p.x - c.x) * lat.x + (p.y - c.y) * lat.y;
+    const depth = p => (p.x - c.x) * inward.x + (p.y - c.y) * inward.y;
+    if (side(pts[0]) * side(pts[1]) > 0) bad.push(MAPS[m].name + ' corners on the same side');
+    if (depth(pts[0]) < TILE * 0.8 || depth(pts[1]) < TILE * 0.8) bad.push(MAPS[m].name + ' corner still in the funnel');
+    for (const p of pts) if (isWall(tileAt(p.x, p.y).tx, tileAt(p.x, p.y).ty)) bad.push(MAPS[m].name + ' point inside a wall');
+    const seed = tileAt(c.x + inward.x * TILE * 1.2, c.y + inward.y * TILE * 1.2);
+    const rid = inBounds(seed.tx, seed.ty) ? level.room[seed.ty][seed.tx] : 0;
+    if (rid && [pts[0], pts[1]].every(p => level.room[tileAt(p.x, p.y).ty][tileAt(p.x, p.y).tx] === rid)) sameRoom++;
+  }
+}
+console.log('  ' + tested + ' doors across ' + MAPS.length + ' maps: ' +
+            (bad.length ? bad.length + ' BAD -> ' + [...new Set(bad)].join('; ') : 'all valid CORRECT'));
+console.log('  both corners inside the room behind the door: ' + sameRoom + '/' + tested,
+            sameRoom / tested > 0.9 ? 'CORRECT' : 'WRONG (flood fill not resolving rooms)');
+
+// pie slots: nobody standing in the fatal funnel, all on the approach side
+game.mapIndex = 0; initGame();
+let funnel = 0, wrongSide = 0, pies = 0;
+for (const d of level.doors) {
+  const c = doorCenter(d);
+  const n = doorNormal(d, c.x + TILE * 2, c.y + TILE * 2);
+  const lat = { x: n.y === 0 ? 0 : 1, y: n.x === 0 ? 0 : 1 };
+  for (const p of pieSlots(d, n)) {
+    pies++;
+    if (Math.abs((p.x - c.x) * lat.x + (p.y - c.y) * lat.y) < TILE * 0.6) funnel++;
+    if ((p.x - c.x) * n.x + (p.y - c.y) * n.y < 0) wrongSide++;
+  }
+}
+console.log('  pie slots: ' + pies + ' total, ' + funnel + ' in the funnel, ' + wrongSide + ' on the wrong side of the door',
+            funnel === 0 && wrongSide === 0 ? 'CORRECT' : 'WRONG');
+
+// every play must run without throwing, on a door and with no door in reach
+game.mapIndex = 0; initGame(); game.state = 'play';
+const doorFor = level.doors.find(d => d.state === 'closed');
+let ran = 0, threw = [];
+for (const play of PLAYS) {
+  const c = doorCenter(doorFor);
+  game.player.x = c.x + 50; game.player.y = c.y + 50;
+  input.mouse.wx = c.x; input.mouse.wy = c.y;
+  try { if (callPlay(play)) ran++; } catch (e) { threw.push(play.name + ': ' + e.message); }
+  // and again with the cursor and the player nowhere near a door
+  game.player.x = level.spawns.player.x; game.player.y = level.spawns.player.y;
+  input.mouse.wx = -9999; input.mouse.wy = -9999;
+  try { callPlay(play); } catch (e) { threw.push(play.name + ' (no door): ' + e.message); }
+}
+console.log('  ' + PLAYS.length + ' plays called with a door and without: ' +
+            (threw.length ? 'THREW -> ' + threw.join(' | ') : ran + ' executed, none threw CORRECT'));
+console.log('PLAYBOOK TEST DONE');
+})();

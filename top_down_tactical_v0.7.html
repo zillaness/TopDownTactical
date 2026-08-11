@@ -60,7 +60,14 @@
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
     </table>
-    <h3 style="margin-top:16px">Your squad follows orders</h3>
+    <h3 style="margin-top:16px">Call plays &mdash; you are #1, they are #2 #3 #4</h3>
+    <table>
+      <tr><td class="key">P</td><td colspan="3">open the playbook (world drops to command time), then 1&ndash;5 to call it</td></tr>
+      <tr><td class="key">P then 1</td><td>DYNAMIC ENTRY &mdash; stack, bang, take both deep corners, #4 on rear security</td><td class="key">P then 2</td><td>SLICE THE PIE &mdash; three angles from outside, opened quietly</td></tr>
+      <tr><td class="key">P then 3</td><td>WEDGE &mdash; travel formation, off your firing line</td><td class="key">P then 4</td><td>ANCHOR &mdash; hold here, sectors split 360</td></tr>
+      <tr><td class="key">P then 5</td><td>COVER ME &mdash; ring up on me, facing out</td><td class="key">&nbsp;</td><td>Door plays target the door under your cursor</td></tr>
+    </table>
+    <h3 style="margin-top:16px">Or order them one at a time</h3>
     <table>
       <tr><td class="key">1 2 3</td><td>select teammate</td><td class="key">4 / ~</td><td>select all</td></tr>
       <tr><td class="key">RMB ground</td><td>move there &middot; hold</td><td class="key">RMB door</td><td>stack on door</td></tr>
@@ -1846,8 +1853,75 @@ function entryPoints(d, normal) {
   return [p(TILE * 1.6, TILE * 0.9), p(TILE * 1.6, -TILE * 0.9), p(TILE * 2.6, 0)];
 }
 
+// Points of domination — the two deep corners of the room behind a door, found
+// in the flood fill rather than guessed at a fixed offset. A man who stops in
+// the doorway is standing in the fatal funnel; the whole of the doctrine is
+// that you clear the threshold, drive deep, and turn back so your sectors cross
+// over the space you just walked through.
+function dominationPoints(d, normal) {
+  const c = doorCenter(d);
+  const inward = { x: -normal.x, y: -normal.y };
+  const lat = { x: normal.y === 0 ? 0 : 1, y: normal.x === 0 ? 0 : 1 };
+  const seed = tileAt(c.x + inward.x * TILE * 1.2, c.y + inward.y * TILE * 1.2);
+  const rid = inBounds(seed.tx, seed.ty) ? level.room[seed.ty][seed.tx] : 0;
+  const best = { pos: null, neg: null };
+  if (rid) {
+    for (let ty = 0; ty < level.h; ty++) for (let tx = 0; tx < level.w; tx++) {
+      if (level.room[ty][tx] !== rid || isWall(tx, ty)) continue;
+      const x = tx * TILE + TILE / 2, y = ty * TILE + TILE / 2;
+      const depth = (x - c.x) * inward.x + (y - c.y) * inward.y;
+      if (depth < TILE) continue;                        // still inside the funnel
+      const side = (x - c.x) * lat.x + (y - c.y) * lat.y;
+      const score = depth + Math.abs(side) * 1.4;        // deep AND wide beats deep alone
+      const k = side >= 0 ? "pos" : "neg";
+      if (!best[k] || score > best[k].score) best[k] = { x, y, score, side };
+    }
+  }
+  const gen = entryPoints(d, normal);                    // fall back if the fill gives nothing
+  const A = best.pos || gen[0], B = best.neg || gen[1];
+  // crossed sectors: each corner man covers the near quadrant on the OTHER
+  // side, so their fields of fire overlap and the room has no blind spot
+  const nearOf = (sgn) => ({ x: c.x + inward.x * TILE * 1.2 + lat.x * sgn * TILE * 1.6,
+                             y: c.y + inward.y * TILE * 1.2 + lat.y * sgn * TILE * 1.6 });
+  const nA = nearOf(1), nB = nearOf(-1);
+  // rear security: inside the threshold, off the centreline, facing back out
+  const rear = nearestPassable(c.x + inward.x * TILE * 0.85 + lat.x * TILE * 0.85,
+                               c.y + inward.y * TILE * 0.85 + lat.y * TILE * 0.85);
+  return [
+    { x: A.x, y: A.y, face: angleTo(A.x, A.y, nB.x, nB.y), role: "corner" },
+    { x: B.x, y: B.y, face: angleTo(B.x, B.y, nA.x, nA.y), role: "corner" },
+    { x: rear.x, y: rear.y, role: "rear",
+      face: angleTo(rear.x, rear.y, c.x + normal.x * TILE * 3, c.y + normal.y * TILE * 3) },
+  ];
+}
+
+// Slicing the pie: three men OUTSIDE the doorway at different lateral offsets,
+// each seeing a different wedge of the room through the gap. Nobody stands dead
+// centre, because dead centre is the funnel.
+function pieSlots(d, normal) {
+  const c = doorCenter(d);
+  const lat = { x: normal.y === 0 ? 0 : 1, y: normal.x === 0 ? 0 : 1 };
+  const deep = { x: c.x - normal.x * TILE * 2.4, y: c.y - normal.y * TILE * 2.4 };
+  return [-2.0, -0.9, 1.6].map(k => {
+    const p = nearestPassable(c.x + normal.x * TILE * 1.35 + lat.x * TILE * k,
+                              c.y + normal.y * TILE * 1.35 + lat.y * TILE * k);
+    return { x: p.x, y: p.y, face: angleTo(p.x, p.y, deep.x, deep.y) };
+  });
+}
+
 // ---- order issuing (works while paused)
 function issueOrders() {
+  // The playbook is modal — it swallows the number keys, because 1-5 mean
+  // "call this play" while it is open and "select this operator" while it is not.
+  if (pressed("p")) game.playbook = !game.playbook;
+  if (game.playbook) {
+    if (pressed("escape")) { game.playbook = false; return; }
+    for (const play of PLAYS) {
+      if (pressed(play.key)) { callPlay(play); game.playbook = false; return; }
+    }
+    return;
+  }
+
   // selection
   for (let i = 0; i < 3; i++) {
     if (pressed(String(i + 1))) {
@@ -1930,6 +2004,143 @@ function orderStack(sel, d) {
     s.path = null;
   }
   if (plan.members[0]) bark(plan.members[0], "STACKING UP");
+}
+
+// ---- the playbook
+// You are #1 — the point man — so the squad takes #2, #3 and #4. A play is one
+// key that issues the whole team's orders at once, which is the difference
+// between commanding a squad and operating three puppets. Individual orders
+// (RMB, Z, V) still work on top; a play is a composition of them, not a
+// replacement.
+function opNumber(s) { return (s.slot % 3) + 2; }
+
+const PLAYS = [
+  {
+    key: "1", name: "DYNAMIC ENTRY", needs: "door",
+    short: "Stack, bang, flood the room",
+    lines: ["#2 / #3 take opposite deep corners on crossed sectors",
+            "#4 holds the threshold facing back down your approach",
+            "Press [X] when the stack reads READY"],
+    run(team, ctx) {
+      orderStack(team, ctx.door);
+      const plan = game.plans.find(p => p.door === ctx.door && p.state !== "executing");
+      if (plan) {
+        plan.pattern = "dominate";
+        plan.useBang = true;
+        plan.method = ctx.door.locked ? (game.squadCharges > 0 ? "charge" : "kick") : "kick";
+      }
+      return "DYNAMIC ENTRY — stack forming";
+    },
+  },
+  {
+    key: "2", name: "SLICE THE PIE", needs: "door",
+    short: "Take the room from outside, no bang",
+    lines: ["Three men, three different angles through the gap",
+            "Nobody stands in the funnel, nobody goes in",
+            "They open it quietly once everyone is set"],
+    run(team, ctx) {
+      const n = doorNormal(ctx.door, game.player.x, game.player.y);
+      const slots = pieSlots(ctx.door, n);
+      team.forEach((s, i) => {
+        removeFromPlans(s);
+        const sl = slots[i % slots.length];
+        s.order = { type: "move", x: sl.x, y: sl.y, face: sl.face, quiet: true };
+        s.path = null;
+      });
+      game.pie = { door: ctx.door, members: team.slice(), slots };
+      bark(team[0], "SLICING IT");
+      return "SLICE THE PIE — holding outside";
+    },
+  },
+  {
+    key: "3", name: "WEDGE", needs: null,
+    short: "Travel formation on me",
+    lines: ["Rear quarters and trail, off your firing line",
+            "#2 covers left, #3 covers right, #4 watches your back",
+            "This is the default — call it to reset the team"],
+    run(team) {
+      team.forEach(s => { removeFromPlans(s); s.order = { type: "follow" }; s.path = null; });
+      game.pie = null;
+      bark(team[0], "ON YOU");
+      return "WEDGE — forming on you";
+    },
+  },
+  {
+    key: "4", name: "ANCHOR", needs: null,
+    short: "Hold what we have, 360 coverage",
+    lines: ["Everyone freezes where they stand",
+            "Sectors split three ways so nothing is unwatched",
+            "Use it to lock a cleared room before you push on"],
+    run(team) {
+      const base = game.player.face;
+      team.forEach((s, i) => {
+        removeFromPlans(s);
+        s.order = { type: "hold", face: base + (TAU / 3) * i };
+        s.path = null;
+      });
+      game.pie = null;
+      bark(team[0], "ANCHORED");
+      return "ANCHOR — sectors set";
+    },
+  },
+  {
+    key: "5", name: "COVER ME", needs: null,
+    short: "Ring up on me, guns out",
+    lines: ["They close to 60px and face outward, not at you",
+            "For cuffing, securing a hostage, or setting a charge",
+            "The moment you need both hands and no surprises"],
+    run(team) {
+      const p = game.player;
+      team.forEach((s, i) => {
+        removeFromPlans(s);
+        const a = p.face + Math.PI + (TAU / 3) * i;
+        const pt = nearestPassable(p.x + Math.cos(a) * 62, p.y + Math.sin(a) * 62);
+        s.order = { type: "move", x: pt.x, y: pt.y, face: a };
+        s.path = null;
+      });
+      game.pie = null;
+      bark(team[0], "COVERING YOU");
+      return "COVER ME — closing up";
+    },
+  },
+];
+
+// A play needs a door: the one under the cursor, else the one you are standing at.
+function playTargetDoor() {
+  return nearestDoor(input.mouse.wx, input.mouse.wy, 60)
+      || nearestDoor(game.player.x, game.player.y, 130);
+}
+
+function callPlay(play) {
+  const team = game.squad.filter(s => s.alive);
+  if (!team.length) { game.hint = "No one left to call it to"; return false; }
+  let door = null;
+  if (play.needs === "door") {
+    door = playTargetDoor();
+    if (!door || door.state === "breached") {
+      game.hint = play.name + " needs a door — put the cursor on one";
+      return false;
+    }
+  }
+  game.hint = play.run(team, { door });
+  game.lastPlay = { name: play.name, t: 2.5 };
+  return true;
+}
+
+// SLICE THE PIE opens the door only once every man is on his angle — the whole
+// point of the play is that nobody is looking at it alone.
+function updatePie() {
+  const pie = game.pie;
+  if (!pie) return;
+  const live = pie.members.filter(s => s.alive);
+  if (!live.length || pie.door.state !== "closed") { game.pie = null; return; }
+  const set = live.every((s, i) => dist(s.x, s.y, pie.slots[i % pie.slots.length].x,
+                                        pie.slots[i % pie.slots.length].y) < 18);
+  if (!set) return;
+  if (pie.door.locked) { game.hint = "Locked — angles are set, but it needs a kick or a charge"; game.pie = null; return; }
+  openDoor(pie.door, true);
+  bark(live[0], "OPENING");
+  game.pie = null;
 }
 
 function removeFromPlans(s) {
@@ -2020,14 +2231,18 @@ function updateSquaddie(s, dt) {
     case "follow": {
       const st = wedgeStation(s, dt);
       const d = dist(s.x, s.y, st.x, st.y);
-      if (d > 26) squadMove(s, st.x, st.y, d > 190 ? TUNE.squadRun : TUNE.squadRun * 0.8, dt, s.order.quiet ? false : undefined);
+      if (d > 26) squadMove(s, st.x, st.y, d > 190 ? TUNE.squadRun : TUNE.squadRun * 0.8, dt);
       // On station, cover your sector. Three men all staring where you stare is
       // three men watching one arc and nobody watching the other three.
       else if (!threat) s.face = angLerp(s.face, st.sector, dt * 4);
       break;
     }
     case "move": {
-      const arrived = squadMove(s, s.order.x, s.order.y, TUNE.squadRun, dt);
+      // A quiet order walks. moveAlongPath only emits footsteps above 100px/s,
+      // so TUNE.squadWalk buys silence for free — it had been declared and
+      // never referenced anywhere in the file.
+      const spd = s.order.quiet ? TUNE.squadWalk : TUNE.squadRun;
+      const arrived = squadMove(s, s.order.x, s.order.y, spd, dt);
       if (arrived) { s.order = { type: "hold", face: s.order.face }; }
       break;
     }
@@ -2137,10 +2352,15 @@ function updatePlans(dt) {
       p.members.forEach((s, i) => {
         const goAt = entryAt + i * 0.28;
         if (s.alive && wasT < goAt && p.t >= goAt) {
-          const pts = entryPoints(p.door, p.normal);
+          // A play sets the pattern; a hand-made stack keeps the old generic points
+          const pts = p.pattern === "dominate" ? dominationPoints(p.door, p.normal)
+                                               : entryPoints(p.door, p.normal);
           const pt = pts[i % pts.length];
-          s.order = { type: "entry", x: pt.x, y: pt.y, face: angleTo(c.x, c.y, pt.x, pt.y) };
+          s.order = { type: "entry", x: pt.x, y: pt.y,
+                      face: pt.face !== undefined ? pt.face : angleTo(c.x, c.y, pt.x, pt.y) };
           s.shoutedAt = 0; s.path = null;
+          if (pt.role === "rear") bark(s, "GOT YOUR SIX");
+          else if (pt.role === "corner") bark(s, i === 0 ? "GOING LEFT" : "GOING RIGHT");
         }
       });
       if (p.t > entryAt + 3) p.state = "done";
@@ -2330,6 +2550,31 @@ function render() {
     ctx.setLineDash([]);
     ctx.strokeStyle = COLORS.squad;
     ctx.strokeRect(s.order.x - 5, s.order.y - 5, 10, 10);
+  }
+  // A play assigns three men at once, so show all three assignments — number,
+  // destination and the way each man will be looking when he gets there. Held
+  // while the wristband is open and for a couple of seconds after the call.
+  if (game.playbook || (game.lastPlay && game.lastPlay.t > 0)) {
+    const k = 1 / game.zoom;
+    ctx.font = "bold " + (12 * k).toFixed(1) + "px Consolas, monospace";
+    ctx.textAlign = "center";
+    for (const s of game.squad) {
+      if (!s.alive) continue;
+      const o = s.order;
+      const at = o.type === "move" || o.type === "entry" ? { x: o.x, y: o.y }
+               : o.type === "stack" ? o.plan.slots[o.slot]
+               : { x: s.x, y: s.y };
+      const face = o.face !== undefined ? o.face : s.face;
+      ctx.strokeStyle = COLORS.accent; ctx.lineWidth = 2 * k;
+      ctx.beginPath(); ctx.arc(at.x, at.y, 11 * k, 0, TAU); ctx.stroke();
+      ctx.beginPath();                                    // where he will be looking
+      ctx.moveTo(at.x + Math.cos(face) * 12 * k, at.y + Math.sin(face) * 12 * k);
+      ctx.lineTo(at.x + Math.cos(face) * 30 * k, at.y + Math.sin(face) * 30 * k);
+      ctx.stroke();
+      ctx.fillStyle = COLORS.accent;
+      ctx.fillText("#" + opNumber(s), at.x, at.y - 15 * k);
+    }
+    ctx.textAlign = "left";
   }
   if (game.wallCharge) {
     const wc = game.wallCharge;
@@ -2649,7 +2894,7 @@ function drawHud() {
   // player status (bottom left)
   const bx = 18, by = viewH - 74;
   ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 292, 76);
-  ctx.fillStyle = COLORS.hud; ctx.fillText("POINT MAN (YOU)", bx, by - 4);
+  ctx.fillStyle = COLORS.hud; ctx.fillText("#1 POINT MAN (YOU)", bx, by - 4);
   ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
   ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
   ctx.fillStyle = COLORS.hud;
@@ -2677,7 +2922,8 @@ function drawHud() {
     ctx.fillStyle = sel ? "#1d4ed855" : "#0009"; ctx.fillRect(14, sy, 190, 38);
     if (sel) { ctx.strokeStyle = COLORS.player; ctx.strokeRect(14.5, sy + 0.5, 189, 37); }
     ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
-    ctx.fillText("[" + (i + 1) + "] " + s.name + (s.alive ? "" : " ✝"), 22, sy + 15);
+    // #2/#3/#4 are the entry numbers the plays assign roles by. You are #1.
+    ctx.fillText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name + (s.alive ? "" : " ✝"), 22, sy + 15);
     if (s.alive) {
       ctx.fillStyle = "#333"; ctx.fillRect(22, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(22, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
@@ -2729,6 +2975,8 @@ function drawHud() {
     ctx.fillText("COMMAND — release [TAB] to resume", viewW / 2, viewH / 2 - 110);
     ctx.font = "13px Consolas, monospace";
   }
+  drawPlaybook();
+
   // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
   // the two most important negative states on one signal. Blind is now a white
   // bloom carrying no spread information, because you cannot aim.
@@ -2751,6 +2999,52 @@ function drawHud() {
     ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, 14, 0, TAU); ctx.stroke();
   }
+}
+
+// The wristband. Open it and the world drops to command time; every play names
+// itself and says what each number does, so the doctrine is on the screen
+// instead of in a manual nobody reads.
+function drawPlaybook() {
+  if (game.lastPlay && game.lastPlay.t > 0) {
+    ctx.textAlign = "center"; ctx.font = "bold 15px Consolas, monospace";
+    ctx.fillStyle = COLORS.accent;
+    ctx.globalAlpha = clamp(game.lastPlay.t, 0, 1);
+    ctx.fillText("▶ " + game.lastPlay.name, viewW / 2, 118);
+    ctx.globalAlpha = 1; ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
+  }
+  if (!game.playbook) return;
+  const W = 470, rowH = 62, H = 46 + PLAYS.length * rowH + 26;
+  const x = viewW / 2 - W / 2, y = viewH / 2 - H / 2;
+  ctx.fillStyle = "rgba(6,9,12,0.93)"; ctx.fillRect(x, y, W, H);
+  ctx.strokeStyle = COLORS.accent; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, W - 1, H - 1);
+
+  ctx.textAlign = "left"; ctx.font = "bold 15px Consolas, monospace";
+  ctx.fillStyle = COLORS.accent; ctx.fillText("PLAYBOOK", x + 18, y + 28);
+  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
+  ctx.textAlign = "right";
+  ctx.fillText("you are #1 · world at command speed", x + W - 18, y + 28);
+  ctx.textAlign = "left";
+
+  const door = playTargetDoor();
+  PLAYS.forEach((play, i) => {
+    const ry = y + 46 + i * rowH;
+    const usable = play.needs !== "door" || !!door;
+    ctx.fillStyle = usable ? "#141b22" : "#101315";
+    ctx.fillRect(x + 12, ry, W - 24, rowH - 8);
+    ctx.font = "bold 14px Consolas, monospace";
+    ctx.fillStyle = usable ? COLORS.hud : "#4a545d";
+    ctx.fillText("[" + play.key + "]  " + play.name, x + 24, ry + 20);
+    ctx.font = "11px Consolas, monospace";
+    ctx.fillStyle = usable ? COLORS.accent : "#4a545d";
+    ctx.textAlign = "right";
+    ctx.fillText(play.needs === "door" && !door ? "needs a door" : play.short, x + W - 24, ry + 20);
+    ctx.textAlign = "left";
+    ctx.fillStyle = usable ? COLORS.hudDim : "#3c444b";
+    play.lines.forEach((ln, j) => ctx.fillText(ln, x + 24, ry + 34 + j * 11));
+  });
+  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText("[P] or [ESC] close · door plays target the door under your cursor", x + 18, y + H - 12);
+  ctx.font = "13px Consolas, monospace";
 }
 
 // Who your muzzle is currently pointed through. The squad already refuses
@@ -2896,6 +3190,7 @@ const game = {
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
+  playbook: false, pie: null, lastPlay: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -2926,6 +3221,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
+  game.playbook = false; game.pie = null; game.lastPlay = null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -2942,6 +3238,7 @@ function update(dt) {
   for (const h of game.hostages) updateCivilian(h, dt);
   updateBullets(dt);
   updateBangs(dt);
+  updatePie();
   updateFx(dt);
   processNoises();
   updateExecutionTimer(dt);
@@ -2953,6 +3250,7 @@ function updateFx(dt) {
   game.fx = game.fx.filter(f => f.t > 0);
   for (const h of game.hurt) h.t -= dt;
   game.hurt = game.hurt.filter(h => h.t > 0);
+  if (game.lastPlay) game.lastPlay.t -= dt;
   if (game.decals.length > 400) game.decals.splice(0, game.decals.length - 400);
 }
 
@@ -3121,7 +3419,9 @@ function frame(now) {
     }
     if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
-    game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
+    // hold Tab, or open the playbook: command time. Calling a play is a
+    // decision, and decisions should not be a dexterity test.
+    game.slowmo = (held("tab") || game.playbook) && !game.paused;
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       // A thrown exception here must never take the render loop with it: the
