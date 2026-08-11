@@ -826,3 +826,57 @@ console.log('  slot [5] = ' + play.name + ' -> orders ' + JSON.stringify(game.sq
             game.squad.every(s => s.order.type !== 'follow') ? 'CORRECT (whole team moved)' : 'WRONG');
 console.log('BRIEFING TEST DONE');
 })();
+
+(function aarTests(){
+console.log('--- after-action review: lights on when it goes wrong ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+
+// a real shot must record where it was fired from, or there is no line to draw
+const P = game.player;
+P.face = 0; P.cooldown = 0; P.reloading = 0; P.ammo = 30;
+game.bullets.length = 0;
+tryFire(P, aimAngle(P, P.x + 300, P.y));
+const b0 = game.bullets[0];
+console.log('  fired round carries its origin: ' +
+            (b0 && b0.ox !== undefined ? '(' + b0.ox.toFixed(0) + ',' + b0.oy.toFixed(0) + ')' : 'NO'),
+            b0 && b0.ox !== undefined ? 'CORRECT' : 'WRONG');
+
+// failing must turn the lights on rather than cutting to a menu
+game.mapIndex = 0; initGame(); game.state = 'play'; game.zoom = 1.6;
+const h = game.hostages[0];
+applyHit(h, { dmg: 999, ang: 0, pen: 26, side: 'player', owner: P, ox: h.x - 200, oy: h.y - 60 }, h.x, h.y);
+endMission(false, 'A hostage was killed.');
+let unseen = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (!seen.grid[y][x]) unseen++;
+console.log('  state after failing: ' + game.state + ', unseen tiles: ' + unseen,
+            game.state === 'aar' && unseen === 0 ? 'CORRECT' : 'WRONG');
+console.log('  camera framed both ends: zoom ' + game.zoom.toFixed(2) + ' (play zoom 1.60)',
+            game.zoom <= 1.6 && game.zoom >= 0.55 ? 'CORRECT' : 'WRONG');
+
+// stepping must clamp at both ends rather than running off the list
+aarFocus(99); const hi = game.aar.i;
+aarFocus(-5); const lo = game.aar.i;
+console.log('  focus clamps to [0, ' + (game.aar.list.length - 1) + ']: hi=' + hi + ' lo=' + lo,
+            hi === game.aar.list.length - 1 && lo === 0 ? 'CORRECT' : 'WRONG');
+
+// and leaving hands the camera back
+endMission(false, 'A hostage was killed.');
+console.log('  after acknowledging: state ' + game.state + ', zoom restored to ' + game.zoom.toFixed(2),
+            game.state === 'debrief' && Math.abs(game.zoom - 1.6) < 0.001 ? 'CORRECT' : 'WRONG');
+
+// a win goes straight to the debrief — the review is for failures
+game.mapIndex = 0; initGame(); game.state = 'play';
+endMission(true, '');
+console.log('  a won mission skips the review: ' + game.state,
+            game.state === 'debrief' ? 'CORRECT' : 'WRONG');
+
+// failing with nothing recorded must still produce something to look at
+game.mapIndex = 0; initGame(); game.state = 'play';
+game.incidents.length = 0;
+endMission(false, 'Time expired.');
+console.log('  failure with no incidents still reviewable: ' + game.aar.list.length + ' entry, "' +
+            game.aar.list[0].text + '"',
+            game.aar && game.aar.list.length === 1 ? 'CORRECT' : 'WRONG');
+endMission(false, 'Time expired.');
+console.log('AAR TEST DONE');
+})();

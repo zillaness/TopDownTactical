@@ -71,6 +71,7 @@
       <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
+      <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
     <h3 style="margin-top:16px">Call plays &mdash; you are #1, they are #2 #3 #4</h3>
     <table>
@@ -1271,6 +1272,7 @@ function tryFire(s, ang) {
     const a = ang + rand(-cone / 2, cone / 2) + rand(-glassPenalty, glassPenalty);
     game.bullets.push({
       x: eye.x + Math.cos(a) * 4, y: eye.y + Math.sin(a) * 4,
+      ox: eye.x, oy: eye.y,        // where it left the muzzle — the AAR draws this line
       ang: a, speed: s.weapon.speed, dmg: s.weapon.dmg * round.dmgMul / (round.pellets ? 1.6 : 1),
       pen: round.pen * (s.weapon.penMul || 1), side: s.side,
       traveled: 0, range: s.weapon.range, alive: true, owner: s,
@@ -1298,7 +1300,7 @@ function applySpall(x, y, mat, side) {
     if (d > R) continue;
     const raw = mat.spall * (1 - d / R);
     if (raw <= 0.5) continue;
-    e._cause = { by: side, how: "fragments off " + (mat.name || "a wall") };
+    e._cause = { by: side, how: "fragments off " + (mat.name || "a wall"), from: { x, y } };
     // Fragments are low-energy: a plate carrier is very good against spall,
     // which is most of the point of wearing one.
     const res = throughArmor(e, raw, 6, e.x, e.y);
@@ -1472,7 +1474,8 @@ function describeRound(b) {
   let how = "a " + round.name + " round";
   if (b.penetrated && b.penetrated.length) how += " that came through " + b.penetrated[0];
   if (b.ricochets) how += " after skipping off a wall";
-  return { by: b.side, how };
+  return { by: b.side, how, from: (b.ox !== undefined) ? { x: b.ox, y: b.oy } : null,
+           shooter: b.owner || null };
 }
 
 const SIDE_NAME = { player: "you", squad: "your team", enemy: "a suspect" };
@@ -1481,13 +1484,16 @@ function recordIncident(ent) {
   const c = ent._cause || {};
   const who = SIDE_NAME[c.by] || "something";
   const what = ent.side === "hostage" ? (ent.secured ? "A secured hostage" : "A hostage")
-             : ent.side === "civ" ? "A civilian" : null;
+             : ent.side === "civ" ? "A civilian"
+             : ent.side === "player" ? "You"
+             : ent.side === "squad" ? (ent.name || "An operator") : null;
   if (!what) return null;
+  const verb = ent.side === "player" ? " went down to " : " was killed by ";
   const inc = {
-    text: what + " was killed by " + who + " — " + (c.how || "cause unrecorded"),
+    text: what + verb + who + " — " + (c.how || "cause unrecorded"),
     byUs: c.by === "player" || c.by === "squad",
     x: ent.x, y: ent.y, t: game.stats ? game.stats.time : 0,
-    secured: !!ent.secured,
+    secured: !!ent.secured, from: c.from || null, fatal: true, side: ent.side,
   };
   game.incidents.push(inc);
   return inc;
@@ -1512,9 +1518,12 @@ function killEntity(ent, bySide) {
     game.stats.hostagesDead++;
     if (!ent.secured) game.stats.hostagesDeadUnsecured++;
   }
-  if (ent.side === "hostage" || ent.side === "civ") {
+  if (ent.side === "hostage" || ent.side === "civ" || ent.side === "player" || ent.side === "squad") {
     const inc = recordIncident(ent);
-    if (inc) { game.hint = inc.text; game.fx.push({ kind: "incident", x: ent.x, y: ent.y, t: 6, max: 6 }); }
+    if (inc) {
+      if (ent.side === "hostage" || ent.side === "civ") game.hint = inc.text;
+      game.fx.push({ kind: "incident", x: ent.x, y: ent.y, t: 6, max: 6 });
+    }
   }
   if (ent.side === "player") { /* handled in mission fail check */ }
   addNoise(ent.x, ent.y, 120, "bodyfall", ent.side);
@@ -1676,7 +1685,7 @@ function applyBlast(cx, cy, side) {
     if (d > TUNE.blastWound) continue;
     if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;   // the wall shields the far side
     const t = clamp(1 - (d - TUNE.blastLethal) / (TUNE.blastWound - TUNE.blastLethal), 0, 1);
-    e._cause = { by: side, how: "the blast" };
+    e._cause = { by: side, how: "the blast", from: { x: cx, y: cy } };
     const rawBlast = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
     if (rawBlast <= 0) continue;
     const dmg = throughArmor(e, rawBlast, 16, e.x, e.y).dmg;   // overpressure and frag
@@ -2766,9 +2775,10 @@ function render() {
 
   // hostiles & bystanders: draw direct sightings now; ghosts go above the fog later
   const ghosts = [];
+  const lightsOn = game.state === "aar";
   for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
     if (!e.alive) continue;
-    const vis = visibleToPlayerSide(e);
+    const vis = lightsOn ? "direct" : visibleToPlayerSide(e);
     if (vis === "direct") drawBody(e);
     else if (vis === "squad") ghosts.push(e);
     else if (game.mirror && game.mirror.t > 0 && roomAt(e.x, e.y) === game.mirror.room) ghosts.push(e);
@@ -2781,8 +2791,9 @@ function render() {
   // fx the world occludes — blood, and anything else the fog should dim
   drawFx("pre");
 
-  // fog: dim everything outside the player's current view
-  if (game.player.alive) {
+  // fog: dim everything outside the player's current view — lifted entirely in
+  // the after-action review, which is the whole point of the lights coming on
+  if (game.player.alive && game.state !== "aar") {
     const poly = game.visPoly;
     ctx.save();
     // build a path = big rect minus vis polygon (evenodd)
@@ -2881,8 +2892,72 @@ function render() {
     ctx.setLineDash([]);
   }
 
+  if (game.state === "aar") drawAfterActionWorld();
+
   ctx.restore();
-  drawHud();
+  if (game.state === "aar") drawAfterActionPanel(); else drawHud();
+}
+
+// The world half of the review: the round's actual path from muzzle to body,
+// and a marker on every other incident so you can see the whole run at once.
+function drawAfterActionWorld() {
+  const a = game.aar; if (!a) return;
+  const k = 1 / game.zoom;
+  a.list.forEach((inc, i) => {
+    const cur = i === a.i;
+    if (inc.from) {
+      ctx.strokeStyle = cur ? "#ff5555" : "rgba(255,85,85,0.28)";
+      ctx.lineWidth = (cur ? 2.5 : 1.5) * k;
+      ctx.setLineDash(cur ? [] : [6, 6]);
+      ctx.beginPath(); ctx.moveTo(inc.from.x, inc.from.y); ctx.lineTo(inc.x, inc.y); ctx.stroke();
+      ctx.setLineDash([]);
+      if (cur) {                                  // where the shot came from
+        ctx.strokeStyle = "#ff5555"; ctx.lineWidth = 2 * k;
+        ctx.beginPath(); ctx.arc(inc.from.x, inc.from.y, 10 * k, 0, TAU); ctx.stroke();
+        ctx.fillStyle = "#ff5555";
+        ctx.font = "bold " + (11 * k).toFixed(1) + "px Consolas, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("FIRED FROM HERE", inc.from.x, inc.from.y - 16 * k);
+      }
+    }
+    ctx.strokeStyle = cur ? "#ff5555" : "rgba(255,85,85,0.35)";
+    ctx.lineWidth = (cur ? 2.5 : 1.5) * k;
+    const r = (cur ? 16 + Math.sin(a.t * 4) * 3 : 11) * k;
+    ctx.beginPath(); ctx.arc(inc.x, inc.y, r, 0, TAU); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(inc.x - 7 * k, inc.y - 7 * k); ctx.lineTo(inc.x + 7 * k, inc.y + 7 * k);
+    ctx.moveTo(inc.x + 7 * k, inc.y - 7 * k); ctx.lineTo(inc.x - 7 * k, inc.y + 7 * k);
+    ctx.stroke();
+    if (a.list.length > 1) {
+      ctx.fillStyle = cur ? "#ff5555" : "rgba(255,85,85,0.5)";
+      ctx.font = "bold " + (11 * k).toFixed(1) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(String(i + 1), inc.x, inc.y - r - 5 * k);
+    }
+  });
+  ctx.textAlign = "left";
+}
+
+function drawAfterActionPanel() {
+  const a = game.aar; if (!a) return;
+  const inc = a.list[a.i];
+  ctx.fillStyle = "rgba(6,9,12,0.82)"; ctx.fillRect(0, 0, viewW, 64);
+  ctx.fillRect(0, viewH - 54, viewW, 54);
+  ctx.textAlign = "center";
+  ctx.font = "bold 19px Consolas, monospace"; ctx.fillStyle = COLORS.danger;
+  ctx.fillText("AFTER ACTION — MISSION FAILED", viewW / 2, 28);
+  ctx.font = "13px Consolas, monospace"; ctx.fillStyle = COLORS.hud;
+  const mm = String(Math.floor(inc.t / 60)).padStart(2, "0") + ":" + String(Math.floor(inc.t % 60)).padStart(2, "0");
+  ctx.fillText(mm + "   " + inc.text, viewW / 2, 50);
+
+  ctx.font = "12px Consolas, monospace";
+  ctx.fillStyle = inc.byUs ? COLORS.danger : COLORS.hudDim;
+  ctx.fillText(inc.byUs ? "This one was yours." : "Not fired by your team.", viewW / 2, viewH - 34);
+  ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText(a.list.length > 1
+    ? "[←] [→] step through " + a.list.length + " incidents  ·  [SPACE] debrief"
+    : "[SPACE] debrief", viewW / 2, viewH - 14);
+  ctx.textAlign = "left";
 }
 
 // ---- sprite rasterization: SVG source -> tinted offscreen canvas, once, at load.
@@ -3530,7 +3605,7 @@ const game = {
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
-  playbook: false, pie: null, lastPlay: null, incidents: [],
+  playbook: false, pie: null, lastPlay: null, incidents: [], aar: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -3561,7 +3636,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.playbook = false; game.pie = null; game.lastPlay = null; game.incidents = [];
+  game.playbook = false; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null;
   game.callSheet = (game.loadout.callSheet || game.mission.callSheet || ["1", "5", "3"]).slice();
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
@@ -3604,7 +3679,7 @@ function updateExecutionTimer(dt) {
   if (game.execT <= 0) {
     const victim = nearestEntity(game.hostages, taker.x, taker.y, 1e9, h => h.alive && !h.secured);
     if (victim && dist(taker.x, taker.y, victim.x, victim.y) < 70) {
-      victim._cause = { by: "enemy", how: "executed by the hostage-taker" };
+      victim._cause = { by: "enemy", how: "executed by the hostage-taker", from: { x: taker.x, y: taker.y } };
       victim.hp = 0; killEntity(victim, "enemy");
       game.fx.push({ kind: "blood", x: victim.x, y: victim.y, ang: rand(0, TAU), t: 0.4, max: 0.4 });
     } else {
@@ -3700,9 +3775,55 @@ function computeGrade() {
   return "D";
 }
 
+// When it goes wrong, turn the lights on. The fog exists to make you earn
+// information during the run; withholding it afterwards just means you never
+// learn what killed the mission. Reveals the whole map, walks the camera to
+// each incident, and draws the line the round actually travelled.
+function beginAfterAction(reason) {
+  game.aar = {
+    reason,
+    list: game.incidents.slice(),
+    i: 0, t: 0,
+    cam: { x: game.player.x, y: game.player.y },
+    playZoom: game.zoom,
+  };
+  if (!game.aar.list.length) {                       // failed with nothing recorded
+    game.aar.list = [{ text: reason, x: game.player.x, y: game.player.y,
+                       t: game.stats.time, byUs: false, from: null }];
+  }
+  // the lights: every tile becomes seen, and the fog stops being drawn
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) seen.grid[y][x] = 1;
+  game.state = "aar";
+  game.paused = false; game.slowmo = false; game.playbook = false;
+  aarFocus(0);
+}
+
+function aarFocus(i) {
+  const a = game.aar; if (!a) return;
+  a.i = clamp(i, 0, a.list.length - 1);
+  a.t = 0;
+  const inc = a.list[a.i];
+  // Frame BOTH ends of the shot. A line of fire with the shooter off-screen
+  // tells you nothing — the distance and the angle are the lesson.
+  if (inc.from) {
+    a.cam = { x: (inc.x + inc.from.x) / 2, y: (inc.y + inc.from.y) / 2 };
+    const dx = Math.abs(inc.x - inc.from.x), dy = Math.abs(inc.y - inc.from.y);
+    const fit = Math.min(dx > 1 ? (viewW - 260) / dx : 9, dy > 1 ? (viewH - 300) / dy : 9);
+    game.zoom = clamp(Math.min(a.playZoom, fit), 0.55, a.playZoom);
+  } else {
+    a.cam = { x: inc.x, y: inc.y };
+    game.zoom = a.playZoom;
+  }
+  game.cam.x = a.cam.x; game.cam.y = a.cam.y;
+}
+
 function endMission(won, reason) {
+  // A failure is a lesson you cannot read in the dark
+  if (!won && game.state === "play") { beginAfterAction(reason); return; }
+  if (game.aar) game.zoom = game.aar.playZoom;      // hand the camera back
   game.state = "debrief";
   game.inProgress = false;
+  game.aar = null;
   const st = game.stats;
   const grade = won ? computeGrade() : "F";
   if (won && game.diff) { saveBest(game.mapIndex, game.diff.key, grade); refreshMenu(); }
@@ -3795,6 +3916,17 @@ function frame(now) {
       game.eye = eye;
       game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
     }
+    render();
+  } else if (game.state === "aar") {
+    const a = game.aar;
+    a.t += dt;
+    if (pressed("arrowright") || pressed("d") || pressed("]")) aarFocus(a.i + 1);
+    if (pressed("arrowleft") || pressed("a") || pressed("[")) aarFocus(a.i - 1);
+    if (pressed(" ") || pressed("enter") || pressed("escape")) { endMission(false, a.reason); }
+    // ease the camera onto the incident so the eye follows it there
+    game.cam.x = lerp(game.cam.x, a.cam.x, clamp(dt * 4, 0, 1));
+    game.cam.y = lerp(game.cam.y, a.cam.y, clamp(dt * 4, 0, 1));
+    game.camKick = 0; game.cam.shakeX = 0; game.cam.shakeY = 0;
     render();
   }
   input.justPressed.clear();

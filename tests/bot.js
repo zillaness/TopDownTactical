@@ -47,6 +47,12 @@ function botRun(mapIdx, seedLabel) {
     if (nearestEntity(game.hostages, P.x, P.y, 46, h => h.alive && !h.secured)) input.justPressed.add('e');
     try { update(1 / 60); } catch (e) { errs++; if (errs < 3) console.log('UPDATE ERROR:', e.message); }
   }
+  // A failure now lands in the after-action review first; step through it so the
+  // harness still exercises the real path to the debrief.
+  let aarSteps = 0;
+  while (game.state === 'aar' && aarSteps++ < 8) {
+    try { endMission(false, game.aar.reason); } catch (e) { errs++; if (errs < 3) console.log('AAR ERROR:', e.message); }
+  }
   const st = game.stats;
   console.log(`bot[${seedLabel}] map${mapIdx}: end=${game.state} t=${st.time.toFixed(0)}s ` +
     `playerAlive=${game.player.alive} hostSec=${st.hostagesSecured} hostDead=${st.hostagesDead} ` +
