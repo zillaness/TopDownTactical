@@ -18,7 +18,7 @@
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   #overlay { position: fixed; inset: 0; pointer-events: none; }
-  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(6,8,10,0.92); pointer-events: auto; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; background: rgba(6,8,10,0.94); pointer-events: auto; }
   .screen h1 { font-size: 42px; letter-spacing: 6px; margin: 0 0 8px; color: #e8eef4; text-transform: uppercase; }
   .screen h2 { font-size: 15px; font-weight: 400; color: #7f8b96; margin: 0 0 28px; letter-spacing: 2px; }
   .screen .panel { background: #11161b; border: 1px solid #232c34; border-radius: 6px; padding: 22px 30px; max-width: 700px; }
@@ -30,8 +30,10 @@
   .btn:hover { background: #2563eb; }
   #mapPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; max-width: 900px; }
   .mapbtn { max-width: 210px; }
-  #diffPick { display: flex; gap: 8px; margin-top: 12px; }
-  #ammoPick { display: flex; gap: 8px; margin-top: 10px; }
+  #diffPick, #ammoPick, #primPick, #kitPick, #squadPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .sect { margin: 16px 0 6px; font-size: 11px; letter-spacing: 3px; color: #5f9ea0; text-transform: uppercase; }
+  #advice { max-width: 640px; margin-top: 8px; font-size: 12px; color: #e8b53a; font-style: italic; }
+  .screen { overflow-y: auto; padding: 28px 0; }
   .mapbtn { background: #11161b; border: 1px solid #232c34; color: #aeb8c2; padding: 10px 18px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
   .mapbtn b { color: #e8eef4; letter-spacing: 1px; }
   .mapbtn.sel { border-color: #1d4ed8; background: #14203a; }
@@ -67,9 +69,19 @@
       <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
     </table>
   </div>
+  <div class="sect">Mission</div>
   <div id="mapPick"></div>
+  <div id="advice"></div>
+  <div class="sect">Difficulty</div>
   <div id="diffPick"></div>
+  <div class="sect">Primary weapon</div>
+  <div id="primPick"></div>
+  <div class="sect">Ammunition</div>
   <div id="ammoPick"></div>
+  <div class="sect">Utility</div>
+  <div id="kitPick"></div>
+  <div class="sect">Squad</div>
+  <div id="squadPick"></div>
   <button class="btn" id="btnStart">Breach</button>
   <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
 </div>
@@ -218,6 +230,7 @@ const AMMO = {
   ap:   { name: "5.56 AP",   pen: 46, dmgMul: 0.85 },
   x39:  { name: "7.62 FMJ",  pen: 32, dmgMul: 1.00 },
   pistol:{name: "9mm FMJ",   pen: 12, dmgMul: 1.00 },
+  hp9:  { name: "9mm HP",    pen: 3,  dmgMul: 1.25 },
   bird: { name: "BIRDSHOT",  pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
   buck: { name: "BUCKSHOT",  pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
   slug: { name: "SLUG",      pen: 34, dmgMul: 1.70 },
@@ -352,7 +365,7 @@ class MinHeap {
 // Legend: # wall  , exterior  . interior  D door  L locked door
 //         P player  s squad  g guard  p patroller  T hostage-taker  h hostage  c civilian
 const MAPS = [
-{ name: "THE COMPOUND", brief: "One building, two entries, executioner deep",
+{ name: "THE COMPOUND", advice: "Interior partitions everywhere. FMJ will carry through them — mind what is on the other side.", brief: "One building, two entries, executioner deep",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -385,7 +398,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "SAFEHOUSE ROW", brief: "Two buildings, an alley crossing, hostages far east",
+{ name: "SAFEHOUSE ROW", advice: "Long alley crossing under fire. Reach matters more than close-in punch.", brief: "Two buildings, an alley crossing, hostages far east",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -418,7 +431,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "THE PLANT", brief: "Inner secure room — pick the lock open, or make your own door",
+{ name: "THE PLANT", advice: "The secure room has one locked door. Bring charges, or make your own entry.", brief: "Inner secure room — pick the lock open, or make your own door",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -451,7 +464,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "MARKET ROW", brief: "Three buildings, hostages split — one squad can't be everywhere",
+{ name: "MARKET ROW", advice: "Hostages split across three buildings. You cannot be everywhere — weight the squad.", brief: "Three buildings, hostages split — one squad can't be everywhere",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -484,7 +497,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "FLIGHT 214", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
+{ name: "FLIGHT 214", advice: "A packed tube with no cover. Over-penetration will kill hostages; consider hollow point.", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
   type: "AIRCRAFT ASSAULT", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -517,7 +530,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "HIGH VALUE", brief: "Take the principal alive and walk him to the vehicle",
+{ name: "HIGH VALUE", advice: "The principal must live. Shotguns and buckshot are the wrong tool for a capture.", brief: "Take the principal alive and walk him to the vehicle",
   type: "CAPTURE & EXTRACT", objectives: ["capture", "extract"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -814,9 +827,13 @@ function makeShooter(x, y, side, hp, weapon) {
 }
 
 function makePlayer(sp) {
-  const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, TUNE.rifle);
-  p.bangs = 3; p.charges = 2; p.shoutCd = 0;
-  p.ammoType = game.ammoChoice || "fmj";
+  const L = game.loadout;
+  const prim = PRIMARIES[L.primary] || PRIMARIES.carbine;
+  const kit = UTILITY_KITS[L.kit] || UTILITY_KITS.entry;
+  const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w });
+  p.bangs = kit.bangs; p.charges = kit.charges; p.shoutCd = 0;
+  // keep the ammo legal for the weapon in hand
+  p.ammoType = prim.ammo.includes(L.ammo) ? L.ammo : prim.ammo[0];
   return p;
 }
 
@@ -1650,17 +1667,51 @@ function processNoises() {
 // ---------------------------------------------------------------- S10 squad
 const SQUAD_NAMES = ["REYES", "OKAFOR", "DANE"];
 
-const SQUAD_LOADOUT = [
-  { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 },                          // rifleman, M4
-  { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7, reload: 3.2 },     // breacher, shotgun
-  { ammo: "fmj",  rpm: 700, dmg: 30, range: 950, mag: 100, reload: 5.0 },   // support, SAW
-];
+// ---- loadout: what the team carries through the door
+const ROLES = {
+  rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
+              w: { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 } },
+  breacher: { name: "BREACHER", sprite: "squad_breacher",
+              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7,   reload: 3.2 } },
+  support:  { name: "SUPPORT",  sprite: "squad_support",
+              w: { ammo: "fmj",  rpm: 700, dmg: 30, range: 950, mag: 100, reload: 5.0 } },
+};
+
+const PRIMARIES = {
+  carbine: { name: "M4 CARBINE", ammo: ["fmj", "hp", "ap"],
+             note: "reach and penetration",
+             w: { ...TUNE.rifle } },
+  shotgun: { name: "SHOTGUN",    ammo: ["buck", "slug", "bird"],
+             note: "devastating close, useless far",
+             w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
+                  spreadBase: deg(2.4), recoil: deg(3), recoilMax: deg(9) } },
+  smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
+             note: "fast and controllable, poor through cover",
+             w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
+                  spreadBase: deg(1.6), recoil: deg(0.8), penMul: 0.7 } },
+};
+
+const UTILITY_KITS = {
+  entry: { name: "ENTRY",       bangs: 3, charges: 2, note: "balanced" },
+  bang:  { name: "DISTRACTION", bangs: 6, charges: 0, note: "rooms full of people" },
+  demo:  { name: "DEMOLITION",  bangs: 1, charges: 4, note: "make your own doors" },
+};
+
+const SQUAD_TEMPLATES = {
+  standard: { name: "STANDARD", roles: ["rifleman", "breacher", "support"], note: "one of each" },
+  assault:  { name: "ASSAULT",  roles: ["rifleman", "rifleman", "breacher"], note: "rifles forward" },
+  overwatch:{ name: "OVERWATCH",roles: ["rifleman", "support", "support"],  note: "hold long angles" },
+};
 
 function makeSquaddie(sp, i) {
-  const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480, ...(SQUAD_LOADOUT[i % 3] || {}) };
+  const tmpl = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
+  const role = tmpl.roles[i % 3];
+  const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480, ...ROLES[role].w };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
+  s.role = role;
+  s.ammoType = ROLES[role].w.ammo;
   s.handed = rollHandedness();
   s.order = { type: "follow" };
   s.path = null; s.pathI = 0; s.repathT = 0;
@@ -2182,11 +2233,14 @@ function getSprite(key, tint) {
 }
 
 const SQUAD_SPRITES = ["squad_rifleman", "squad_breacher", "squad_support"];
+function squadSpriteFor(s) {
+  return (ROLES[s.role] && ROLES[s.role].sprite) || SQUAD_SPRITES[s.slot % 3] || "squad_rifleman";
+}
 
 function spriteFor(e, dead) {
   if (dead) return { key: "corpse", tint: COLORS.corpse };
   if (e.side === "player") return { key: "player", tint: COLORS.player };
-  if (e.side === "squad")  return { key: SQUAD_SPRITES[e.slot % 3] || "squad_rifleman", tint: COLORS.squad };
+  if (e.side === "squad")  return { key: squadSpriteFor(e), tint: COLORS.squad };
   if (e.side === "enemy") {
     if (e.state === "cuffed")    return { key: "cuffed", tint: COLORS.cuffed };
     if (e.state === "surrender") return { key: "surrendered", tint: COLORS.surrendered };
@@ -2589,7 +2643,7 @@ const game = {
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6,
-  ammoChoice: "fmj",   // chosen at the briefing: penetration vs over-penetration
+  loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard" },
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
   selected: new Set(),
@@ -2850,6 +2904,19 @@ function saveBest(mapIdx, diffKey, grade) {
 const mapPickEl = document.getElementById("mapPick");
 const diffPickEl = document.getElementById("diffPick");
 const ammoPickEl = document.getElementById("ammoPick");
+const primPickEl = document.getElementById("primPick");
+const kitPickEl = document.getElementById("kitPick");
+const squadPickEl = document.getElementById("squadPick");
+const adviceEl = document.getElementById("advice");
+
+function mkBtn(parent, key, title, sub, onPick) {
+  const b = document.createElement("button");
+  b.className = "mapbtn"; b.dataset.key = key;
+  b.innerHTML = "<b>" + title + "</b>" + (sub ? "<br><span>" + sub + "</span>" : "");
+  b.addEventListener("click", onPick);
+  parent.appendChild(b);
+  return b;
+}
 function refreshMenu() {
   const bests = loadBests();
   const dk = DIFFICULTIES[game.diffIndex].key;
@@ -2860,7 +2927,21 @@ function refreshMenu() {
     if (span) span.textContent = best ? "best: " + best : "";
   });
   diffPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === game.diffIndex));
-  ammoPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.ammo === game.ammoChoice));
+
+  const L = game.loadout;
+  const prim = PRIMARIES[L.primary];
+  // ammunition list follows the weapon in hand
+  if (!prim.ammo.includes(L.ammo)) L.ammo = prim.ammo[0];
+  ammoPickEl.innerHTML = "";
+  prim.ammo.forEach(k => {
+    const btn = mkBtn(ammoPickEl, k, AMMO[k].name, AMMO_NOTES[k] || "",
+      () => { L.ammo = k; refreshMenu(); });
+    btn.classList.toggle("sel", k === L.ammo);
+  });
+  primPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.primary));
+  kitPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.kit));
+  squadPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.squad));
+  adviceEl.textContent = (MAPS[game.mapIndex] || {}).advice || "";
 }
 MAPS.forEach((m, i) => {
   const b = document.createElement("button");
@@ -2877,18 +2958,23 @@ DIFFICULTIES.forEach((d, i) => {
   diffPickEl.appendChild(b);
 });
 
-const AMMO_CHOICES = [
-  { key: "fmj", note: "punches drywall — and whatever is behind it" },
-  { key: "hp",  note: "hits harder, stops at the first wall" },
-  { key: "ap",  note: "defeats hard cover, less effect on flesh" },
-];
-AMMO_CHOICES.forEach(c => {
-  const b = document.createElement("button");
-  b.className = "mapbtn"; b.dataset.ammo = c.key;
-  b.innerHTML = "<b>" + AMMO[c.key].name + "</b><br><span>" + c.note + "</span>";
-  b.addEventListener("click", () => { game.ammoChoice = c.key; refreshMenu(); });
-  ammoPickEl.appendChild(b);
-});
+const AMMO_NOTES = {
+  fmj:  "crosses drywall — and whatever stands behind it",
+  hp:   "hits harder, stops at the first wall",
+  ap:   "defeats hard cover, less effect on flesh",
+  pistol: "light, controllable",
+  hp9:  "no over-penetration at all",
+  buck: "a spread of pellets, short reach",
+  slug: "one heavy projectile, punches through",
+  bird: "will not penetrate anything, least likely to over-carry",
+};
+Object.entries(PRIMARIES).forEach(([k, v]) =>
+  mkBtn(primPickEl, k, v.name, v.note, () => { game.loadout.primary = k; refreshMenu(); }));
+Object.entries(UTILITY_KITS).forEach(([k, v]) =>
+  mkBtn(kitPickEl, k, v.name, v.bangs + " bangs / " + v.charges + " charges", () => { game.loadout.kit = k; refreshMenu(); }));
+Object.entries(SQUAD_TEMPLATES).forEach(([k, v]) =>
+  mkBtn(squadPickEl, k, v.name, v.roles.map(r => ROLES[r].name[0]).join(" · ") + " — " + v.note,
+        () => { game.loadout.squad = k; refreshMenu(); }));
 refreshMenu();
 
 function startMission(fresh) {
@@ -2944,6 +3030,9 @@ requestAnimationFrame(frame);
     deflects the first round through it. Ammunition is chosen at the briefing.
     Squad weapons differentiated: M4, buckshot, belt-fed. CHECK FIRE warning when a
     friendly, hostage or surrendered suspect is in the player's line of fire.
+    Briefing loadout: primary weapon (carbine / shotgun / SMG) with a weapon-legal
+    ammunition list, a utility kit trading flashbangs against breach charges, and a
+    squad template assigning the three roles. Each mission carries loadout advice.
 -->
 </body>
 </html>

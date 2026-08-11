@@ -98,6 +98,7 @@ can both drive this file.
 - (Opus) ✅ U30 ammunition: FMJ / HP / AP chosen at the briefing, plus buckshot and belt-fed squad loadouts; HUD shows the loaded round
 - (Opus) ✅ U31 CHECK FIRE warning — the squad already refused unsafe shots via clearShot(); the player now gets a red crosshair and a ring on whoever is in the line. Added after bot testing showed the player had no equivalent of the discipline the AI already had
 - ℹ correction: FLIGHT 214 was never reliably winnable by the test bot. An earlier claim that it was came from a single lucky run. Isolation testing (spall off / penetration off / both off) showed ballistics are NOT the cause — the bot simply fires down a packed tube with no fire discipline. Map fairness for a human is still unmeasured
+- (Opus) ✅ U32 briefing loadout: primary weapon (M4 / shotgun / MP5) with the ammunition list constrained to the weapon in hand, utility kits trading bangs against charges, squad templates assigning roles, and per-mission loadout advice
 - ▶ NEXT: cars as multi-tile props (sheet metal + engine block) and the extreme-rendition mission; ship boarding; assassination; compound infiltration with an `undetected` objective
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
