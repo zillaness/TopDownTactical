@@ -941,3 +941,74 @@ console.log('  the same shout does not reach a man 3000px away: ' + !b2.alerted,
             !b2.alerted ? 'CORRECT' : 'WRONG');
 console.log('NOISE+CLOCK TEST DONE');
 })();
+
+(function shootHouseAndBoundTests(){
+console.log('--- the shoot house, and bounding overwatch ---');
+const shIdx = MAPS.findIndex(m => m.training);
+console.log('  a training mission exists: ' + (shIdx >= 0 ? MAPS[shIdx].name : 'NONE'),
+            shIdx >= 0 ? 'CORRECT' : 'WRONG');
+game.mapIndex = shIdx; initGame(); game.state = 'play';
+console.log('  no hostages, no civilians, no hostage-taker: ' +
+            game.hostages.length + '/' + game.civilians.length + '/' +
+            game.enemies.filter(e => e.kind === 'taker').length,
+            !game.hostages.length && !game.civilians.length &&
+            !game.enemies.some(e => e.kind === 'taker') ? 'CORRECT (nothing on a clock)' : 'WRONG');
+console.log('  objectives: ' + JSON.stringify(MAPS[shIdx].objectives),
+            MAPS[shIdx].objectives.length === 1 && MAPS[shIdx].objectives[0] === 'neutralize'
+              ? 'CORRECT (just the fight)' : 'WRONG');
+
+// it must teach the things it claims to: doors incl. a locked one, shoot-through
+// partitions, real cover, and windows
+const locked = level.doors.filter(d => d.locked).length;
+let dry = 0, brick = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+  if (level.mat[y][x] === 'drywall') dry++;
+  if (level.mat[y][x] === 'brick') brick++;
+}
+console.log('  teaches: ' + level.doors.length + ' doors (' + locked + ' locked), ' +
+            dry + ' shoot-through partitions, ' + brick + ' brick cover tiles, ' +
+            level.windowAt.size + ' windows',
+            locked >= 1 && dry > 10 && brick > 0 && level.windowAt.size > 0 ? 'CORRECT' : 'WRONG');
+
+// every contact must be reachable, or the mission cannot be completed
+const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
+const unreachable = level.spawns.enemies.filter(es => {
+  const et = tileAt(es.x, es.y);
+  return !astar(st0.tx, st0.ty, et.tx, et.ty, passForPath, pathCostSquad);
+});
+console.log('  all ' + level.spawns.enemies.length + ' contacts reachable from the entry: ' +
+            (unreachable.length === 0), unreachable.length === 0 ? 'CORRECT' : 'WRONG');
+
+// --- bounding overwatch: somebody is always still
+const play = PLAYS.find(p => p.name === 'BOUND');
+console.log('  BOUND is in the playbook on [' + (play ? play.key : '?') + ']', play ? 'CORRECT' : 'WRONG');
+game.mapIndex = shIdx; initGame(); game.state = 'play';
+const P = game.player;
+input.mouse.wx = P.x + 420; input.mouse.wy = P.y;
+callPlay(play);
+console.log('  called: orders ' + JSON.stringify(game.squad.map(s => s.order.type)),
+            game.squad.every(s => s.order.type === 'bound') ? 'CORRECT' : 'WRONG');
+const elements = new Set(game.squad.map(s => s.order.element));
+console.log('  split into ' + elements.size + ' elements',
+            elements.size === 2 ? 'CORRECT (one moves, one watches)' : 'WRONG');
+
+// drive it and confirm at least one man is stationary on every frame of travel
+let bothMoving = 0, samples = 0, swaps = 0, lastUp = game.bound ? game.bound.moving : 0;
+const prev = new Map();
+for (let f = 0; f < 60 * 14 && game.bound; f++) {
+  game.squad.forEach(s => prev.set(s, { x: s.x, y: s.y }));
+  update(1 / 60);
+  if (!game.bound) break;
+  if (game.bound.moving !== lastUp) { swaps++; lastUp = game.bound.moving; }
+  const moved = game.squad.filter(s => s.alive && dist(s.x, s.y, prev.get(s).x, prev.get(s).y) > 0.4);
+  const still = game.squad.filter(s => s.alive).length - moved.length;
+  samples++;
+  if (still === 0) bothMoving++;
+}
+console.log('  frames of travel where NOBODY was covering: ' + bothMoving + '/' + samples,
+            samples > 0 && bothMoving / samples < 0.06 ? 'CORRECT' : 'WRONG (' +
+            (100 * bothMoving / Math.max(1, samples)).toFixed(0) + '% uncovered)');
+console.log('  elements swapped ' + swaps + ' times during the move',
+            swaps >= 1 ? 'CORRECT (it leapfrogs)' : 'WRONG (one element did it all)');
+console.log('SHOOT HOUSE + BOUND TEST DONE');
+})();
