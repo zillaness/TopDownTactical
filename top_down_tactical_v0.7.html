@@ -30,7 +30,7 @@
   .btn:hover { background: #2563eb; }
   #mapPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; max-width: 900px; }
   .mapbtn { max-width: 210px; }
-  #diffPick, #ammoPick, #primPick, #kitPick, #squadPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  #diffPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .sect { margin: 16px 0 6px; font-size: 11px; letter-spacing: 3px; color: #5f9ea0; text-transform: uppercase; }
   #advice { max-width: 640px; margin-top: 8px; font-size: 12px; color: #e8b53a; font-style: italic; }
   .screen { overflow-y: auto; padding: 28px 0; }
@@ -85,6 +85,8 @@
   <div id="primPick"></div>
   <div class="sect">Ammunition</div>
   <div id="ammoPick"></div>
+  <div class="sect">Body armor</div>
+  <div id="armorPick"></div>
   <div class="sect">Utility</div>
   <div id="kitPick"></div>
   <div class="sect">Squad</div>
@@ -252,6 +254,24 @@ const AMMO = {
   bird: { name: "BIRDSHOT",  pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
   buck: { name: "BUCKSHOT",  pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
   slug: { name: "SLUG",      pen: 34, dmgMul: 1.70 },
+};
+
+// Armour is a plate, not a bigger health bar. What decides the hit is whether
+// the round's penetration beats the plate's rating — the same caliber-versus-
+// material arithmetic the walls already run, because a plate is a material you
+// wear. Ratings are set against the AMMO table above: IIIA stops 9mm (12) and
+// buckshot (13) and nothing else; III adds 5.56 ball (26) and 7.62 ball (32);
+// IV is the only thing that turns AP (46). Every tier costs move speed, so
+// picking one is a trade rather than a free upgrade.
+const ARMOR = {
+  none:  { name: "NO ARMOR",  hp: 0,   rating: 0,  speed: 1.00, cover: 0,
+           note: "fastest man in the stack, nothing between you and the round" },
+  soft:  { name: "IIIA SOFT", hp: 55,  rating: 14, speed: 0.97, cover: 0.80,
+           note: "turns pistol and shot — rifle goes straight through" },
+  plate: { name: "III PLATE", hp: 95,  rating: 33, speed: 0.90, cover: 0.78,
+           note: "turns 5.56 and 7.62 ball; slugs and AP still get in" },
+  heavy: { name: "IV HEAVY",  hp: 135, rating: 48, speed: 0.82, cover: 0.82,
+           note: "turns armour-piercing, and you will be the slowest man there" },
 };
 
 const COLORS = {
@@ -855,8 +875,17 @@ function makeShooter(x, y, side, hp, weapon) {
     handed: "right",          // "left" mirrors the sprite across the facing axis
     shoulder: "strong",       // "support" = rifle transitioned to the weak shoulder
     pendingShoulder: "strong", swapT: 0,
+    armorType: "none", armor: 0, armorMax: 0,
   };
 }
+
+function wearArmor(ent, key) {
+  const A = ARMOR[key] || ARMOR.none;
+  ent.armorType = ARMOR[key] ? key : "none";
+  ent.armor = A.hp; ent.armorMax = A.hp;
+  return ent;
+}
+function armorSpeed(ent) { return (ARMOR[ent.armorType] || ARMOR.none).speed; }
 
 function makePlayer(sp) {
   const L = game.loadout;
@@ -866,6 +895,7 @@ function makePlayer(sp) {
   p.bangs = kit.bangs; p.charges = kit.charges; p.shoutCd = 0;
   // keep the ammo legal for the weapon in hand
   p.ammoType = prim.ammo.includes(L.ammo) ? L.ammo : prim.ammo[0];
+  wearArmor(p, L.armor);
   return p;
 }
 
@@ -939,7 +969,7 @@ function updatePlayer(p, dt) {
   p.moving = dx !== 0 || dy !== 0;
   if (p.moving && p.stagger <= 0) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const spd = p.walking ? TUNE.playerWalk : TUNE.playerRun;
+    const spd = (p.walking ? TUNE.playerWalk : TUNE.playerRun) * armorSpeed(p);
     const res = moveCircle(p.x, p.y, p.r, dx * spd * dt, dy * spd * dt, solidForMove);
     p.x = res.x; p.y = res.y;
     if (!p.walking) emitFootstepNoise(p, dt);
@@ -1085,8 +1115,12 @@ function applySpall(x, y, mat, side) {
     if (!e || !e.alive) continue;
     const d = dist(x, y, e.x, e.y);
     if (d > R) continue;
-    const dmg = mat.spall * (1 - d / R);
-    if (dmg <= 0.5) continue;
+    const raw = mat.spall * (1 - d / R);
+    if (raw <= 0.5) continue;
+    // Fragments are low-energy: a plate carrier is very good against spall,
+    // which is most of the point of wearing one.
+    const res = throughArmor(e, raw, 6, e.x, e.y);
+    const dmg = res.dmg;
     e.hp -= dmg;
     // Spall used to subtract hp and push one spark. A player correctly using
     // cover concluded the game was damaging them at random — so it reports
@@ -1201,18 +1235,45 @@ function segCircle(x1, y1, x2, y2, cx, cy, r) {
 // An undirected camera jolt is not information. Record the bearing the damage
 // came from so the HUD can point at it — the honest answer to a shooter who is
 // legitimately off-screen, which telemetry puts at 4% of rounds that land.
-function noteHurt(ent, ang) {
+function noteHurt(ent, ang, onArmor) {
   if (ent !== game.player) return;
-  game.hurt.push({ ang, t: 0.9, max: 0.9 });
+  game.hurt.push({ ang, t: 0.9, max: 0.9, armor: !!onArmor });
   if (game.hurt.length > 6) game.hurt.shift();
 }
 
+// What actually reaches the body. A plate that beats the round still passes a
+// fraction through as backface deformation — armour buys you hits, it does not
+// make you immune — and the plate itself wears down and eventually stops
+// working. A round that beats the rating is slowed but not stopped. Plates
+// cover the torso, so some proportion of hits simply miss the armour entirely.
+function throughArmor(ent, dmg, pen, hx, hy) {
+  const A = ARMOR[ent.armorType] || ARMOR.none;
+  if (!A.hp || ent.armor <= 0) return { dmg, hitArmor: false };
+  if (Math.random() > A.cover) return { dmg, hitArmor: false };   // limb or head
+  const defeated = pen >= A.rating;
+  const keep = defeated ? 0.85 : 0.12;   // defeated means defeated, not a discount
+  const through = dmg * keep;
+  const stopped = dmg - through;
+  ent.armor = Math.max(0, ent.armor - stopped);
+  if (hx !== undefined) {
+    game.fx.push({ kind: "spark", x: hx, y: hy, t: 0.14, max: 0.14 });
+    if (!defeated) game.fx.push({ kind: "spark", x: hx, y: hy, t: 0.2, max: 0.2 });
+  }
+  if (ent.armor <= 0 && ent === game.player) game.hint = "PLATE IS GONE — nothing left between you and the round";
+  return { dmg: through, hitArmor: true, defeated };
+}
+
 function applyHit(ent, b, hx, hy) {
-  ent.hp -= b.dmg * rand(0.85, 1.15);
-  game.fx.push({ kind: "blood", x: hx, y: hy, ang: b.ang, t: 0.4, max: 0.4 });
+  const raw = b.dmg * rand(0.85, 1.15);
+  const res = throughArmor(ent, raw, b.pen, hx, hy);
+  ent.hp -= res.dmg;
+  if (res.hitArmor) sfxAt("plate", hx, hy);
+  else {
+    game.fx.push({ kind: "blood", x: hx, y: hy, ang: b.ang, t: 0.4, max: 0.4 });
+    game.decals.push({ x: hx + Math.cos(b.ang) * rand(2, 14), y: hy + Math.sin(b.ang) * rand(2, 14), r: rand(3, 7) });
+  }
   sfxAt("hit", hx, hy);
-  game.decals.push({ x: hx + Math.cos(b.ang) * rand(2, 14), y: hy + Math.sin(b.ang) * rand(2, 14), r: rand(3, 7) });
-  noteHurt(ent, b.ang + Math.PI);   // back along the round's travel = the shooter
+  noteHurt(ent, b.ang + Math.PI, res.hitArmor);   // back along the round's travel = the shooter
   if (ent.side === "enemy" && ent.state !== "combat" && ent.state !== "surrender" && ent.state !== "cuffed") alertEnemy(ent, hx, hy);
   if (ent.hp <= 0) killEntity(ent, b.side);
   else if (ent.side === "player") game.camKick = Math.min(10, game.camKick + 5);
@@ -1397,8 +1458,9 @@ function applyBlast(cx, cy, side) {
     if (d > TUNE.blastWound) continue;
     if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;   // the wall shields the far side
     const t = clamp(1 - (d - TUNE.blastLethal) / (TUNE.blastWound - TUNE.blastLethal), 0, 1);
-    const dmg = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
-    if (dmg <= 0) continue;
+    const rawBlast = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
+    if (rawBlast <= 0) continue;
+    const dmg = throughArmor(e, rawBlast, 16, e.x, e.y).dmg;   // overpressure and frag
     e.hp -= dmg;
     game.fx.push({ kind: "blood", x: e.x, y: e.y, ang: angleTo(cx, cy, e.x, e.y), t: 0.4, max: 0.4 });
     noteHurt(e, angleTo(e.x, e.y, cx, cy));
@@ -1488,6 +1550,10 @@ function makeEnemy(sp) {
   e.handed = rollHandedness();
   e.wanderT = rand(2, 6);
   e.flashedRecently = 0;
+  // On ELITE the hard men wear soft armour, so 9mm and buckshot stop working on
+  // them and the ammunition choice at the briefing acquires a second axis.
+  const plated = (DIFFICULTIES[game.diffIndex] || {}).enemyArmor;
+  wearArmor(e, (plated && plated[sp.kind]) || "none");
   return e;
 }
 
@@ -1802,6 +1868,7 @@ function makeSquaddie(sp, i) {
   s.path = null; s.pathI = 0; s.repathT = 0;
   s.reactT = 0; s.engaged = null; s.shoutedAt = 0; s.state = "idle";
   s.roe = "return"; // hold | return | free
+  wearArmor(s, game.loadout.armor);   // the team kits up the same as you
   return s;
 }
 
@@ -2272,7 +2339,7 @@ function updateSquaddie(s, dt) {
 }
 
 function squadMove(s, gx, gy, speed, dt, noisy) {
-  const done = moveAlongPath(s, gx, gy, speed, dt, pathCostSquad);
+  const done = moveAlongPath(s, gx, gy, speed * armorSpeed(s), dt, pathCostSquad);
   return done;
 }
 
@@ -2883,7 +2950,8 @@ function drawHud() {
     ctx.lineWidth = 7;
     for (const h of game.hurt) {
       const k = clamp(h.t / h.max, 0, 1);
-      ctx.strokeStyle = "rgba(255,85,85," + (k * 0.8).toFixed(3) + ")";
+      // amber = the plate took it, red = that one reached you
+      ctx.strokeStyle = (h.armor ? "rgba(232,181,58," : "rgba(255,85,85,") + (k * 0.8).toFixed(3) + ")";
       ctx.beginPath();
       ctx.arc(psx, psy, 118, h.ang - deg(20), h.ang + deg(20));
       ctx.stroke();
@@ -2892,19 +2960,30 @@ function drawHud() {
   }
 
   // player status (bottom left)
-  const bx = 18, by = viewH - 74;
-  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 292, 76);
+  const bx = 18, by = viewH - 88;
+  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 292, 90);
   ctx.fillStyle = COLORS.hud; ctx.fillText("#1 POINT MAN (YOU)", bx, by - 4);
   ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
   ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
+  // Plate integrity sits under the health bar, because it is the thing that
+  // runs out first and the player needs to feel it going.
+  if (p.armorMax > 0) {
+    ctx.fillStyle = "#2a2f34"; ctx.fillRect(bx, by + 15, 150, 6);
+    ctx.fillStyle = p.armor > p.armorMax * 0.3 ? "#8fa6bd" : COLORS.accent;
+    ctx.fillRect(bx, by + 15, 150 * clamp(p.armor / p.armorMax, 0, 1), 6);
+  }
+  ctx.font = "11px Consolas, monospace";
+  ctx.fillStyle = p.armor > 0 ? COLORS.hudDim : COLORS.danger;
+  ctx.fillText(p.armorMax > 0 ? (ARMOR[p.armorType].name + (p.armor > 0 ? "" : " — GONE")) : "NO ARMOR", bx + 158, by + 21);
+  ctx.font = "13px Consolas, monospace";
   ctx.fillStyle = COLORS.hud;
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
   const rnd = AMMO[p.ammoType] || AMMO.fmj;
   ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "  " + rnd.name
-               + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 26);
+               + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 40);
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
+  ctx.fillText(shoulderTxt + "  [N]", bx, by + 56);
   // Losing the controls needs to be the loudest thing on screen, not a note in
   // the corner: the state lasts about a second and reads as a freeze otherwise.
   if (p.blind > 0 || p.stagger > 0) {
@@ -3140,6 +3219,8 @@ const SFX = {
   glass(v, p)   { playNoise(v * 0.7, 0.22, "highpass", 3200, p); playTone(v * 0.3, 0.14, "triangle", 2600, 1400, p); },
   click(v, p)   { playTone(v * 0.5, 0.035, "square", 1150, 900, p); },
   surrender(v, p) { playTone(v * 0.5, 0.09, "sine", 520, 620, p); playTone(v * 0.4, 0.1, "sine", 660, 700, p); },
+  // a round on a ceramic plate is a crack, not a wet thud
+  plate(v, p)   { playNoise(v * 0.8, 0.06, "highpass", 2600, p); playTone(v * 0.55, 0.09, "square", 940, 340, p); },
 };
 function sfxAt(name, x, y) {
   if (!AC || !game.player || !SFX[name]) return;
@@ -3174,9 +3255,12 @@ function sfxFlashed(dur) {
 
 // ---------------------------------------------------------------- S12 game
 const DIFFICULTIES = [
-  { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 32, surrender: 1.35 },
-  { key: "regular", name: "REGULAR", react: 1.0,  exec: 22, surrender: 1.0 },
-  { key: "elite",   name: "ELITE",   react: 0.75, exec: 15, surrender: 0.75 },
+  // enemyArmor: which suspect kinds are plated. Nobody wears anything below
+  // ELITE — armour on the opposition is a difficulty axis, not a baseline.
+  { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 32, surrender: 1.35, enemyArmor: null },
+  { key: "regular", name: "REGULAR", react: 1.0,  exec: 22, surrender: 1.0,  enemyArmor: null },
+  { key: "elite",   name: "ELITE",   react: 0.75, exec: 15, surrender: 0.75,
+    enemyArmor: { elite: "soft", taker: "soft" } },
 ];
 
 const game = {
@@ -3185,7 +3269,7 @@ const game = {
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6,
-  loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard" },
+  loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft" },
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
@@ -3466,6 +3550,7 @@ const ammoPickEl = document.getElementById("ammoPick");
 const primPickEl = document.getElementById("primPick");
 const kitPickEl = document.getElementById("kitPick");
 const squadPickEl = document.getElementById("squadPick");
+const armorPickEl = document.getElementById("armorPick");
 const adviceEl = document.getElementById("advice");
 
 function mkBtn(parent, key, title, sub, onPick) {
@@ -3498,6 +3583,7 @@ function refreshMenu() {
     btn.classList.toggle("sel", k === L.ammo);
   });
   primPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.primary));
+  armorPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.armor));
   kitPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.kit));
   squadPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.squad));
   adviceEl.textContent = (MAPS[game.mapIndex] || {}).advice || "";
@@ -3529,6 +3615,10 @@ const AMMO_NOTES = {
 };
 Object.entries(PRIMARIES).forEach(([k, v]) =>
   mkBtn(primPickEl, k, v.name, v.note, () => { game.loadout.primary = k; refreshMenu(); }));
+Object.entries(ARMOR).forEach(([k, v]) =>
+  mkBtn(armorPickEl, k, v.name,
+        (v.hp ? "rating " + v.rating + " · " + Math.round((1 - v.speed) * 100) + "% slower — " : "") + v.note,
+        () => { game.loadout.armor = k; refreshMenu(); }));
 Object.entries(UTILITY_KITS).forEach(([k, v]) =>
   mkBtn(kitPickEl, k, v.name, v.bangs + " bangs / " + v.charges + " charges", () => { game.loadout.kit = k; refreshMenu(); }));
 Object.entries(SQUAD_TEMPLATES).forEach(([k, v]) =>

@@ -622,3 +622,74 @@ console.log('  ' + PLAYS.length + ' plays called with a door and without: ' +
             (threw.length ? 'THREW -> ' + threw.join(' | ') : ran + ' executed, none threw CORRECT'));
 console.log('PLAYBOOK TEST DONE');
 })();
+
+(function armorTests(){
+console.log('--- body armor: rating vs penetration, wear, and coverage ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+
+// the protection ladder must match the ammunition table, not vibes
+const expect = {
+  soft:  { stop: ['hp', 'pistol', 'hp9', 'bird', 'buck'],       through: ['fmj', 'ap', 'x39', 'slug'] },
+  plate: { stop: ['hp', 'pistol', 'hp9', 'bird', 'buck', 'fmj', 'x39'], through: ['ap', 'slug'] },
+  heavy: { stop: Object.keys(AMMO),                              through: [] },
+};
+let ladder = [];
+for (const [ak, exp] of Object.entries(expect)) {
+  const A = ARMOR[ak];
+  exp.stop.forEach(r => { if (AMMO[r].pen >= A.rating) ladder.push(A.name + ' should stop ' + AMMO[r].name); });
+  exp.through.forEach(r => { if (AMMO[r].pen < A.rating) ladder.push(A.name + ' should NOT stop ' + AMMO[r].name); });
+}
+console.log('  protection ladder vs the AMMO table:', ladder.length ? 'WRONG -> ' + ladder.join('; ') : 'CORRECT');
+
+// a defeated plate still costs the round something; a plate that holds costs it nearly everything
+const sample = (ak, pen, n) => {
+  let tot = 0;
+  for (let i = 0; i < n; i++) {
+    const e = wearArmor(makeShooter(0, 0, 'enemy', 1e6, TUNE.akm), ak);
+    tot += throughArmor(e, 100, pen).dmg;
+  }
+  return tot / n;
+};
+const held = sample('plate', 26, 4000), beat = sample('plate', 46, 4000), bare = sample('none', 26, 200);
+console.log('  100 damage into III PLATE: held ' + held.toFixed(1) + ', defeated ' + beat.toFixed(1) +
+            ', no armor ' + bare.toFixed(1),
+            (held < beat && beat < bare && held < 40 && beat > 70) ? 'CORRECT' : 'WRONG');
+
+// coverage: some hits must miss the plate entirely, or armor is a flat multiplier
+let onPlate = 0, N = 4000;
+for (let i = 0; i < N; i++) {
+  const e = wearArmor(makeShooter(0, 0, 'enemy', 1e6, TUNE.akm), 'plate');
+  if (throughArmor(e, 10, 26).hitArmor) onPlate++;
+}
+const cov = onPlate / N;
+console.log('  hits that actually struck the plate: ' + (cov * 100).toFixed(0) + '% (spec ' +
+            (ARMOR.plate.cover * 100).toFixed(0) + '%)',
+            Math.abs(cov - ARMOR.plate.cover) < 0.04 ? 'CORRECT' : 'WRONG');
+
+// armor is a buffer that runs out, not immunity
+const P = wearArmor(makeShooter(0, 0, 'player', 100, TUNE.akm), 'plate');
+let rounds = 0;
+while (P.armor > 0 && rounds < 60) { rounds++; throughArmor(P, 30, 32); }
+console.log('  III PLATE absorbs ' + rounds + ' rifle rounds before it is spent',
+            rounds >= 2 && rounds <= 10 ? 'CORRECT (a buffer, not immunity)' : 'WRONG');
+const spent = throughArmor(P, 30, 32);
+console.log('  once spent it stops working: ' + spent.dmg.toFixed(1) + ' of 30 gets through',
+            spent.dmg === 30 && !spent.hitArmor ? 'CORRECT' : 'WRONG');
+
+// every tier must cost speed, or it is a free upgrade
+const speeds = Object.entries(ARMOR).map(([k, v]) => v.speed);
+console.log('  speed multipliers ' + JSON.stringify(speeds),
+            speeds.every((v, i) => i === 0 || v < speeds[i - 1]) ? 'CORRECT (monotonic cost)' : 'WRONG');
+
+// enemies are bare below ELITE
+const worn = {};
+for (let di = 0; di < DIFFICULTIES.length; di++) {
+  game.diffIndex = di; game.mapIndex = 1; initGame();
+  worn[DIFFICULTIES[di].name] = game.enemies.filter(e => e.armorMax > 0).length + '/' + game.enemies.length;
+}
+game.diffIndex = 1;
+console.log('  suspects wearing armor by tier: ' + JSON.stringify(worn),
+            worn.ROOKIE.startsWith('0/') && worn.REGULAR.startsWith('0/') && !worn.ELITE.startsWith('0/')
+              ? 'CORRECT (a difficulty axis, not a baseline)' : 'WRONG');
+console.log('ARMOR TEST DONE');
+})();
