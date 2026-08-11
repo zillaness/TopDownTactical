@@ -801,31 +801,25 @@ console.log('  armor intel REGULAR: "' + r.slice(0, 26) + '"');
 console.log('  armor intel ELITE:   "' + e.slice(0, 26) + '"',
             /No body armour/.test(r) && /Soft armour/.test(e) ? 'CORRECT' : 'WRONG');
 
-// every mission's call sheet must name real plays
-let sheets = [], sheetBad = [];
-for (const m of MAPS) {
-  const sh = m.callSheet || [];
-  if (sh.length !== 3) sheetBad.push(m.name + ' sheet is not 3 long');
-  sh.forEach(k => { if (!PLAYS.find(p => p.key === k)) sheetBad.push(m.name + ' unknown play ' + k); });
-  sheets.push(sh.join());
-}
-console.log('  six call sheets, ' + new Set(sheets).size + ' distinct:',
-            sheetBad.length ? 'WRONG -> ' + sheetBad.join('; ') : 'CORRECT');
-
-// the call keys must not be keys that already mean something else
-const SELECT_KEYS = ['1', '2', '3', '4', '`', '~'];
-const CALL_KEYS = ['5', '6', '7'];
-const clash = CALL_KEYS.filter(k => SELECT_KEYS.includes(k));
-console.log('  call keys ' + CALL_KEYS.join('/') + ' vs selection keys ' + SELECT_KEYS.join('/') + ':',
-            clash.length ? 'WRONG -> ' + clash.join() : 'no overlap CORRECT');
-
-// calling a sheet slot must issue orders to the whole team
+// the command wheel: four directions, each one meaning something on the target
+const dirs = WHEEL.map(w => w.dir);
+console.log('  wheel directions: ' + dirs.join('/'),
+            dirs.length === 4 && new Set(dirs).size === 4 &&
+            ['up','down','left','right'].every(d => dirs.includes(d))
+              ? 'CORRECT (D-pad reachable)' : 'WRONG');
 game.mapIndex = 0; initGame(); game.state = 'play';
-game.callSheet = ['4', '3', '5'];
-const play = PLAYS.find(p => p.key === game.callSheet[0]);
-callPlay(play);
-console.log('  slot [5] = ' + play.name + ' -> orders ' + JSON.stringify(game.squad.map(s => s.order.type)),
-            game.squad.every(s => s.order.type !== 'follow') ? 'CORRECT (whole team moved)' : 'WRONG');
+const doorCtx = (() => { const d = level.doors.find(x => x.state === 'closed'); const c = doorCenter(d);
+  return { x: c.x, y: c.y, door: d, far: true }; })();
+const openCtx = { x: game.player.x + 200, y: game.player.y, door: null, far: true };
+WHEEL.forEach(w => console.log('    ' + w.dir.padEnd(6) + ' on a door: "' + w.label(doorCtx, game.squad) +
+                               '"   on open ground: "' + w.label(openCtx, game.squad) + '"'));
+let threw = [];
+for (const w of WHEEL) for (const c of [doorCtx, openCtx]) {
+  game.mapIndex = 0; initGame(); game.state = 'play';
+  try { w.run(game.squad.filter(s => s.alive), c); } catch (e) { threw.push(w.dir + ': ' + e.message); }
+}
+console.log('  all four run on a door and on open ground:',
+            threw.length ? 'WRONG -> ' + threw.join(' | ') : 'CORRECT');
 console.log('BRIEFING TEST DONE');
 })();
 

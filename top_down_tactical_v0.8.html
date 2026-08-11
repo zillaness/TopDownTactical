@@ -30,13 +30,7 @@
   .btn:hover { background: #2563eb; }
   #mapPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; max-width: 900px; }
   .mapbtn { max-width: 210px; }
-  #callSheetPick { display: flex; flex-direction: column; gap: 6px; align-items: center; }
-  #callSheetPick .slot { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
-  #callSheetPick .hot { color: #e8b53a; font: 13px Consolas, monospace; min-width: 26px; text-align: right; }
-  #callSheetPick .pbtn { background: #161d24; border: 1px solid #2a333c; color: #9fb0bf;
                          padding: 4px 9px; border-radius: 4px; cursor: pointer; font: 11px Consolas, monospace; }
-  #callSheetPick .pbtn.sel { border-color: #4da3ff; background: #1d4ed855; color: #dbe6f0; }
-  #callWhy { font-size: 12px; color: #e8b53a; font-style: italic; margin-bottom: 8px; }
   #briefWrap { display: flex; gap: 16px; align-items: flex-start; text-align: left; flex-wrap: wrap; justify-content: center; }
   #planCanvas { border: 1px solid #2a333c; background: #0b0f13; flex: 0 0 auto; }
   #briefText { flex: 1 1 300px; min-width: 280px; max-width: 430px; font-size: 12px; line-height: 1.5; }
@@ -73,22 +67,13 @@
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
-    <h3 style="margin-top:16px">Call plays &mdash; you are #1, they are #2 #3 #4</h3>
+    <h3 style="margin-top:16px">Your squad &mdash; all on the right mouse button</h3>
     <table>
-      <tr><td class="key">P</td><td colspan="3">open the playbook (world drops to command time), then 1&ndash;5 to call it</td></tr>
-      <tr><td class="key">P then 1</td><td>DYNAMIC ENTRY &mdash; stack, bang, take both deep corners, #4 on rear security</td><td class="key">P then 2</td><td>SLICE THE PIE &mdash; three angles from outside, opened quietly</td></tr>
-      <tr><td class="key">P then 3</td><td>WEDGE &mdash; travel formation, off your firing line</td><td class="key">P then 4</td><td>ANCHOR &mdash; hold here, sectors split 360</td></tr>
-      <tr><td class="key">P then 6</td><td>BOUND &mdash; leapfrog to the cursor, one element always still and watching</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
-      <tr><td class="key">P then 5</td><td>COVER ME &mdash; ring up on me, facing out</td><td class="key">&nbsp;</td><td>Door plays target the door under your cursor</td></tr>
-      <tr><td class="key">5 6 7</td><td colspan="3">your <b>call sheet</b> &mdash; three plays you script at the briefing, called instantly with no menu</td></tr>
-    </table>
-    <h3 style="margin-top:16px">Or order them one at a time</h3>
-    <table>
-      <tr><td class="key">1 2 3</td><td>select teammate</td><td class="key">4 / ~</td><td>select all</td></tr>
-      <tr><td class="key">RMB ground</td><td>move there &middot; hold</td><td class="key">RMB door</td><td>stack on door</td></tr>
-      <tr><td class="key">B</td><td>cycle stacked breach: open / kick / charge</td><td class="key">T</td><td>toggle bang on breach</td></tr>
-      <tr><td class="key">X</td><td>GO &mdash; execute all queued breaches</td><td class="key">Z</td><td>selected: follow me</td></tr>
-      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
+      <tr><td class="key">RMB an operator</td><td>select / deselect him (no selection = the whole team)</td><td class="key">RMB elsewhere</td><td>hold to open the wheel</td></tr>
+      <tr><td class="key">release</td><td>send them there &mdash; they open whatever is shut on the way</td><td class="key">flick &uarr;</td><td><b>TAKE IT</b> &mdash; bang it and flood the room</td></tr>
+      <tr><td class="key">flick &rarr;</td><td><b>BOUND</b> &mdash; leapfrog up, one element always still</td><td class="key">flick &darr;</td><td><b>HOLD</b> &mdash; stop and cover, or cover that door</td></tr>
+      <tr><td class="key">flick &larr;</td><td><b>ON ME</b> &mdash; form up and follow</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
+      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">1 2 3 / 4</td><td>select by number, if you prefer keys</td></tr>
     </table>
   </div>
   <div class="sect">Mission</div>
@@ -105,9 +90,6 @@
   <div id="primPick"></div>
   <div class="sect">Ammunition</div>
   <div id="ammoPick"></div>
-  <div class="sect">Call sheet &mdash; three plays on 5 6 7</div>
-  <div id="callWhy"></div>
-  <div id="callSheetPick"></div>
   <div class="sect">Body armor</div>
   <div id="armorPick"></div>
   <div class="sect">Utility</div>
@@ -224,6 +206,7 @@ const TUNE = {
   noiseRunStep: 100, noiseDoor: 60, noiseBangBlast: 700, noiseGlass: 340,
   calloutRange: 430,                // how far "CONTACT!" carries to a comrade
   boundLeg: 130,                    // how far one element moves per bound
+  wheelDeadzone: 34,                // px of drag before the wheel commits to a direction
 
   // flashbang
   bangFuse: 1.0, bangRadius: 230, bangThrowSpeed: 420,
@@ -588,7 +571,7 @@ function drawFloorPlan(cv, rows, s) {
 }
 
 const MAPS = [
-{ name: "THE COMPOUND", callSheet: ["1", "5", "3"], callWhy: "Rooms are small and partitioned: go dynamic, then ring up while you secure.", advice: "Interior partitions everywhere. FMJ will carry through them — mind what is on the other side.", brief: "One building, two entries, executioner deep",
+{ name: "THE COMPOUND", advice: "Interior partitions everywhere. FMJ will carry through them — mind what is on the other side.", brief: "One building, two entries, executioner deep",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -621,7 +604,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "SAFEHOUSE ROW", callSheet: ["1", "4", "3"], callWhy: "Two buildings and an alley: anchor what you clear before you cross.", advice: "Long alley crossing under fire. Reach matters more than close-in punch.", brief: "Two buildings, an alley crossing, hostages far east",
+{ name: "SAFEHOUSE ROW", advice: "Long alley crossing under fire. Reach matters more than close-in punch.", brief: "Two buildings, an alley crossing, hostages far east",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -654,7 +637,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "THE PLANT", callSheet: ["2", "1", "4"], callWhy: "One way into the secure room. Take your angles first, go dynamic when you commit.", advice: "The secure room has one locked door. Bring charges, or make your own entry.", brief: "Inner secure room — pick the lock open, or make your own door",
+{ name: "THE PLANT", advice: "The secure room has one locked door. Bring charges, or make your own entry.", brief: "Inner secure room — pick the lock open, or make your own door",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -687,7 +670,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "MARKET ROW", callSheet: ["1", "4", "3"], callWhy: "You cannot be everywhere: anchor a cleared building and move as one.", advice: "Hostages split across three buildings. You cannot be everywhere — weight the squad.", brief: "Three buildings, hostages split — one squad can't be everywhere",
+{ name: "MARKET ROW", advice: "Hostages split across three buildings. You cannot be everywhere — weight the squad.", brief: "Three buildings, hostages split — one squad can't be everywhere",
   type: "HOSTAGE RESCUE", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -720,7 +703,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "FLIGHT 214", callSheet: ["2", "5", "3"], callWhy: "A packed tube. A dynamic entry into that cabin is how hostages die — take angles.", advice: "A packed tube with no cover. Over-penetration will kill hostages; consider hollow point.", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
+{ name: "FLIGHT 214", advice: "A packed tube with no cover. Over-penetration will kill hostages; consider hollow point.", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
   type: "AIRCRAFT ASSAULT", objectives: ["rescue", "neutralize"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -753,7 +736,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "HIGH VALUE", callSheet: ["2", "5", "4"], callWhy: "The principal must live. Deliberate angles, guns outward, nothing hasty.", advice: "The principal must live. Shotguns and buckshot are the wrong tool for a capture.", brief: "Take the principal alive and walk him to the vehicle",
+{ name: "HIGH VALUE", advice: "The principal must live. Shotguns and buckshot are the wrong tool for a capture.", brief: "Take the principal alive and walk him to the vehicle",
   type: "CAPTURE & EXTRACT", objectives: ["capture", "extract"], src: [
 "##############################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -786,7 +769,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "THE SHOOT HOUSE", training: true, callSheet: ["1", "6", "3"], callWhy: "No clock and no bystanders — this is where you practise the entry and the bound until they are muscle memory.", advice: "Training. Nobody in here is a hostage and nothing is on a timer — take a bay apart, then take it apart properly.", brief: "Training facility — combat and breaching, no hostages, no clock",
+{ name: "THE SHOOT HOUSE", training: true, advice: "Training. Nobody in here is a hostage and nothing is on a timer — take a bay apart, then take it apart properly.", brief: "Training facility — combat and breaching, no hostages, no clock",
   type: "TRAINING — COMBAT & BREACHING", objectives: ["neutralize"], src: [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1061,8 +1044,8 @@ function visibleToPlayerSide(ent) {
 
 // ---------------------------------------------------------------- S5 input
 const input = {
-  keys: new Set(), mouse: { x: 0, y: 0, wx: 0, wy: 0, down: false, rdown: false },
-  justPressed: new Set(),
+  keys: new Set(), mouse: { x: 0, y: 0, wx: 0, wy: 0, down: false, rdown: false, rx: 0, ry: 0 },
+  justPressed: new Set(), justReleased: new Set(),
 };
 window.addEventListener("keydown", e => {
   if (e.repeat) return;
@@ -1077,14 +1060,20 @@ const canvas = document.getElementById("game");
 canvas.addEventListener("mousemove", e => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; });
 canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { input.mouse.down = true; input.justPressed.add("lmb"); }
-  if (e.button === 2) { input.mouse.rdown = true; input.justPressed.add("rmb"); }
+  if (e.button === 2) {
+    input.mouse.rdown = true; input.justPressed.add("rmb");
+    input.mouse.rx = e.clientX; input.mouse.ry = e.clientY;   // wheel anchor
+  }
 });
 window.addEventListener("mouseup", e => {
   if (e.button === 0) input.mouse.down = false;
-  if (e.button === 2) input.mouse.rdown = false;
+  if (e.button === 2) { input.mouse.rdown = false; input.justReleased.add("rmb"); }
 });
+// the window can lose the button entirely (alt-tab mid-drag); do not strand the wheel
+window.addEventListener("blur", () => { input.mouse.rdown = false; input.justReleased.add("rmb"); });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 function pressed(k) { return input.justPressed.has(k); }
+function released(k) { return input.justReleased.has(k); }
 function held(k) { return input.keys.has(k); }
 
 // ---------------------------------------------------------------- S6 player
@@ -2307,76 +2296,56 @@ function pieSlots(d, normal) {
 
 // ---- order issuing (works while paused)
 function issueOrders() {
-  // The playbook is modal — it swallows the number keys, because 1-5 mean
-  // "call this play" while it is open and "select this operator" while it is not.
-  if (pressed("p")) game.playbook = !game.playbook;
-  if (game.playbook) {
-    if (pressed("escape")) { game.playbook = false; return; }
-    for (const play of PLAYS) {
-      if (pressed(play.key)) { callPlay(play); game.playbook = false; return; }
-    }
-    return;
-  }
-
-  // The call sheet: three plays scripted at the briefing, called instantly.
-  // 1-3 pick an operator, 4 picks all, 5-7 call a play — the numbers stay one
-  // idea. This is the audible at the line; [P] is still the whole book.
-  for (let i = 0; i < 3; i++) {
-    if (pressed(String(5 + i))) {
-      const play = PLAYS.find(pl => pl.key === game.callSheet[i]);
-      if (play) { callPlay(play); return; }
+  // One button runs the squad. Right-click a man to select him; right-click
+  // anywhere else and either release (go there) or flick a direction (a play).
+  if (pressed("rmb")) {
+    const man = squaddieUnder(input.mouse.wx, input.mouse.wy);
+    if (man) {
+      const i = game.squad.indexOf(man);
+      if (game.selected.has(i)) game.selected.delete(i); else game.selected.add(i);
+      game.hint = game.selected.size
+        ? "#" + [...game.selected].map(j => opNumber(game.squad[j])).sort().join(" #") + " selected — right-click where to go"
+        : "whole team";
+      game.wheel = null;
+    } else {
+      game.wheel = { sx: input.mouse.rx, sy: input.mouse.ry,
+                     wx: input.mouse.wx, wy: input.mouse.wy, dir: null };
     }
   }
+  if (game.wheel) {
+    game.wheel.dir = wheelDirection();
+    if (released("rmb")) {
+      // no selection means the whole team — you should not have to select to command
+      const team = selectedSquaddies();
+      const cmd = team.length ? team : game.squad.filter(s => s.alive);
+      const ctx = wheelContext();
+      const dir = game.wheel.dir;
+      game.wheel = null;
+      if (!cmd.length) { game.hint = "No one left to command"; return; }
+      const item = dir && WHEEL.find(w => w.dir === dir);
+      game.hint = item ? item.run(cmd, ctx) : orderGoThere(cmd, ctx.x, ctx.y);
+      // every command confirms itself by name, whichever branch ran it
+      game.lastPlay = { name: item ? item.label(ctx, cmd) : "GO THERE", t: 2.2 };
+      game.lastOrderMark = { x: ctx.x, y: ctx.y, t: 2.2 };
+    }
+    return;                                  // the wheel owns the button
+  }
 
-  // selection
+  // Selection by number still works for anyone who wants it, but nothing
+  // requires it any more.
   for (let i = 0; i < 3; i++) {
     if (pressed(String(i + 1))) {
       if (game.selected.size === 1 && game.selected.has(i)) game.selected.clear();
       else { game.selected.clear(); game.selected.add(i); }
     }
   }
-  if (pressed("4") || pressed("`") || pressed("~")) { game.selected.clear(); game.squad.forEach((s, i) => s.alive && game.selected.add(i)); }
-  if (pressed("z")) selectedSquaddies().forEach(s => { removeFromPlans(s); s.order = { type: "follow" }; s.path = null; });
+  if (pressed("4") || pressed("`") || pressed("~")) game.selected.clear();
   if (pressed("v")) {
     const targets = game.selected.size ? selectedSquaddies() : game.squad.filter(s => s.alive);
     const order = ["hold", "return", "free"];
     const next = order[(order.indexOf((targets[0] || {}).roe || "return") + 1) % order.length];
     targets.forEach(s => s.roe = next);
     game.hint = "ROE: " + (next === "hold" ? "HOLD FIRE" : next === "return" ? "RETURN FIRE" : "WEAPONS FREE");
-  }
-
-  // RMB: stack on door, or move+hold on ground
-  if (pressed("rmb")) {
-    const sel = selectedSquaddies();
-    if (sel.length) {
-      const d = nearestDoor(input.mouse.wx, input.mouse.wy, 42);
-      if (d && d.state !== "breached") orderStack(sel, d);
-      else orderMove(sel, input.mouse.wx, input.mouse.wy);
-    }
-  }
-  // B: cycle breach method, T: toggle bang — on hovered stacked door, else latest plan
-  if (pressed("b") || pressed("t")) {
-    const d = nearestDoor(input.mouse.wx, input.mouse.wy, 60);
-    let plan = d && game.plans.find(p => p.door === d);
-    if (!plan) plan = game.plans[game.plans.length - 1];
-    if (plan) {
-      if (pressed("b")) {
-        const order = ["open", "kick", "charge"];
-        plan.method = order[(order.indexOf(plan.method) + 1) % order.length];
-        if (plan.method === "charge" && game.squadCharges <= 0) plan.method = "open";
-        if (plan.door.locked && plan.method === "open") plan.method = "kick";
-      }
-      if (pressed("t")) plan.useBang = !plan.useBang;
-    }
-  }
-  // X: GO — execute every ready plan simultaneously
-  if (pressed("x")) {
-    const ready = game.plans.filter(p => p.state === "ready");
-    if (ready.length) {
-      ready.forEach(p => { p.state = "executing"; p.t = 0; const b = p.members.find(m => m.alive); if (b) { b._barkCd = 0; bark(b, "BREACHING!"); } });
-      game.stats.breaches += ready.length;
-    }
-    else if (game.plans.length) game.hint = "Stack not set — wait for READY";
   }
 }
 
@@ -2412,7 +2381,7 @@ function orderStack(sel, d) {
   if (plan.members[0]) bark(plan.members[0], "STACKING UP");
 }
 
-// ---- the playbook
+// ---- the plays the wheel calls
 // You are #1 — the point man — so the squad takes #2, #3 and #4. A play is one
 // key that issues the whole team's orders at once, which is the difference
 // between commanding a squad and operating three puppets. Individual orders
@@ -2531,6 +2500,122 @@ const PLAYS = [
     },
   },
 ];
+
+// ---- the command wheel
+// The old scheme spread the squad across P, 1-7, B, T, X, Z and V. This puts
+// the whole thing on one button: right-click a man to select him, right-click
+// anywhere else and flick a direction. Four directions, because four is what a
+// thumbstick or a D-pad can hit without looking, and because a wheel you have
+// to read is not faster than a key.
+const WHEEL = [
+  { dir: "up", name: "TAKE IT", hint: "bang it and flood the room",
+    run(team, ctx) {
+      const d = ctx.door || firstClosedDoorToward(team, ctx.x, ctx.y);
+      if (d) return runPlay("1", team, { door: d, point: ctx });
+      return orderAdvance(team, ctx.x, ctx.y, true);
+    },
+    label(ctx, team) {
+      const d = ctx.door || firstClosedDoorToward(team, ctx.x, ctx.y);
+      return d ? "BREACH THAT DOOR" : "ASSAULT THERE";
+    } },
+  { dir: "right", name: "BOUND", hint: "leapfrog up, one element always still",
+    run(team, ctx) { return runPlay("6", team, { point: ctx }); },
+    label() { return "BOUND FORWARD"; } },
+  { dir: "down", name: "HOLD", hint: "stop and cover",
+    run(team, ctx) {
+      if (ctx.door) return runPlay("2", team, { door: ctx.door });
+      if (ctx.far) return orderAnchorAt(team, ctx.x, ctx.y);
+      return runPlay("4", team, {});
+    },
+    label(ctx) { return ctx.door ? "COVER THAT DOOR" : ctx.far ? "HOLD THERE" : "HOLD HERE"; } },
+  { dir: "left", name: "ON ME", hint: "form up and follow",
+    run(team) { return runPlay("3", team, {}); },
+    label() { return "FORM ON ME"; } },
+];
+
+function runPlay(key, team, ctx) {
+  const play = PLAYS.find(p => p.key === key);
+  if (!play) return "";
+  const out = play.run(team, ctx);
+  game.lastPlay = { name: play.name, t: 2.5 };
+  return out;
+}
+
+// What door, if any, stands between the team and where you just pointed? This
+// is the whole of "their action once they get there is whatever makes sense" —
+// you point into a room, and the door on the way becomes a breach.
+function firstClosedDoorToward(team, tx, ty) {
+  const from = team[0] || game.player;
+  const st = tileAt(from.x, from.y), gt = tileAt(tx, ty);
+  const path = astar(st.tx, st.ty, gt.tx, gt.ty, passForPath, pathCostSquad);
+  if (!path) return null;
+  for (const n of path) {
+    const d = doorAt(n.tx, n.ty);
+    if (d && d.state === "closed") return d;
+  }
+  return null;
+}
+
+// Move there and hold facing the way you were going. Aggressive variant runs
+// and enters weapons-free; the plain one walks.
+function orderAdvance(team, x, y, aggressive) {
+  const face = angleTo(team[0] ? team[0].x : x, team[0] ? team[0].y : y, x, y);
+  team.forEach((s, i) => {
+    removeFromPlans(s);
+    const off = i === 0 ? { x: 0, y: 0 } : { x: Math.cos(i * 2.4) * 28, y: Math.sin(i * 2.4) * 28 };
+    const pt = nearestPassable(x + off.x, y + off.y);
+    s.order = { type: "move", x: pt.x, y: pt.y, face, quiet: !aggressive };
+    s.path = null;
+  });
+  game.pie = null; game.bound = null;
+  bark(team[0], aggressive ? "PUSHING" : "MOVING");
+  return aggressive ? "ASSAULT — moving hard" : "MOVING — quiet";
+}
+
+function orderAnchorAt(team, x, y) {
+  team.forEach((s, i) => {
+    removeFromPlans(s);
+    const a = (TAU / 3) * i;
+    const pt = nearestPassable(x + Math.cos(a) * 34, y + Math.sin(a) * 34);
+    s.order = { type: "move", x: pt.x, y: pt.y, face: a, quiet: true };
+    s.path = null;
+  });
+  game.pie = null; game.bound = null;
+  bark(team[0], "HOLDING THERE");
+  return "HOLD — anchoring on that spot";
+}
+
+// The plain tap: go there. Breach whatever is shut on the way, then hold.
+function orderGoThere(team, x, y) {
+  const d = firstClosedDoorToward(team, x, y);
+  if (d) {
+    const out = runPlay("1", team, { door: d, point: { x, y } });
+    const plan = game.plans.find(p => p.door === d && p.state !== "executing");
+    if (plan) { plan.useBang = false; plan.after = { x, y }; }   // a move, not an assault
+    return "MOVING — they will open that door on the way";
+  }
+  return orderAdvance(team, x, y, false);
+}
+
+function wheelDirection() {
+  const w = game.wheel; if (!w) return null;
+  const dx = input.mouse.x - w.sx, dy = input.mouse.y - w.sy;
+  if (Math.hypot(dx, dy) < TUNE.wheelDeadzone) return null;
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
+}
+
+function wheelContext() {
+  const w = game.wheel;
+  const x = w ? w.wx : input.mouse.wx, y = w ? w.wy : input.mouse.wy;
+  const d = nearestDoor(x, y, 46);
+  const from = game.player;
+  return { x, y, door: (d && d.state !== "breached") ? d : null,
+           far: dist(from.x, from.y, x, y) > 90 };
+}
+
+function squaddieUnder(wx, wy) {
+  return nearestEntity(game.squad, wx, wy, 26, s => s.alive);
+}
 
 // A play needs a door: the one under the cursor, else the one you are standing at.
 function playTargetDoor() {
@@ -2806,7 +2891,7 @@ function updatePlans(dt) {
     if (p.state !== "executing") syncPlanMembers(p);
     if (p.state === "forming") {
       const allAt = p.members.length > 0 && p.members.every((s, i) => dist(s.x, s.y, p.slots[i].x, p.slots[i].y) < 14);
-      if (allAt) { p.state = "ready"; bark(p.members[0], "SET — ON YOUR GO"); }
+      if (allAt) { p.state = "ready"; bark(p.members[0], "SET"); }
     } else if (p.state === "ready") {
       const stillAt = p.members.some(s => s.alive && dist(s.x, s.y, doorCenter(p.door).x, doorCenter(p.door).y) < TILE * 3.2);
       if (!stillAt) p.state = "forming";
@@ -2842,6 +2927,11 @@ function updatePlans(dt) {
           s.order = { type: "entry", x: pt.x, y: pt.y,
                       face: pt.face !== undefined ? pt.face : angleTo(c.x, c.y, pt.x, pt.y) };
           s.shoutedAt = 0; s.path = null;
+          if (p.after) {                     // this breach was a move order, not an assault
+            s.order = { type: "move", x: p.after.x + rand(-24, 24), y: p.after.y + rand(-24, 24),
+                        face: angleTo(c.x, c.y, p.after.x, p.after.y) };
+            s.path = null;
+          }
           if (pt.role === "rear") bark(s, "GOT YOUR SIX");
           else if (pt.role === "corner") bark(s, i === 0 ? "GOING LEFT" : "GOING RIGHT");
         }
@@ -2849,6 +2939,20 @@ function updatePlans(dt) {
       if (p.t > entryAt + 3) p.state = "done";
     }
   }
+  // Breaches execute themselves, and wait for each other: order two doors and
+  // both stacks go on the same beat. That was the X key's whole job, and a key
+  // whose only correct time to press it is "when everyone is ready" is a key
+  // the game can press for you.
+  const pending = game.plans.filter(p => p.state === "forming" || p.state === "ready");
+  if (pending.length && pending.every(p => p.state === "ready")) {
+    pending.forEach(p => {
+      p.state = "executing"; p.t = 0;
+      const b = p.members.find(m => m.alive);
+      if (b) { b._barkCd = 0; bark(b, pending.length > 1 ? "BREACHING — TOGETHER!" : "BREACHING!"); }
+    });
+    game.stats.breaches += pending.length;
+  }
+
   // stack orders pointing at a finished plan become hold — never a dangling reference
   for (const p of game.plans) {
     if (p.state !== "done") continue;
@@ -3039,7 +3143,15 @@ function render() {
   // A play assigns three men at once, so show all three assignments — number,
   // destination and the way each man will be looking when he gets there. Held
   // while the wristband is open and for a couple of seconds after the call.
-  if (game.playbook || (game.lastPlay && game.lastPlay.t > 0)) {
+  const om = game.lastOrderMark;
+  if (om && om.t > 0) {
+    const k = clamp(om.t / 2.2, 0, 1), kk = 1 / game.zoom;
+    ctx.strokeStyle = COLORS.accent; ctx.globalAlpha = k;
+    ctx.lineWidth = 2 * kk;
+    ctx.beginPath(); ctx.arc(om.x, om.y, (10 + (1 - k) * 16) * kk, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  if (game.wheel || (game.lastPlay && game.lastPlay.t > 0)) {
     const k = 1 / game.zoom;
     ctx.font = "bold " + (12 * k).toFixed(1) + "px Consolas, monospace";
     ctx.textAlign = "center";
@@ -3539,25 +3651,13 @@ function drawHud() {
     ctx.fillStyle = COLORS.accent; ctx.font = "16px Consolas, monospace";
     ctx.fillText("TACTICAL PAUSE — orders active, [SPACE] to resume", viewW / 2, viewH / 2 - 104);
     ctx.font = "13px Consolas, monospace";
-  } else if (game.slowmo) {
+  } else if (game.slowmo && !game.wheel) {   // the wheel is its own signal
     ctx.fillStyle = "rgba(40,80,160,0.10)"; ctx.fillRect(0, 0, viewW, viewH);
     ctx.fillStyle = "#7fb0ff"; ctx.font = "14px Consolas, monospace"; ctx.textAlign = "center";
     ctx.fillText("COMMAND — release [TAB] to resume", viewW / 2, viewH / 2 - 110);
     ctx.font = "13px Consolas, monospace";
   }
-  // The call sheet lives on screen: three keys you scripted, always visible, so
-  // you never have to open the book to remember what you brought.
-  ctx.textAlign = "right"; ctx.font = "11px Consolas, monospace";
-  game.callSheet.forEach((k, i) => {
-    const play = PLAYS.find(pl => pl.key === k); if (!play) return;
-    const ry = viewH - 74 + i * 15;
-    const hot = game.lastPlay && game.lastPlay.t > 0 && game.lastPlay.name === play.name;
-    ctx.fillStyle = hot ? COLORS.accent : COLORS.hudDim;
-    ctx.fillText("[" + (5 + i) + "] " + play.name, viewW - 16, ry);
-  });
-  ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
-
-  drawPlaybook();
+  drawWheel();
 
   // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
   // the two most important negative states on one signal. Blind is now a white
@@ -3583,55 +3683,51 @@ function drawHud() {
   }
 }
 
-// The wristband. Open it and the world drops to command time; every play names
-// itself and says what each number does, so the doctrine is on the screen
-// instead of in a manual nobody reads.
-function drawPlaybook() {
-  if (game.lastPlay && game.lastPlay.t > 0) {
+// The wheel. It only exists while the button is down, it names what each
+// direction will actually do to the thing under your cursor, and releasing
+// without a flick just sends them there.
+function drawWheel() {
+  if (game.lastPlay && game.lastPlay.t > 0 && !game.wheel) {
     ctx.textAlign = "center"; ctx.font = "bold 15px Consolas, monospace";
     ctx.fillStyle = COLORS.accent;
     ctx.globalAlpha = clamp(game.lastPlay.t, 0, 1);
-    ctx.fillText("▶ " + game.lastPlay.name, viewW / 2, 118);
+    ctx.fillText("\u25b6 " + game.lastPlay.name, viewW / 2, 118);
     ctx.globalAlpha = 1; ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
   }
-  if (!game.playbook) return;
-  const W = 470, rowH = 62, H = 46 + PLAYS.length * rowH + 26;
-  const x = viewW / 2 - W / 2, y = viewH / 2 - H / 2;
-  ctx.fillStyle = "rgba(6,9,12,0.93)"; ctx.fillRect(x, y, W, H);
-  ctx.strokeStyle = COLORS.accent; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, W - 1, H - 1);
+  const w = game.wheel; if (!w) return;
+  const team = selectedSquaddies();
+  const cmd = team.length ? team : game.squad.filter(s => s.alive);
+  const c = wheelContext();
+  const R = 96;
+  ctx.fillStyle = "rgba(6,9,12,0.55)";
+  ctx.beginPath(); ctx.arc(w.sx, w.sy, R + 34, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#2a333c"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(w.sx, w.sy, TUNE.wheelDeadzone, 0, TAU); ctx.stroke();
 
-  ctx.textAlign = "left"; ctx.font = "bold 15px Consolas, monospace";
-  ctx.fillStyle = COLORS.accent; ctx.fillText("PLAYBOOK", x + 18, y + 28);
+  const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  ctx.textAlign = "center";
+  for (const item of WHEEL) {
+    const off = OFF[item.dir];
+    const x = w.sx + off[0] * R, y = w.sy + off[1] * R;
+    const on = w.dir === item.dir;
+    ctx.fillStyle = on ? "rgba(232,181,58,0.22)" : "rgba(6,9,12,0.85)";
+    const label = item.label(c, cmd);
+    ctx.font = "bold 13px Consolas, monospace";
+    const bw = Math.max(ctx.measureText(label).width, 90) + 22;
+    ctx.fillRect(x - bw / 2, y - 17, bw, 34);
+    ctx.strokeStyle = on ? COLORS.accent : "#2a333c"; ctx.lineWidth = on ? 2 : 1;
+    ctx.strokeRect(x - bw / 2 + 0.5, y - 16.5, bw - 1, 33);
+    ctx.fillStyle = on ? COLORS.accent : COLORS.hud;
+    ctx.fillText(label, x, y - 1);
+    ctx.font = "10px Consolas, monospace";
+    ctx.fillStyle = on ? COLORS.accent : COLORS.hudDim;
+    ctx.fillText(item.hint, x, y + 12);
+  }
   ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
-  ctx.textAlign = "right";
-  ctx.fillText("you are #1 · world at command speed", x + W - 18, y + 28);
+  ctx.fillText(w.dir ? "release to call it" : "release to send " +
+               (team.length ? "them" : "the team") + " there \u00b7 flick for a play",
+               w.sx, w.sy + R + 26);
   ctx.textAlign = "left";
-
-  const door = playTargetDoor();
-  PLAYS.forEach((play, i) => {
-    const ry = y + 46 + i * rowH;
-    const usable = play.needs !== "door" || !!door;
-    ctx.fillStyle = usable ? "#141b22" : "#101315";
-    ctx.fillRect(x + 12, ry, W - 24, rowH - 8);
-    ctx.font = "bold 14px Consolas, monospace";
-    ctx.fillStyle = usable ? COLORS.hud : "#4a545d";
-    ctx.fillText("[" + play.key + "]  " + play.name, x + 24, ry + 20);
-    ctx.font = "11px Consolas, monospace";
-    ctx.fillStyle = usable ? COLORS.accent : "#4a545d";
-    ctx.textAlign = "right";
-    ctx.fillText(play.needs === "door" && !door ? "needs a door" : play.short, x + W - 24, ry + 20);
-    ctx.textAlign = "left";
-    ctx.fillStyle = usable ? COLORS.hudDim : "#3c444b";
-    play.lines.forEach((ln, j) => ctx.fillText(ln, x + 24, ry + 34 + j * 11));
-  });
-  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
-  ctx.fillText("[P] or [ESC] close · door plays target the door under your cursor", x + 18, y + H - 12);
-  ctx.textAlign = "right";
-  ctx.fillStyle = COLORS.accent;
-  ctx.fillText("call sheet: " + game.callSheet.map((k, i) =>
-    "[" + (5 + i) + "] " + (PLAYS.find(p => p.key === k) || {}).name).join("  ·  "), x + W - 18, y + H - 12);
-  ctx.textAlign = "left";
-  ctx.font = "13px Consolas, monospace";
 }
 
 // Who your muzzle is currently pointed through. The squad already refuses
@@ -3778,12 +3874,11 @@ const game = {
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6,
   loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft" },
-  callSheet: ["1", "5", "3"],   // plays scripted at the briefing, called with 5/6/7
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
-  playbook: false, pie: null, lastPlay: null, incidents: [], aar: null, bound: null,
+  wheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -3820,8 +3915,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.playbook = false; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null;
-  game.callSheet = (game.loadout.callSheet || game.mission.callSheet || ["1", "5", "3"]).slice();
+  game.wheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -3852,6 +3946,7 @@ function updateFx(dt) {
   for (const h of game.hurt) h.t -= dt;
   game.hurt = game.hurt.filter(h => h.t > 0);
   if (game.lastPlay) game.lastPlay.t -= dt;
+  if (game.lastOrderMark) game.lastOrderMark.t -= dt;
   if (game.decals.length > 400) game.decals.splice(0, game.decals.length - 400);
 }
 
@@ -3979,7 +4074,7 @@ function beginAfterAction(reason) {
   // the lights: every tile becomes seen, and the fog stops being drawn
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) seen.grid[y][x] = 1;
   game.state = "aar";
-  game.paused = false; game.slowmo = false; game.playbook = false;
+  game.paused = false; game.slowmo = false; game.wheel = null;
   aarFocus(0);
 }
 
@@ -4080,9 +4175,9 @@ function frame(now) {
     }
     if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
-    // hold Tab, or open the playbook: command time. Calling a play is a
-    // decision, and decisions should not be a dexterity test.
-    game.slowmo = (held("tab") || game.playbook) && !game.paused;
+    // hold Tab, or hold the wheel open: command time. Choosing what the squad
+    // does is a decision, and decisions should not be a dexterity test.
+    game.slowmo = (held("tab") || !!game.wheel) && !game.paused;
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       // A thrown exception here must never take the render loop with it: the
@@ -4114,7 +4209,7 @@ function frame(now) {
     game.camKick = 0; game.cam.shakeX = 0; game.cam.shakeY = 0;
     render();
   }
-  input.justPressed.clear();
+  input.justPressed.clear(); input.justReleased.clear();
   requestAnimationFrame(frame);
 }
 
@@ -4139,8 +4234,6 @@ const primPickEl = document.getElementById("primPick");
 const kitPickEl = document.getElementById("kitPick");
 const squadPickEl = document.getElementById("squadPick");
 const armorPickEl = document.getElementById("armorPick");
-const callSheetEl = document.getElementById("callSheetPick");
-const callWhyEl = document.getElementById("callWhy");
 const adviceEl = document.getElementById("advice");
 
 function mkBtn(parent, key, title, sub, onPick) {
@@ -4177,37 +4270,7 @@ function refreshMenu() {
   kitPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.kit));
   squadPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.squad));
   adviceEl.textContent = (MAPS[game.mapIndex] || {}).advice || "";
-  renderCallSheet();
   renderBriefing();
-}
-
-// Picking the sheet is the pre-snap decision: what three plays does THIS
-// compound want? Switching mission reloads that mission's recommendation, and
-// anything you change after that is yours.
-let sheetTouchedFor = null;
-function renderCallSheet() {
-  const map = MAPS[game.mapIndex] || MAPS[0];
-  if (sheetTouchedFor !== game.mapIndex) {
-    game.loadout.callSheet = (map.callSheet || ["1", "5", "3"]).slice();
-    sheetTouchedFor = game.mapIndex;
-  }
-  callWhyEl.textContent = map.callWhy || "";
-  callSheetEl.innerHTML = "";
-  game.loadout.callSheet.forEach((cur, slot) => {
-    const row = document.createElement("div");
-    row.className = "slot";
-    const hot = document.createElement("span");
-    hot.className = "hot"; hot.textContent = "[" + (5 + slot) + "]";
-    row.appendChild(hot);
-    PLAYS.forEach(play => {
-      const b = document.createElement("button");
-      b.className = "pbtn" + (play.key === cur ? " sel" : "");
-      b.textContent = play.name;
-      b.addEventListener("click", () => { game.loadout.callSheet[slot] = play.key; renderCallSheet(); });
-      row.appendChild(b);
-    });
-    callSheetEl.appendChild(row);
-  });
 }
 
 function renderBriefing() {
