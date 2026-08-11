@@ -1,0 +1,18 @@
+=== TELEMETRY: 20 runs per mission, default loadout ===
+THE COMPOUND    deaths 12/20  clean wins 8/20  avg time-to-death 12.3s  avg first contact 1.1s
+SAFEHOUSE ROW   deaths 2/20  clean wins 12/20  avg time-to-death 13.1s  avg first contact 3.3s
+THE PLANT       deaths 14/20  clean wins 4/20  avg time-to-death 13.2s  avg first contact 0.9s
+MARKET ROW      deaths 15/20  clean wins 2/20  avg time-to-death 16.6s  avg first contact 3.7s
+FLIGHT 214      deaths 2/20  clean wins 0/20  avg time-to-death 3.4s  avg first contact 0.9s
+HIGH VALUE      deaths 2/20  clean wins 0/20  avg time-to-death 7.2s  avg first contact 3.2s
+
+=== FAIRNESS: every round that hit the player ===
+player was hit 318 times total
+  shooter OFF-SCREEN at the time : 13 (4%)
+  player had NO line of sight to shooter: 9 (3%)
+  hit range: median 167px  p90 356px  max 623px
+  viewport half-extent at zoom 1.6: 400px wide, 250px tall
+
+=== BYSTANDER CASUALTIES ===
+hostage/civilian rounds taken: 75  by player side: 44  via ricochet: 0  via penetration: 28
+player shots fired across all runs: 2847

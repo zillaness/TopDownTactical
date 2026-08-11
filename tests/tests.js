@@ -405,3 +405,43 @@ console.log('grazing volley: ' + skipped + '/' + trials + ' skipped along the wa
             skipped >= trials * 0.5 ? 'CORRECT' : 'WRONG (rounds burying in the wall)');
 console.log('BALLISTICS TEST DONE');
 })();
+
+(function aimSolutionTest(){
+console.log('--- firing solution ---');
+// Regression: rounds leave the offset muzzle, so the aim angle must be computed
+// FROM the muzzle. Using the body->target angle displaces every shot laterally.
+const saved = TUNE.eyeLateral;
+function hitRate(lateral, shots) {
+  TUNE.eyeLateral = lateral;
+  let hits = 0;
+  for (let i = 0; i < shots; i++) {
+    game.mapIndex = 0; initGame(); game.state = 'play';
+    const P = game.player;
+    P.x = 400; P.y = 400; P.handed = 'right'; P.shoulder = 'strong';
+    P.weapon = { ...TUNE.rifle, spreadBase: 0, spreadMove: 0, spreadWalkMove: 0, recoil: 0 };
+    P.recoil = 0; P.moving = false; P.cooldown = 0; P.reloading = 0; P.ammo = 30;
+    const tgt = game.enemies[0];
+    tgt.x = 650; tgt.y = 400; tgt.alive = true; tgt.hp = 1000; tgt.state = 'idle';
+    game.enemies.slice(1).forEach(e => e.alive = false);
+    game.hostages.forEach(h => h.alive = false);
+    game.civilians.forEach(c => c.alive = false);
+    game.squad.forEach(s => s.alive = false);
+    P.face = angleTo(P.x, P.y, tgt.x, tgt.y);
+    game.bullets = [];
+    const hp0 = tgt.hp;
+    tryFire(P, aimAngle(P, tgt.x, tgt.y));
+    for (let f = 0; f < 40 && game.bullets.length; f++) updateBullets(1/240);
+    if (tgt.hp < hp0) hits++;
+  }
+  return hits / shots;
+}
+let worst = 1;
+for (const lat of [0, 6, 14]) {
+  const r = hitRate(lat, 40);
+  worst = Math.min(worst, r);
+  console.log(`  eyeLateral=${String(lat).padStart(2)} -> hit rate ${(r*100).toFixed(0)}% (zero spread, target dead ahead)`);
+}
+console.log('  aim is independent of muzzle offset:', worst >= 0.95 ? 'CORRECT' : 'WRONG — shots are being displaced');
+TUNE.eyeLateral = saved;
+console.log('AIM TEST DONE');
+})();

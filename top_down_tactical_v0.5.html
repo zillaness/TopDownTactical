@@ -867,6 +867,14 @@ function eyePoint(s) {
   return { x, y };
 }
 
+// Rounds leave the muzzle, which is off the body centreline — so the firing
+// solution must be computed FROM the muzzle to the target. Using the body-to-target
+// angle sends every shot parallel to the intended line, displaced by the offset.
+function aimAngle(s, tx, ty) {
+  const eye = eyePoint(s);
+  return angleTo(eye.x, eye.y, tx, ty);
+}
+
 function rollHandedness() {
   return Math.random() < TUNE.leftHandedRate ? "left" : "right";
 }
@@ -911,7 +919,9 @@ function updatePlayer(p, dt) {
   // weapon
   updateShooterWeapon(p, dt);
   if (pressed("n")) swapShoulder(p);
-  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0) tryFire(p, p.face);
+  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0) {
+    tryFire(p, aimAngle(p, input.mouse.wx, input.mouse.wy));
+  }
   if (pressed("r")) tryReload(p);
 
   // interactions
@@ -1480,7 +1490,7 @@ function updateEnemy(e, dt) {
         }
         if (e.burstLeft > 0) {
           const aimErr = deg(2.5) * (visD / 300);
-          if (tryFire(e, angleTo(e.x, e.y, t.x, t.y) + rand(-aimErr, aimErr))) {
+          if (tryFire(e, aimAngle(e, t.x, t.y) + rand(-aimErr, aimErr))) {
             e.burstLeft--;
             if (e.burstLeft <= 0) e.burstPauseT = randIn(e.weapon.burstPause);
           }
@@ -1883,7 +1893,7 @@ function updateSquaddie(s, dt) {
       || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0 || game.alarm));
     const canShoot = clearShot(s, threat);
     if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0) {
-      tryFire(s, angleTo(s.x, s.y, threat.x, threat.y));
+      tryFire(s, aimAngle(s, threat.x, threat.y));
     }
     if (s.ammo <= 0 && s.reloading <= 0) tryReload(s);
     // stop to shoot only when actually able and willing — a blocked or held shot
@@ -2534,8 +2544,9 @@ function lineOfFireHazard(p) {
   if (!p.alive) return null;
   const eye = game.eye || p;
   const reach = Math.min(p.weapon.range, 700);
-  const ex = eye.x + Math.cos(p.face) * reach, ey = eye.y + Math.sin(p.face) * reach;
-  const wall = raycast(eye.x, eye.y, p.face, reach, opaque);
+  const aim = aimAngle(p, input.mouse.wx, input.mouse.wy);   // the real firing solution
+  const ex = eye.x + Math.cos(aim) * reach, ey = eye.y + Math.sin(aim) * reach;
+  const wall = raycast(eye.x, eye.y, aim, reach, opaque);
   const stopX = wall.hit ? wall.x : ex, stopY = wall.hit ? wall.y : ey;
   let best = null, bestD = Infinity;
   for (const e of [...game.squad, ...game.hostages, ...game.civilians,
