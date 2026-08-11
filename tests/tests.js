@@ -880,3 +880,62 @@ console.log('  failure with no incidents still reviewable: ' + game.aar.list.len
 endMission(false, 'Time expired.');
 console.log('AAR TEST DONE');
 })();
+
+(function noiseAndClockTests(){
+console.log('--- noise through structure, and whose clock it is ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+
+// sound must lose energy through material, and lose more through more of it
+const openLoss = soundLoss(100, 100, 160, 100);
+console.log('  loss across open floor: ' + openLoss, openLoss === 0 ? 'CORRECT' : 'WRONG');
+let oneWall = null, twoWall = null;
+for (let y = 2; y < level.h - 2 && !twoWall; y++) {
+  let hits = [];
+  for (let x = 1; x < level.w - 1; x++) if (isWall(x, y) && !isWall(x - 1, y)) hits.push(x);
+  if (hits.length >= 2) {
+    const yy = y * TILE + 16;
+    oneWall = soundLoss((hits[0] - 1) * TILE + 16, yy, (hits[0] + 1) * TILE + 16, yy);
+    twoWall = soundLoss((hits[0] - 1) * TILE + 16, yy, (hits[1] + 1) * TILE + 16, yy);
+  }
+}
+console.log('  loss through one barrier: ' + oneWall + ', through two: ' + twoWall,
+            oneWall > 0 && twoWall > oneWall ? 'CORRECT (it accumulates)' : 'WRONG');
+
+// a closed door must muffle and an open one must not
+const d = level.doors[0], c = doorCenter(d);
+const across = (dx, dy) => soundLoss(c.x - dx, c.y - dy, c.x + dx, c.y + dy);
+d.state = 'closed'; const shut = across(d.orient === 'h' ? 0 : 40, d.orient === 'h' ? 40 : 0);
+d.state = 'open';   const open = across(d.orient === 'h' ? 0 : 40, d.orient === 'h' ? 40 : 0);
+console.log('  door closed loses ' + shut + ', open loses ' + open,
+            shut > open ? 'CORRECT (closing a door behind you now does something)' : 'WRONG');
+d.state = 'closed';
+
+// the executioner's clock must be HIS, not a global flag
+game.mapIndex = 0; initGame(); game.state = 'play';
+const taker = game.enemies.find(e => e.kind === 'taker');
+const other = game.enemies.find(e => e !== taker);
+game.alarm = false; taker.alerted = false; other.alerted = false;
+alertEnemy(other, other.x, other.y);              // someone far away hears something
+console.log('  a guard alerting sets game.alarm: ' + game.alarm +
+            ', but the taker knows: ' + taker.alerted);
+console.log('  clock running on a global alarm the taker cannot know about: ' + game.alarmTimerVisible(),
+            game.alarm && !taker.alerted && !game.alarmTimerVisible() ? 'CORRECT' : 'WRONG');
+alertEnemy(taker, 0, 0);
+console.log('  once HE knows, the clock runs: ' + game.alarmTimerVisible(),
+            game.alarmTimerVisible() ? 'CORRECT' : 'WRONG');
+
+// and a callout must actually move awareness between men
+game.mapIndex = 0; initGame(); game.state = 'play';
+const a = game.enemies[0], b = game.enemies[1];
+b.x = a.x + 60; b.y = a.y; a.alerted = false; b.alerted = false; a._calloutCd = 0;
+enemyCallout(a, a.x + 200, a.y);
+console.log('  a shout at 60px with nothing between reaches a comrade: ' + b.alerted,
+            b.alerted ? 'CORRECT' : 'WRONG');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const a2 = game.enemies[0], b2 = game.enemies[1];
+b2.x = a2.x + 3000; b2.y = a2.y; a2.alerted = false; b2.alerted = false; a2._calloutCd = 0;
+enemyCallout(a2, a2.x, a2.y);
+console.log('  the same shout does not reach a man 3000px away: ' + !b2.alerted,
+            !b2.alerted ? 'CORRECT' : 'WRONG');
+console.log('NOISE+CLOCK TEST DONE');
+})();

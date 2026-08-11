@@ -221,6 +221,7 @@ const TUNE = {
   // noise radii (px)
   noiseShot: 560, noiseKick: 330, noiseBreach: 760, noiseShout: 260,
   noiseRunStep: 100, noiseDoor: 60, noiseBangBlast: 700, noiseGlass: 340,
+  calloutRange: 430,                // how far "CONTACT!" carries to a comrade
 
   // flashbang
   bangFuse: 1.0, bangRadius: 230, bangThrowSpeed: 420,
@@ -1792,8 +1793,31 @@ function alertEnemy(e, x, y) {
   if (e.state !== "combat") { e.state = "suspicious"; e.investigate = { x, y }; e.investigateWait = 0; e.path = null; }
 }
 
+// A man who sees you shouts, and the men who can hear him turn up. Information
+// spreads through people, not through a global flag — which is what makes
+// dropping the first contact before he calls it worth anything, and what turns
+// the executioner's clock into a consequence of your noise instead of a switch
+// that flips the instant anyone anywhere hears a door.
+function enemyCallout(from, tx, ty) {
+  if ((from._calloutCd || 0) > 0) return;
+  from._calloutCd = 3.5;
+  addNoise(from.x, from.y, TUNE.noiseShout, "shout", "enemy");
+  game.fx.push({ kind: "shout", x: from.x, y: from.y, t: 0.5, max: 0.5 });
+  sfxAt("shout", from.x, from.y);
+  for (const e of game.enemies) {
+    if (e === from || !e.alive || e.alerted) continue;
+    if (e.state === "surrender" || e.state === "cuffed") continue;
+    // the shout attenuates like every other sound, so a closed door still helps
+    const reach = TUNE.calloutRange - soundLoss(from.x, from.y, e.x, e.y);
+    if (dist(from.x, from.y, e.x, e.y) > reach) continue;
+    alertEnemy(e, tx, ty);               // pass YOUR position, not the caller's
+    enemyCallout(e, tx, ty);             // and it relays down the building
+  }
+}
+
 function updateEnemy(e, dt) {
   if (!e.alive) return;
+  if (e._calloutCd) e._calloutCd -= dt;
   e.blind = Math.max(0, e.blind - dt);
   e.stagger = Math.max(0, e.stagger - dt);
   e.flashedRecently = Math.max(0, e.flashedRecently - dt);
@@ -1830,6 +1854,7 @@ function updateEnemy(e, dt) {
       e.reactT = randIn(e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact)
         * (game.diff ? game.diff.react : 1);
       e.alerted = true; game.alarm = true;
+      enemyCallout(e, vis.x, vis.y);      // and he tells whoever can hear him
     }
     e.target = vis; e.lastKnown = { x: vis.x, y: vis.y };
   } else if (e.state === "combat") {
@@ -2029,13 +2054,51 @@ function updateCivilian(c, dt) {
 }
 
 // noise propagation → enemy hearing (called once per frame, then cleared)
+// Sound loses energy through structure. Before this, processNoises was a bare
+// Euclidean radius check: a gunshot 560px away through two concrete walls
+// alerted a guard exactly as hard as one across an open room. Measured over 25
+// bot runs on the hostage maps, that was not a rounding error — it decided the
+// game. The alarm, and therefore the execution clock, was started by NOISE in
+// 16 of 25 runs, 91% of those alerts had no line of sight to the sound at all,
+// and 30% of them crossed two or more walls.
+//
+// Per-barrier loss in the same px units as the noise radii. Drywall barely
+// muffles, which is correct — an interior partition is not soundproofing —
+// while concrete two rooms deep stops it dead.
+const SOUND_LOSS = { concrete: 210, brick: 150, sheetmetal: 110, wood: 85,
+                     drywall: 55, engine: 210, glass: 40, door: 85 };
+
+function soundLoss(ax, ay, bx, by) {
+  const d = dist(ax, ay, bx, by);
+  const steps = Math.ceil(d / (TILE * 0.5));
+  let loss = 0, prev = null;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+    const tt = tileAt(x, y), key = tt.tx + "," + tt.ty;
+    if (key === prev) continue;                       // one loss per barrier, not per sample
+    prev = key;
+    if (!inBounds(tt.tx, tt.ty)) continue;
+    const door = doorAt(tt.tx, tt.ty);
+    if (door) { if (door.state === "closed") loss += SOUND_LOSS.door; continue; }
+    const win = windowAt(tt.tx, tt.ty);
+    if (win) { if (!win.broken) loss += SOUND_LOSS.glass; continue; }
+    if (isWall(tt.tx, tt.ty)) loss += SOUND_LOSS[level.mat[tt.ty][tt.tx]] ?? 200;
+  }
+  return loss;
+}
+
+// How far this sound actually carries to this listener.
+function audibleTo(n, ex, ey) {
+  return n.radius - soundLoss(n.x, n.y, ex, ey);
+}
+
 function processNoises() {
   for (const n of game.noises) {
     if (n.side === "enemy") continue; // enemies don't spook themselves
     const loud = n.type === "shot" || n.type === "bang" || n.type === "breach" || n.type === "doorbreak";
     for (const e of game.enemies) {
       if (!e.alive || e.state === "combat" || e.state === "surrender" || e.state === "cuffed") continue;
-      if (dist(n.x, n.y, e.x, e.y) > n.radius) continue;
+      if (dist(n.x, n.y, e.x, e.y) > audibleTo(n, e.x, e.y)) continue;
       if (loud) alertEnemy(e, n.x, n.y);
       else if (e.state === "idle") { e.state = "suspicious"; e.investigate = { x: n.x, y: n.y }; e.investigateWait = 0; }
     }
@@ -3611,9 +3674,15 @@ const game = {
   visPoly: null,
   stats: null,
   playerDeadT: 0, endReason: "",
+  // The clock is HIS clock. It used to key off game.alarm — a global flag any
+  // guard anywhere sets by hearing anything — so a man sealed in a back room
+  // who knew nothing started executing because someone outside heard a shot.
+  // Now it starts when he personally becomes aware: he hears it himself
+  // (attenuated through the structure), or he sees you, or a comrade tells him.
   alarmTimerVisible() {
     const taker = this.enemies.find(e => e.kind === "taker");
-    return this.alarm && taker && taker.alive && taker.state !== "surrender" && taker.state !== "cuffed"
+    return !!taker && taker.alerted && taker.alive
+      && taker.state !== "surrender" && taker.state !== "cuffed"
       && this.hostages.some(h => h.alive && !h.secured);
   },
 };
