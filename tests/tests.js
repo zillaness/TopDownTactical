@@ -1006,3 +1006,80 @@ console.log('  elements swapped ' + swaps + ' times during the move',
             swaps >= 1 ? 'CORRECT (it leapfrogs)' : 'WRONG (one element did it all)');
 console.log('SHOOT HOUSE + BOUND TEST DONE');
 })();
+
+(function loadoutAndVisionTests(){
+console.log('--- sidearm, and shared vision ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const P = game.player;
+
+console.log('  guns carried: ' + P.guns.map(g => g.name).join(' + '),
+            P.guns.length === 2 && P.gunIndex === 0 ? 'CORRECT (primary up)' : 'WRONG');
+
+// magazine state must survive the swap in both directions
+P.ammo = 7; P.swapT = 0; P.cooldown = 0;
+swapGun(P, 1);
+const onPistol = { name: P.guns[P.gunIndex].name, ammo: P.ammo, mag: P.weapon.mag, round: P.ammoType };
+P.ammo = 3; P.cooldown = 0;
+swapGun(P, 0);
+const back = { name: P.guns[P.gunIndex].name, ammo: P.ammo };
+console.log('  to sidearm: ' + JSON.stringify(onPistol));
+console.log('  back to primary: ' + JSON.stringify(back) + ' (left it on 7)',
+            onPistol.ammo === SIDEARM.w.mag && back.ammo === 7 ? 'CORRECT (each gun keeps its rounds)' : 'WRONG');
+swapGun(P, 1);
+console.log('  the sidearm fires pistol ammunition: ' + P.ammoType,
+            P.ammoType === 'pistol' ? 'CORRECT' : 'WRONG');
+console.log('  and swapping costs time: cooldown ' + P.cooldown.toFixed(2) + 's',
+            P.cooldown >= TUNE.gunSwapTime - 0.001 ? 'CORRECT' : 'WRONG');
+swapGun(P, 0);
+
+// shared vision: a squaddie's cone must reveal ground the player has not walked
+game.mapIndex = 0; initGame(); game.state = 'play';
+seen.init();
+const s0 = game.squad[0];
+s0.x = game.player.x + 300; s0.y = game.player.y; s0.face = 0;
+const count = () => { let n = 0; for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (seen.grid[y][x]) n++; return n; };
+const before = count();
+computeVisCone(s0.x, s0.y, TUNE.squadViewDist, s0.face, deg(160), 44);
+const gained = count() - before;
+console.log('  one squaddie cone reveals ' + gained + ' tiles', gained > 20 ? 'CORRECT' : 'WRONG');
+
+// ...and it must be a cone, not a circle: nothing behind him
+let behind = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+  if (!seen.grid[y][x]) continue;
+  const wx = x * TILE + 16, wy = y * TILE + 16;
+  if (dist(s0.x, s0.y, wx, wy) < 40) continue;
+  if (Math.abs(angDiff(s0.face, angleTo(s0.x, s0.y, wx, wy))) > deg(100)) behind++;
+}
+console.log('  tiles revealed behind him: ' + behind, behind === 0 ? 'CORRECT (a cone, not a circle)' : 'WRONG');
+
+// last-known must survive losing sight, and expire
+game.mapIndex = 0; initGame(); game.state = 'play';
+const e0 = game.enemies[0];
+e0.x = game.player.x + 100; e0.y = game.player.y; game.player.face = 0;
+game.eye = eyePoint(game.player);
+rememberSightings();
+const marked = !!e0.lastSeen;
+e0.x = game.player.x + 5000;
+rememberSightings();
+console.log('  contact remembered after he leaves: ' + (marked && !!e0.lastSeen),
+            marked && e0.lastSeen ? 'CORRECT' : 'WRONG');
+console.log('  the mark expires after ' + TUNE.memoryFade + 's',
+            TUNE.memoryFade > 5 && TUNE.memoryFade < 60 ? 'CORRECT' : 'WRONG');
+
+// snake cam works on both a door and a window
+game.mapIndex = 0; initGame(); game.state = 'play';
+const dd = level.doors.find(x => x.state === 'closed'), dc = doorCenter(dd);
+game.player.x = dc.x + 30; game.player.y = dc.y + 30; game.snake = null;
+snakeCam(game.player);
+const onDoor = !!game.snake;
+const win = [...level.windowAt.values()][0];
+game.player.x = win.tx * TILE + 16; game.player.y = win.ty * TILE + 16 + 34; game.snake = null;
+snakeCam(game.player);
+const onWin = !!game.snake;
+game.player.x = 20; game.player.y = 20; game.snake = null;
+snakeCam(game.player);
+console.log('  snake cam: door ' + onDoor + ', window ' + onWin + ', open ground ' + !!game.snake,
+            onDoor && onWin && !game.snake ? 'CORRECT' : 'WRONG');
+console.log('LOADOUT+VISION TEST DONE');
+})();

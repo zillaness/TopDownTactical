@@ -60,8 +60,9 @@
     <table>
       <tr><td class="key">W A S D</td><td>move</td><td class="key">Mouse</td><td>aim &middot; LMB shoot</td></tr>
       <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
+      <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
-      <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
+      <tr><td class="key">MMB / G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
@@ -225,6 +226,7 @@ const TUNE = {
   eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
   leftHandedRate: 0.1,              // ~1 in 10, as in life
   shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
+  gunSwapTime: 0.35,                // dead time going to the sidearm and back
   supportSideSpread: 2.3,           // accuracy cost of shooting off the weak shoulder
   supportSideReact: 1.35,           // slower to break a shot off the weak shoulder
   playerTurnRate: 22,               // rad/s-ish lerp: ~110ms for a 180° reversal
@@ -291,7 +293,7 @@ const COLORS = {
   player: "#4da3ff", squad: "#3fc27e", enemy: "#e05252", surrendered: "#e0a852", cuffed: "#8a8a8a",
   hostage: "#e8d44d", civilian: "#c9a3e0", corpse: "#5a3030",
   tracer: "#ffd27a", muzzle: "#fff2c0", blood: "#7a1f1f",
-  fog: "rgba(5,7,9,0.86)", memory: "rgba(10,14,18,0.55)",
+  fog: "rgba(5,7,9,0.80)", memory: "rgba(10,14,18,0.55)",
   hud: "#cfd6dd", hudDim: "#7f8b96", accent: "#e8b53a", danger: "#ff5555", ok: "#3fc27e",
 };
 
@@ -1097,11 +1099,17 @@ const canvas = document.getElementById("game");
 canvas.addEventListener("mousemove", e => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; });
 canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { input.mouse.down = true; input.justPressed.add("lmb"); }
+  if (e.button === 1) { input.justPressed.add("mmb"); e.preventDefault(); }
   if (e.button === 2) {
     input.mouse.rdown = true; input.justPressed.add("rmb");
     input.mouse.rx = e.clientX; input.mouse.ry = e.clientY;   // wheel anchor
   }
 });
+// scroll swaps guns; the browser must not scroll the page under us
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  input.justPressed.add(e.deltaY > 0 ? "scrolldown" : "scrollup");
+}, { passive: false });
 window.addEventListener("mouseup", e => {
   if (e.button === 0) input.mouse.down = false;
   if (e.button === 2) { input.mouse.rdown = false; input.justReleased.add("rmb"); }
@@ -1142,6 +1150,12 @@ function makePlayer(sp) {
   p.bangs = kit.bangs; p.charges = kit.charges; p.shoutCd = 0;
   // keep the ammo legal for the weapon in hand
   p.ammoType = prim.ammo.includes(L.ammo) ? L.ammo : prim.ammo[0];
+  // two guns on the man: index 0 is the primary, 1 is the sidearm
+  p.guns = [
+    { name: prim.name, w: p.weapon, ammoType: p.ammoType, ammo: p.weapon.mag, reloading: 0 },
+    { name: SIDEARM.name, w: { ...SIDEARM.w }, ammoType: SIDEARM.ammo, ammo: SIDEARM.w.mag, reloading: 0 },
+  ];
+  p.gunIndex = 0;
   wearArmor(p, L.armor);
   return p;
 }
@@ -1195,6 +1209,21 @@ function updateShoulder(s, dt) {
   }
 }
 
+// Swap primary <-> sidearm. The magazine state of each gun is remembered, so
+// going to the pistol and back does not conjure rounds.
+function swapGun(p, idx) {
+  if (!p.guns || idx === p.gunIndex || p.swapT > 0) return;
+  const cur = p.guns[p.gunIndex];
+  cur.ammo = p.ammo; cur.reloading = p.reloading; cur.ammoType = p.ammoType;
+  p.gunIndex = ((idx % p.guns.length) + p.guns.length) % p.guns.length;
+  const next = p.guns[p.gunIndex];
+  p.weapon = next.w; p.ammo = next.ammo; p.reloading = next.reloading; p.ammoType = next.ammoType;
+  p.cooldown = Math.max(p.cooldown, TUNE.gunSwapTime);
+  p.recoil = 0;
+  sfxAt("click", p.x, p.y);
+  game.hint = next.name + " up";
+}
+
 function swapShoulder(s) {
   if (s.swapT > 0) return;
   s.pendingShoulder = s.shoulder === "support" ? "strong" : "support";
@@ -1231,6 +1260,8 @@ function updatePlayer(p, dt) {
   // weapon
   updateShooterWeapon(p, dt);
   if (pressed("n")) swapShoulder(p);
+  // scroll or [1] to change guns — the sidearm is faster than a reload
+  if (pressed("scrollup") || pressed("scrolldown")) swapGun(p, p.gunIndex + 1);
   if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0) {
     tryFire(p, aimAngle(p, input.mouse.wx, input.mouse.wy));
   }
@@ -1242,7 +1273,10 @@ function updatePlayer(p, dt) {
     const d = nearestDoor(p.x, p.y, 56);
     if (d && d.state === "closed") kickDoor(d, p);
   }
-  if (pressed("g") && p.bangs > 0) { throwBang(p, input.mouse.wx, input.mouse.wy); p.bangs--; }
+  // middle mouse is the bang; G still works for anyone with a two-button mouse
+  if ((pressed("g") || pressed("mmb")) && p.bangs > 0) {
+    throwBang(p, input.mouse.wx, input.mouse.wy); p.bangs--;
+  } else if ((pressed("g") || pressed("mmb")) && p.bangs <= 0) game.hint = "Out of flashbangs";
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
   if (pressed("h")) {
     if (game.wallCharge) detonateWallCharge();
@@ -2231,6 +2265,16 @@ const PRIMARIES = {
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
                   spreadBase: deg(1.6), recoil: deg(0.8), penMul: 0.7 } },
+};
+
+// Everybody carries a sidearm. It is not a choice at the briefing — it is the
+// gun you go to when the primary runs dry mid-room, which is faster than a
+// reload and worse at everything else.
+const SIDEARM = {
+  name: "SIDEARM", ammo: "pistol",
+  w: { ...TUNE.rifle, dmg: 22, rpm: 380, mag: 15, reload: 1.5, range: 480,
+       spreadBase: deg(2.2), spreadMove: deg(7), recoil: deg(1.6), recoilMax: deg(7),
+       penMul: 0.7, speed: 1150 },
 };
 
 const UTILITY_KITS = {
@@ -3523,6 +3567,23 @@ function drawBody(e, dead) {
 
 function drawMemory(x0, y0, x1, y1) {
   const k = 1 / game.zoom;
+  // the layout you walked through, as a faint schematic — explored ground you
+  // cannot currently see should read as remembered, not as unexplored
+  ctx.strokeStyle = "rgba(120,138,155,0.16)";
+  ctx.lineWidth = Math.max(0.6, 1 * k);
+  ctx.beginPath();
+  for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
+    for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+      if (!seen.grid[ty][tx] || !level.wall[ty][tx]) continue;
+      const px = tx * TILE, py = ty * TILE;
+      if (!(inBounds(tx, ty - 1) && level.wall[ty - 1][tx])) { ctx.moveTo(px, py); ctx.lineTo(px + TILE, py); }
+      if (!(inBounds(tx, ty + 1) && level.wall[ty + 1][tx])) { ctx.moveTo(px, py + TILE); ctx.lineTo(px + TILE, py + TILE); }
+      if (!(inBounds(tx - 1, ty) && level.wall[ty][tx - 1])) { ctx.moveTo(px, py); ctx.lineTo(px, py + TILE); }
+      if (!(inBounds(tx + 1, ty) && level.wall[ty][tx + 1])) { ctx.moveTo(px + TILE, py); ctx.lineTo(px + TILE, py + TILE); }
+    }
+  }
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, 1.6 * k);
   ctx.lineWidth = Math.max(1, 1.6 * k);
   for (const d of level.doors) {
     if (d.tx < x0 || d.tx > x1 || d.ty < y0 || d.ty > y1) continue;
@@ -3742,8 +3803,12 @@ function drawHud() {
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
   const rnd = AMMO[p.ammoType] || AMMO.fmj;
+  const gunName = p.guns ? p.guns[p.gunIndex].name : "";
   ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "  " + rnd.name
                + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 40);
+  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText(gunName + "   [scroll] swap", bx + 158, by + 40);
+  ctx.font = "13px Consolas, monospace"; ctx.fillStyle = COLORS.hud;
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText(shoulderTxt + "  [N]", bx, by + 56);
   // Losing the controls needs to be the loudest thing on screen, not a note in
