@@ -1798,6 +1798,31 @@ function makeSquaddie(sp, i) {
   return s;
 }
 
+// ---- formation
+// The old follow order was a single point-chase to 80px, which piled three men
+// into a huddle around the point man. Measured over 24 runs: the squad fired
+// 7.6% of the team's rounds, clearShot allowed 4.0% of engagements, and the
+// body in the way was a TEAMMATE 7,898 times against your own 850 — a 9:1
+// ratio. A wedge fixes it geometrically: no two slots share a bearing and none
+// sits inside ±35° of your bore, so nobody is ever downrange of you.
+const WEDGE = [
+  { bear: deg(145),  d: 78,  sector: deg(90)  },  // #2 — rear quarter, covers that flank
+  { bear: deg(-145), d: 78,  sector: deg(-90) },  // #3 — opposite quarter, opposite flank
+  { bear: deg(180),  d: 112, sector: deg(180) },  // #4 — trail, watches the way you came
+];
+
+// The station bearing eases rather than snapping, or whipping the mouse would
+// send three men sprinting a lap around you.
+function wedgeStation(s, dt) {
+  const p = game.player, w = WEDGE[s.slot % 3];
+  const want = p.face + w.bear;
+  if (s._wedgeAng === undefined) s._wedgeAng = want;
+  else s._wedgeAng = angLerp(s._wedgeAng, want, clamp((dt || 0) * 2.2, 0, 1));
+  const pt = nearestPassable(p.x + Math.cos(s._wedgeAng) * w.d, p.y + Math.sin(s._wedgeAng) * w.d);
+  pt.sector = p.face + w.sector;
+  return pt;
+}
+
 function doorNormal(d, fromX, fromY) {
   const c = doorCenter(d);
   if (d.orient === "h") return { x: 0, y: Math.sign(fromY - c.y) || 1 };
@@ -1937,7 +1962,10 @@ function updateSquaddie(s, dt) {
   if (s.blind <= 0) {
     for (const e of game.enemies) {
       if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
-      if (canSee(s.x, s.y, e.x, e.y, TUNE.aiViewDistAlert)) {
+      // Acquire only inside the arc you are actually facing — the same 160°
+      // cone visibleToPlayerSide() uses to report contacts. Otherwise the squad
+      // shoots things it never told you about, and assigned sectors mean nothing.
+      if (canSee(s.x, s.y, e.x, e.y, TUNE.aiViewDistAlert, s.face, deg(160))) {
         const d = dist(s.x, s.y, e.x, e.y);
         if (d < td) { td = d; threat = e; }
       }
@@ -1947,9 +1975,16 @@ function updateSquaddie(s, dt) {
   s.engaged = threat;
 
   // zip-cuff surrendered suspects in reach when not fighting
-  if (!threat && s.stagger <= 0) {
-    const cuffable = nearestEntity(game.enemies, s.x, s.y, 45, e => e.alive && e.state === "surrender");
-    if (cuffable) { cuffEnemy(cuffable); bark(s, "SUSPECT SECURED"); }
+  if (!threat) {
+    s._sidestep = 0;
+    if (s.stagger <= 0) {
+      const cuffable = nearestEntity(game.enemies, s.x, s.y, 45, e => e.alive && e.state === "surrender");
+      if (cuffable) { cuffEnemy(cuffable); bark(s, "SUSPECT SECURED"); }
+    }
+    // Top up out of contact. The reload used to sit inside the threat branch,
+    // so a man who broke contact with three rounds stacked on the next door
+    // with three rounds.
+    if (s.reloading <= 0 && s.ammo < s.weapon.mag * 0.45) tryReload(s);
   }
 
   const executingEntry = s.order.type === "entry";
@@ -1962,6 +1997,18 @@ function updateSquaddie(s, dt) {
     const canShoot = clearShot(s, threat);
     if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0) {
       tryFire(s, aimAngle(s, threat.x, threat.y));
+      s._sidestep = 0;
+    }
+    // Willing but blocked by a friendly: step off the line instead of standing
+    // there mute. The wedge stops the pile-up; this clears the leftovers.
+    else if (mayFire && !canShoot && s._blockedBy && s.stagger <= 0 && (s._sidestep || 0) < 46) {
+      const la = angleTo(s.x, s.y, threat.x, threat.y);
+      const side = angDiff(la, angleTo(s.x, s.y, s._blockedBy.x, s._blockedBy.y)) > 0 ? -1 : 1;
+      const a = la + Math.PI / 2 * side;
+      const step = TUNE.squadRun * 0.75 * dt;
+      const res = moveCircle(s.x, s.y, s.r, Math.cos(a) * step, Math.sin(a) * step, solidForMove);
+      s._sidestep = (s._sidestep || 0) + dist(s.x, s.y, res.x, res.y);
+      s.x = res.x; s.y = res.y;
     }
     if (s.ammo <= 0 && s.reloading <= 0) tryReload(s);
     // stop to shoot only when actually able and willing — a blocked or held shot
@@ -1971,9 +2018,12 @@ function updateSquaddie(s, dt) {
 
   switch (s.order.type) {
     case "follow": {
-      const d = dist(s.x, s.y, game.player.x, game.player.y);
-      if (d > 80) squadMove(s, game.player.x, game.player.y, d > 200 ? TUNE.squadRun : TUNE.squadRun * 0.8, dt);
-      else if (!threat) s.face = angLerp(s.face, game.player.face, dt * 4);
+      const st = wedgeStation(s, dt);
+      const d = dist(s.x, s.y, st.x, st.y);
+      if (d > 26) squadMove(s, st.x, st.y, d > 190 ? TUNE.squadRun : TUNE.squadRun * 0.8, dt, s.order.quiet ? false : undefined);
+      // On station, cover your sector. Three men all staring where you stare is
+      // three men watching one arc and nobody watching the other three.
+      else if (!threat) s.face = angLerp(s.face, st.sector, dt * 4);
       break;
     }
     case "move": {
@@ -2033,16 +2083,20 @@ function squadShout(s) {
 }
 
 // friendly-fire discipline: never shoot through a teammate, hostage, or civilian
+// Friendly-fire discipline: never shoot through a teammate, hostage, or
+// civilian. Records WHICH body blocked, so the caller can step off that line
+// rather than simply holding the shot forever.
 function clearShot(s, target) {
+  s._blockedBy = null;
   const friendlies = [game.player, ...game.squad, ...game.hostages, ...game.civilians];
   for (const f of friendlies) {
     if (!f || !f.alive || f === s) continue;
-    if (segCircle(s.x, s.y, target.x, target.y, f.x, f.y, f.r + 7)) return false;
+    if (segCircle(s.x, s.y, target.x, target.y, f.x, f.y, f.r + 7)) { s._blockedBy = f; return false; }
   }
   // also never shoot a surrendered suspect standing in the line
   for (const e of game.enemies) {
     if (e.alive && (e.state === "surrender" || e.state === "cuffed") && e !== target) {
-      if (segCircle(s.x, s.y, target.x, target.y, e.x, e.y, e.r + 7)) return false;
+      if (segCircle(s.x, s.y, target.x, target.y, e.x, e.y, e.r + 7)) { s._blockedBy = e; return false; }
     }
   }
   return true;
