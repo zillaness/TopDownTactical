@@ -62,7 +62,7 @@
       <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
-      <tr><td class="key">Q</td><td>mirror under closed door &mdash; mark the room</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
+      <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
@@ -182,6 +182,9 @@ const TUNE = {
 
   // vision
   playerViewDist: 620,
+  squadViewDist: 430,               // how far a squaddie's cone lights up for you
+  memoryFade: 22,                   // seconds a last-known mark survives
+  snakeTime: 3.5, snakeRange: 300, snakeArc: deg(110),
   aiViewDist: 400, aiFov: deg(110),
   aiViewDistAlert: 520, aiFovAlert: deg(150),
   losRays: 280,
@@ -994,6 +997,29 @@ function nearestPassable(x, y) {
 // spotting only ("contact pings") — you see what YOU see; the squad reports.
 const seen = { grid: null, init() { this.grid = Array.from({ length: level.h }, () => new Array(level.w).fill(0)); } };
 
+// A cone rather than a full circle, for squadmates: they see what they are
+// facing, which is exactly what makes "leave a man covering that corner" a real
+// order instead of a decoration.
+function computeVisCone(x, y, maxDist, face, arc, rays) {
+  const pts = [{ x, y, d: 0 }];
+  const n = rays;
+  for (let i = 0; i <= n; i++) {
+    const ang = face - arc / 2 + (i / n) * arc;
+    const hit = raycast(x, y, ang, maxDist, opaque);
+    pts.push(hit);
+    const stepLen = TILE * 0.5;
+    const steps = Math.ceil(hit.d / stepLen);
+    for (let st = 0; st <= steps; st++) {
+      const sx = x + Math.cos(ang) * Math.min(hit.d, st * stepLen);
+      const sy = y + Math.sin(ang) * Math.min(hit.d, st * stepLen);
+      const t = tileAt(sx, sy);
+      if (inBounds(t.tx, t.ty)) seen.grid[t.ty][t.tx] = 1;
+    }
+  }
+  pts.push({ x, y, d: 0 });
+  return pts;
+}
+
 function computeVisPolygon(x, y, maxDist) {
   const pts = [];
   const n = TUNE.losRays;
@@ -1028,6 +1054,17 @@ function canSee(ax, ay, bx, by, maxDist, faceAng, fovArc) {
     if (da > fovArc / 2) return false;
   }
   return lineOfSight(ax, ay, bx, by, opaque);
+}
+
+// What you saw, where it was, and how long ago. Contacts do not evaporate the
+// moment they leave your cone — you remember where he was, and the mark ages so
+// you know how stale it is.
+function rememberSightings() {
+  const t = game.stats ? game.stats.time : 0;
+  for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
+    if (!e.alive) { e.lastSeen = null; continue; }
+    if (visibleToPlayerSide(e)) e.lastSeen = { x: e.x, y: e.y, t, face: e.face };
+  }
 }
 
 // Is this entity visible to the player side? Returns "direct" | "squad" | null.
@@ -1212,19 +1249,55 @@ function updatePlayer(p, dt) {
     else if (p.charges > 0) plantWallCharge(p);
     else game.hint = "No wall charges left";
   }
-  if (pressed("q")) {
-    const d = nearestDoor(p.x, p.y, 52);
-    if (d && d.state === "closed") {
-      const n = doorNormal(d, p.x, p.y);
-      const c = doorCenter(d);
-      const behind = roomAt(c.x - n.x * TILE, c.y - n.y * TILE);
-      if (behind) {
-        game.mirror = { room: behind, t: 4 };
-        addNoise(c.x, c.y, TUNE.noiseDoor, "door", "player");
-        game.hint = "Mirror under the door — contacts marked";
-      }
-    }
+  if (pressed("q")) snakeCam(p);
+}
+
+// The snake cam: a fibre-optic on a flexible arm. Under a door, or over a
+// window sill — the point of the thing is that it goes where your head cannot.
+// Whatever it sees leaves a last-known mark, so the intel outlives the peek.
+function snakeCam(p) {
+  const d = nearestDoor(p.x, p.y, 52);
+  const w = nearestWindowTo(p.x, p.y, 52);
+  let origin = null, normal = null, label = "";
+  if (d && d.state === "closed") {
+    normal = doorNormal(d, p.x, p.y);
+    origin = doorCenter(d);
+    label = "Snake cam under the door";
+    addNoise(origin.x, origin.y, TUNE.noiseDoor, "door", "player");
+  } else if (w) {
+    const c = { x: w.tx * TILE + TILE / 2, y: w.ty * TILE + TILE / 2 };
+    normal = w.orient === "h" ? { x: 0, y: Math.sign(p.y - c.y) || 1 }
+                              : { x: Math.sign(p.x - c.x) || 1, y: 0 };
+    origin = c;
+    label = "Snake cam over the sill";
+  } else {
+    game.hint = "Nothing to snake — get on a closed door or a window";
+    return;
   }
+  const look = Math.atan2(-normal.y, -normal.x);           // through, into the far side
+  const eye = { x: origin.x - normal.x * 6, y: origin.y - normal.y * 6 };
+  game.snake = { x: eye.x, y: eye.y, face: look, t: TUNE.snakeTime };
+  let found = 0;
+  const now = game.stats ? game.stats.time : 0;
+  for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
+    if (!e.alive) continue;
+    if (dist(eye.x, eye.y, e.x, e.y) > TUNE.snakeRange) continue;
+    if (Math.abs(angDiff(look, angleTo(eye.x, eye.y, e.x, e.y))) > TUNE.snakeArc / 2) continue;
+    if (!lineOfSight(eye.x, eye.y, e.x, e.y, opaque)) continue;
+    e.lastSeen = { x: e.x, y: e.y, t: now, face: e.face };   // the peek outlives itself
+    found++;
+  }
+  game.hint = label + " — " + (found ? found + " contact" + (found > 1 ? "s" : "") + " marked" : "nothing in the cone");
+  sfxAt("click", p.x, p.y);
+}
+
+function nearestWindowTo(x, y, maxD) {
+  let best = null, bd = maxD;
+  for (const w of level.windowAt.values()) {
+    const d = dist(x, y, w.tx * TILE + TILE / 2, w.ty * TILE + TILE / 2);
+    if (d < bd) { bd = d; best = w; }
+  }
+  return best;
 }
 
 function playerInteract(p) {
@@ -2973,6 +3046,15 @@ function resize() {
 }
 window.addEventListener("resize", resize); resize();
 
+let _fogCv = null;
+function fogLayer() {
+  if (!_fogCv) _fogCv = document.createElement("canvas");
+  if (_fogCv.width !== Math.floor(viewW * dpr) || _fogCv.height !== Math.floor(viewH * dpr)) {
+    _fogCv.width = Math.floor(viewW * dpr); _fogCv.height = Math.floor(viewH * dpr);
+  }
+  return _fogCv;
+}
+
 function render() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, viewW, viewH);
@@ -3063,7 +3145,8 @@ function render() {
     const vis = lightsOn ? "direct" : visibleToPlayerSide(e);
     if (vis === "direct") drawBody(e);
     else if (vis === "squad") ghosts.push(e);
-    else if (game.mirror && game.mirror.t > 0 && roomAt(e.x, e.y) === game.mirror.room) ghosts.push(e);
+    else if (game.snake && game.snake.t > 0 &&
+             canSee(game.snake.x, game.snake.y, e.x, e.y, TUNE.snakeRange, game.snake.face, TUNE.snakeArc)) ghosts.push(e);
   }
 
   // flashbangs in flight
@@ -3073,21 +3156,34 @@ function render() {
   // fx the world occludes — blood, and anything else the fog should dim
   drawFx("pre");
 
-  // fog: dim everything outside the player's current view — lifted entirely in
-  // the after-action review, which is the whole point of the lights coming on
+  // Fog. Several people are looking at once now — you and every living
+  // squaddie — so it is built in an offscreen layer and each viewer's polygon
+  // is punched out of it. An even-odd rect-minus-one-polygon cannot express
+  // overlapping viewers; two overlapping holes would fill back in.
   if (game.player.alive && game.state !== "aar") {
-    const poly = game.visPoly;
+    const fog = fogLayer();
+    const f = fog.getContext("2d");
+    f.setTransform(1, 0, 0, 1, 0, 0);
+    f.globalCompositeOperation = "source-over";
+    f.fillStyle = COLORS.fog;
+    f.fillRect(0, 0, fog.width, fog.height);
+    f.setTransform(dpr, 0, 0, dpr, 0, 0);
+    f.translate(viewW / 2, viewH / 2); f.scale(Z, Z);
+    f.translate(-cam.x + cam.shakeX, -cam.y + cam.shakeY);
+    f.globalCompositeOperation = "destination-out";
+    const punch = (poly) => {
+      if (!poly || poly.length < 3) return;
+      f.beginPath();
+      f.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) f.lineTo(poly[i].x, poly[i].y);
+      f.closePath(); f.fill();
+    };
+    punch(game.visPoly);
+    (game.squadPolys || []).forEach(punch);
+    if (game.snake && game.snake.t > 0) punch(game.snakePoly);
     ctx.save();
-    // build a path = big rect minus vis polygon (evenodd)
-    ctx.beginPath();
-    ctx.rect(cam.x - halfW * 2, cam.y - halfH * 2, halfW * 4, halfH * 4);
-    if (poly && poly.length) {
-      ctx.moveTo(poly[0].x, poly[0].y);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
-      ctx.closePath();
-    }
-    ctx.fillStyle = COLORS.fog;
-    ctx.fill("evenodd");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(fog, 0, 0, viewW, viewH);
     ctx.restore();
   }
   // never-seen tiles: solid black on top
@@ -3095,6 +3191,11 @@ function render() {
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     if (inBounds(tx, ty) && !seen.grid[ty][tx]) ctx.fillRect(tx * TILE - 0.5, ty * TILE - 0.5, TILE + 1, TILE + 1);
   }
+
+  // What you remember, drawn above the fog. Explored ground you cannot
+  // currently see used to be a uniform dark smear; the doors and windows you
+  // walked past are exactly the things you would still have in your head.
+  drawMemory(x0, y0, x1, y1);
 
   // light emitters and information rings go ON TOP of the fog: a muzzle flash
   // that is dimmed 86% is not a muzzle flash
@@ -3122,6 +3223,11 @@ function render() {
 
   // player-intel overlays sit ABOVE the fog — they are UI, not world geometry
   for (const g of ghosts) drawGhost(g);
+  // and the stale ones: last place you saw anybody you cannot see now
+  for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
+    if (!e.alive || ghosts.includes(e) || visibleToPlayerSide(e)) continue;
+    drawLastKnown(e);
+  }
   for (const p of game.plans) drawPlan(p);
   // selection rings + move-order lines
   ctx.lineWidth = 1.5;
@@ -3413,6 +3519,59 @@ function drawBody(e, dead) {
     ctx.fillStyle = e.hp > 40 ? COLORS.ok : COLORS.danger;
     ctx.fillRect(e.x - 12, e.y - e.r - 9, 24 * clamp(e.hp / e.maxHp, 0, 1), 4);
   }
+}
+
+function drawMemory(x0, y0, x1, y1) {
+  const k = 1 / game.zoom;
+  ctx.lineWidth = Math.max(1, 1.6 * k);
+  for (const d of level.doors) {
+    if (d.tx < x0 || d.tx > x1 || d.ty < y0 || d.ty > y1) continue;
+    if (!seen.grid[d.ty][d.tx]) continue;
+    const c = doorCenter(d);
+    ctx.strokeStyle = d.locked ? "rgba(196,82,63,0.55)"
+                    : d.state === "closed" ? "rgba(224,168,82,0.5)" : "rgba(120,140,160,0.4)";
+    const half = TILE * 0.36;
+    ctx.beginPath();
+    if (d.orient === "h") { ctx.moveTo(c.x - half, c.y); ctx.lineTo(c.x + half, c.y); }
+    else { ctx.moveTo(c.x, c.y - half); ctx.lineTo(c.x, c.y + half); }
+    ctx.stroke();
+  }
+  for (const w of level.windowAt.values()) {
+    if (w.tx < x0 || w.tx > x1 || w.ty < y0 || w.ty > y1) continue;
+    if (!seen.grid[w.ty][w.tx]) continue;
+    const cx = w.tx * TILE + TILE / 2, cy = w.ty * TILE + TILE / 2, half = TILE * 0.36;
+    ctx.strokeStyle = w.broken ? "rgba(91,107,118,0.5)" : "rgba(127,200,232,0.45)";
+    ctx.beginPath();
+    if (w.orient === "h") { ctx.moveTo(cx - half, cy); ctx.lineTo(cx + half, cy); }
+    else { ctx.moveTo(cx, cy - half); ctx.lineTo(cx, cy + half); }
+    ctx.stroke();
+  }
+}
+
+// Where he was when you last had eyes on him, and how long ago. The mark fades
+// with age, so a stale contact reads as stale rather than as a live one.
+function drawLastKnown(e) {
+  const ls = e.lastSeen; if (!ls) return;
+  const age = (game.stats ? game.stats.time : 0) - ls.t;
+  if (age > TUNE.memoryFade) return;
+  const k = 1 / game.zoom;
+  const a = 0.55 * (1 - age / TUNE.memoryFade);
+  const col = e.side === "enemy" ? "224,82,82" : e.side === "hostage" ? "232,212,77" : "201,163,224";
+  ctx.save();
+  ctx.strokeStyle = "rgba(" + col + "," + a.toFixed(3) + ")";
+  ctx.lineWidth = 1.6 * k; ctx.setLineDash([4 * k, 4 * k]);
+  ctx.beginPath();
+  ctx.moveTo(ls.x, ls.y - 10 * k); ctx.lineTo(ls.x + 10 * k, ls.y);
+  ctx.lineTo(ls.x, ls.y + 10 * k); ctx.lineTo(ls.x - 10 * k, ls.y);
+  ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+  if (age > 1.5) {
+    ctx.fillStyle = "rgba(" + col + "," + (a * 0.9).toFixed(3) + ")";
+    ctx.font = (9 * k).toFixed(1) + "px Consolas, monospace"; ctx.textAlign = "center";
+    ctx.fillText(Math.round(age) + "s", ls.x, ls.y - 14 * k);
+    ctx.textAlign = "left";
+  }
+  ctx.restore();
 }
 
 function drawGhost(e) {
@@ -3877,7 +4036,7 @@ const game = {
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
-  alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
+  alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
   wheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
@@ -3909,7 +4068,7 @@ function initGame() {
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = [];
   game.selected = new Set();
   game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
-  game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
+  game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.snake = null; game.wallCharge = null;
   game.squadCharges = 2;
   game.hint = ""; game._hintPrev = ""; game._hintT = 0;
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
@@ -3923,7 +4082,7 @@ function initGame() {
 function update(dt) {
   game.stats.time += dt;
   game.underFireT = Math.max(0, game.underFireT - dt);
-  if (game.mirror) { game.mirror.t -= dt; if (game.mirror.t <= 0) game.mirror = null; }
+  if (game.snake) { game.snake.t -= dt; if (game.snake.t <= 0) game.snake = null; }
   updatePlayer(game.player, dt);
   for (const s of game.squad) updateSquaddie(s, dt);
   updatePlans(dt);
@@ -4195,6 +4354,20 @@ function frame(now) {
       const eye = eyePoint(game.player);   // you see from the muzzle, not your belly button
       game.eye = eye;
       game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
+      // The squad reports what it can see, and now you can SEE what it sees.
+      // Recomputed on a stagger so three extra cones cost about one player poly.
+      game._coneTick = ((game._coneTick || 0) + 1) % 3;
+      game.squadPolys = game.squadPolys || [];
+      game.squad.forEach((sq, i) => {
+        if (!sq.alive) { game.squadPolys[i] = null; return; }
+        if (i === game._coneTick || !game.squadPolys[i]) {
+          game.squadPolys[i] = computeVisCone(sq.x, sq.y, TUNE.squadViewDist, sq.face, deg(160), 44);
+        }
+      });
+      game.snakePoly = (game.snake && game.snake.t > 0)
+        ? computeVisCone(game.snake.x, game.snake.y, TUNE.snakeRange, game.snake.face, TUNE.snakeArc, 40)
+        : null;
+      rememberSightings();
     }
     render();
   } else if (game.state === "aar") {
