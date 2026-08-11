@@ -646,10 +646,13 @@ function parseLevel() {
     if (horiz || vert) level.mat[y][x] = "drywall";
   }
 
-  // flood-fill room ids over walkable tiles; doors are boundaries between rooms
+  // Flood-fill room ids over walkable tiles. Doors AND windows are boundaries —
+  // a window is a hole in a wall, not an opening between rooms, and letting the
+  // fill run through one merges the rooms on either side (and the exterior).
+  const roomEdge = (x, y) => level.wall[y][x] || level.window[y][x] || level.doorAt.has(x + "," + y);
   let nextRoom = 1;
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
-    if (level.wall[y][x] || level.room[y][x] || level.doorAt.has(x + "," + y)) continue;
+    if (roomEdge(x, y) || level.room[y][x]) continue;
     const id = nextRoom++;
     const q = [[x, y]];
     level.room[y][x] = id;
@@ -658,7 +661,7 @@ function parseLevel() {
       for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nx = qx + ox, ny = qy + oy;
         if (nx < 0 || ny < 0 || nx >= level.w || ny >= level.h) continue;
-        if (level.wall[ny][nx] || level.room[ny][nx] || level.doorAt.has(nx + "," + ny)) continue;
+        if (roomEdge(nx, ny) || level.room[ny][nx]) continue;
         level.room[ny][nx] = id; q.push([nx, ny]);
       }
     }
@@ -1135,7 +1138,8 @@ function firstEntityOnSegment(b, ex, ey) {
     if (b.side === "enemy" && e.state !== "surrender" && e.state !== "cuffed") continue;
     candidates.push(e);
   }
-  candidates.push(...game.hostages, ...game.civilians); // everyone can hit a bystander
+  // a secured hostage is flat on the floor and no longer a standing target
+  candidates.push(...game.hostages.filter(h => !h.prone), ...game.civilians);
   for (const ent of candidates) {
     if (!ent || !ent.alive || ent === b.owner) continue;
     const hit = segCircle(b.x, b.y, ex, ey, ent.x, ent.y, ent.r);
@@ -1176,7 +1180,10 @@ function killEntity(ent, bySide) {
     if (buddy) { buddy._barkCd = 0; bark(buddy, "MAN DOWN!"); }
   }
   if (ent.side === "civ") { game.stats.civsKilled++; if (bySide === "player" || bySide === "squad") game.stats.civsKilledByUs++; }
-  if (ent.side === "hostage") game.stats.hostagesDead++;
+  if (ent.side === "hostage") {
+    game.stats.hostagesDead++;
+    if (!ent.secured) game.stats.hostagesDeadUnsecured++;
+  }
   if (ent.side === "player") { /* handled in mission fail check */ }
   addNoise(ent.x, ent.y, 120, "bodyfall", ent.side);
   sfxAt("thud", ent.x, ent.y);
@@ -1279,7 +1286,9 @@ function closeDoor(d) {
     if (dist(e.x, e.y, px2, py2) < e.r + 2) return;
   }
   d.state = "closed";
+  const c = doorCenter(d);
   addNoise(c.x, c.y, TUNE.noiseDoor, "door", "neutral");
+  sfxAt("door", c.x, c.y);
 }
 
 function kickDoor(d, by) {
@@ -1638,11 +1647,22 @@ function cuffEnemy(e) {
 }
 
 function trySecureHostage(h) {
-  const room = roomAt(h.x, h.y);
-  const danger = game.enemies.some(e => e.alive && e.state !== "surrender" && e.state !== "cuffed" && roomAt(e.x, e.y) === room);
-  if (danger) { game.hint = "Clear the room before securing"; return; }
+  // Local threat test, not room identity. A flood-filled room is the wrong
+  // granularity — an airliner cabin is one room, so a room test would demand you
+  // clear the whole map to secure anyone. What matters is whether a live threat
+  // can actually see and shoot this hostage right now.
+  const blockers = game.enemies.filter(e =>
+    e.alive && e.state !== "surrender" && e.state !== "cuffed" &&
+    dist(e.x, e.y, h.x, h.y) < 220 && lineOfSight(e.x, e.y, h.x, h.y, opaque));
+  if (blockers.length) {
+    game.hint = "NOT CLEAR — " + blockers.length + " hostile" + (blockers.length > 1 ? "s" : "") + " covering";
+    return;
+  }
   h.secured = true;
+  h.r = 5;            // they get down and make themselves small
+  h.prone = true;
   game.stats.hostagesSecured++;
+  sfxAt("surrender", h.x, h.y);
   game.hint = "Hostage secured";
 }
 
@@ -2506,6 +2526,12 @@ function drawHud() {
   // context prompt
   const prompt = contextPrompt();
   if (prompt) { ctx.fillStyle = COLORS.hud; ctx.fillText(prompt, viewW / 2, viewH - 62); }
+  if (game.simError) {
+    ctx.fillStyle = "#7a1f1f"; ctx.fillRect(viewW / 2 - 260, 74, 520, 26);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = "12px Consolas, monospace";
+    ctx.fillText("SIMULATION ERROR: " + game.simError.slice(0, 60), viewW / 2, 91);
+    ctx.font = "13px Consolas, monospace";
+  }
   // paused / slow-mo banner
   if (game.paused) {
     ctx.fillStyle = "#000b"; ctx.fillRect(viewW / 2 - 220, viewH / 2 - 130, 440, 40);
@@ -2689,7 +2715,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0,
+  game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
 
@@ -2752,7 +2778,9 @@ const OBJECTIVES = {
       return "HOSTAGES " + game.hostages.filter(h => h.alive && h.secured).length + "/" + tot;
     },
     done() { return game.hostages.length > 0 && game.hostages.every(h => h.alive && h.secured); },
-    failed() { return game.stats.hostagesDead > 0 ? "A hostage was killed." : null; },
+    // losing a hostage you had already secured and put on the floor is not the
+    // same failure as losing one you never reached
+    failed() { return game.stats.hostagesDeadUnsecured > 0 ? "A hostage was killed." : null; },
   },
   neutralize: {
     label() { return "THREATS " + threatsLeft(); },
@@ -2883,7 +2911,14 @@ function frame(now) {
     game.slowmo = held("tab") && !game.paused;   // hold Tab: command time
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
-      update(game.slowmo ? dt * 0.15 : dt);
+      // A thrown exception here must never take the render loop with it: the
+      // frame would stop being rescheduled and the game would freeze silently.
+      try {
+        update(game.slowmo ? dt * 0.15 : dt);
+      } catch (err) {
+        game.simError = (err && err.message) || String(err);
+        if (!game._loggedSimError) { console.error("simulation error:", err); game._loggedSimError = true; }
+      }
       updateCamera(dt);               // camera stays smooth in real time
     }
     updateHint(dt);

@@ -37,6 +37,7 @@ function botRun(mapIdx, seedLabel) {
     // doors: kick what's in the way
     const d = nearestDoor(P.x, P.y, 50);
     if (d && d.state === 'closed') input.justPressed.add(d.locked ? 'f' : 'e');
+    else if (d && d.state === 'open' && frames % 97 === 0) input.justPressed.add('e');  // close it too
     // one bang into the hostage room when close
     if (!banged && dist(P.x, P.y, target.x, target.y) < TILE * 6 && game.hostages.includes(target)) {
       input.justPressed.add('g'); banged = true;

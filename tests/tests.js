@@ -445,3 +445,44 @@ console.log('  aim is independent of muzzle offset:', worst >= 0.95 ? 'CORRECT' 
 TUNE.eyeLateral = saved;
 console.log('AIM TEST DONE');
 })();
+
+(function crashAndRoomTests(){
+console.log('--- regressions: door close + room integrity ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const d = level.doors[0];
+openDoor(d, true);
+[game.player, ...game.squad, ...game.enemies, ...game.hostages, ...game.civilians]
+  .forEach(e => { if (e && e !== game.player) e.alive = false; });
+game.player.x = -999; game.player.y = -999;
+let threw = null;
+try { closeDoor(d); } catch (e) { threw = e.message; }
+console.log('  closeDoor on an open door:', threw ? 'THROWS — ' + threw : 'OK', threw ? 'WRONG' : 'CORRECT');
+console.log('  door actually closed:', d.state === 'closed' ? 'CORRECT' : 'WRONG (' + d.state + ')');
+
+// rooms must not leak through windows
+let worst = null;
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m; initGame();
+  const sizes = {};
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    const r = level.room[y][x]; if (r) sizes[r] = (sizes[r] || 0) + 1;
+  }
+  const biggest = Math.max(...Object.values(sizes));
+  const hostRooms = game.hostages.map(h => roomAt(h.x, h.y));
+  const blockers = hostRooms.map(r => game.enemies.filter(e => e.alive && roomAt(e.x, e.y) === r).length);
+  console.log(`  ${MAPS[m].name.padEnd(15)} rooms ${Object.keys(sizes).length}  largest ${biggest}t  ` +
+              `hostage rooms ${JSON.stringify(hostRooms)}  blockers ${JSON.stringify(blockers)}`);
+  if (worst === null || biggest > worst) worst = biggest;
+}
+// the real test is not room size (the exterior is legitimately huge) but whether a
+// hostage's room has leaked into the exterior where the team spawns
+let leaked = 0;
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m; initGame();
+  const spawnRoom = roomAt(level.spawns.player.x, level.spawns.player.y);
+  for (const h of game.hostages) if (roomAt(h.x, h.y) === spawnRoom) leaked++;
+}
+console.log('  hostages sharing a room with the spawn point:', leaked,
+            leaked === 0 ? 'CORRECT (interiors sealed from exterior)' : 'WRONG — rooms leaking outdoors');
+console.log('CRASH+ROOM TEST DONE');
+})();
