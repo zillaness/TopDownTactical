@@ -19,7 +19,7 @@ saved per mission.
 **Play:** open `top_down_tactical_v0.6.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
-**Art:** the 21-asset SVG sprite set lives inline in section S0 of the HTML,
+**Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
 between the `--- BEGIN SPRITES ---` / `--- END SPRITES ---` markers, so it can
 be regenerated and swapped wholesale. Contract: `viewBox="0 0 64 64"`, pivot at
 (32,32), authored facing **east (+X)**, faction color as a literal `#TEAMCOLOR`
