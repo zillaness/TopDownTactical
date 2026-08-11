@@ -751,3 +751,78 @@ console.log('  securing damages nobody: hostages alive ' +
             game.hostages.every(x => x.alive) ? 'CORRECT' : 'WRONG');
 console.log('INCIDENT TEST DONE');
 })();
+
+(function briefingTests(){
+console.log('--- briefing: intel derived from the map, and the call sheet ---');
+
+// surveying a map must never disturb the one you are standing in
+game.mapIndex = 0; initGame(); game.state = 'play';
+const sig = () => level.w + ':' + level.h + ':' + level.doors.length + ':' +
+                  level.spawns.enemies.length + ':' + level.spawns.hostages.length;
+const before = sig();
+for (let m = 0; m < MAPS.length; m++) surveyMap(MAPS[m].src, 2);
+console.log('  live level after surveying all six maps: ' + sig(),
+            sig() === before ? 'CORRECT (no globals touched)' : 'WRONG — clobbered ' + before);
+
+// the survey must agree with what parseLevel actually builds
+let drift = [];
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m; initGame();
+  const s = surveyMap(MAPS[m].src, game.diffIndex);
+  if (s.contacts !== level.spawns.enemies.length) drift.push(MAPS[m].name + ' contacts ' + s.contacts + ' vs ' + level.spawns.enemies.length);
+  if (s.hostages.length !== level.spawns.hostages.length) drift.push(MAPS[m].name + ' hostages');
+  if (s.doors !== level.doors.length) drift.push(MAPS[m].name + ' doors ' + s.doors + ' vs ' + level.doors.length);
+  if (s.windows !== level.windowAt.size) drift.push(MAPS[m].name + ' windows');
+  let dry = 0;
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (level.mat[y][x] === 'drywall') dry++;
+  if (Math.abs(dry - s.partitions) > 0) drift.push(MAPS[m].name + ' partitions ' + s.partitions + ' vs ' + dry);
+}
+console.log('  survey vs parseLevel across six maps:',
+            drift.length ? 'WRONG -> ' + drift.join('; ') : 'CORRECT (contacts, hostages, doors, windows, partitions)');
+
+// the contact estimate must be a band around the truth, never exact, never wild
+let bad = [];
+for (let m = 0; m < MAPS.length; m++) {
+  const s = surveyMap(MAPS[m].src, 1);
+  const band = contactBand(s.contacts, (MAPS[m].name.length * 7 + 13) | 0).split('–').map(Number);
+  if (!(band[0] <= s.contacts && s.contacts <= band[1])) bad.push(MAPS[m].name + ' band excludes truth');
+  if (band[0] === band[1]) bad.push(MAPS[m].name + ' band is exact');
+  if (band[1] - band[0] > 4) bad.push(MAPS[m].name + ' band too wide');
+}
+console.log('  contact estimate brackets the truth without giving it away:',
+            bad.length ? 'WRONG -> ' + bad.join('; ') : 'CORRECT');
+
+// armor intel must track the difficulty that actually arms them
+const r = briefingLines(MAPS[0], surveyMap(MAPS[0].src, 1), 1).find(l => l[0] === 'THEIR ARMOR')[1];
+const e = briefingLines(MAPS[0], surveyMap(MAPS[0].src, 2), 2).find(l => l[0] === 'THEIR ARMOR')[1];
+console.log('  armor intel REGULAR: "' + r.slice(0, 26) + '"');
+console.log('  armor intel ELITE:   "' + e.slice(0, 26) + '"',
+            /No body armour/.test(r) && /Soft armour/.test(e) ? 'CORRECT' : 'WRONG');
+
+// every mission's call sheet must name real plays
+let sheets = [], sheetBad = [];
+for (const m of MAPS) {
+  const sh = m.callSheet || [];
+  if (sh.length !== 3) sheetBad.push(m.name + ' sheet is not 3 long');
+  sh.forEach(k => { if (!PLAYS.find(p => p.key === k)) sheetBad.push(m.name + ' unknown play ' + k); });
+  sheets.push(sh.join());
+}
+console.log('  six call sheets, ' + new Set(sheets).size + ' distinct:',
+            sheetBad.length ? 'WRONG -> ' + sheetBad.join('; ') : 'CORRECT');
+
+// the call keys must not be keys that already mean something else
+const SELECT_KEYS = ['1', '2', '3', '4', '`', '~'];
+const CALL_KEYS = ['5', '6', '7'];
+const clash = CALL_KEYS.filter(k => SELECT_KEYS.includes(k));
+console.log('  call keys ' + CALL_KEYS.join('/') + ' vs selection keys ' + SELECT_KEYS.join('/') + ':',
+            clash.length ? 'WRONG -> ' + clash.join() : 'no overlap CORRECT');
+
+// calling a sheet slot must issue orders to the whole team
+game.mapIndex = 0; initGame(); game.state = 'play';
+game.callSheet = ['4', '3', '5'];
+const play = PLAYS.find(p => p.key === game.callSheet[0]);
+callPlay(play);
+console.log('  slot [5] = ' + play.name + ' -> orders ' + JSON.stringify(game.squad.map(s => s.order.type)),
+            game.squad.every(s => s.order.type !== 'follow') ? 'CORRECT (whole team moved)' : 'WRONG');
+console.log('BRIEFING TEST DONE');
+})();
