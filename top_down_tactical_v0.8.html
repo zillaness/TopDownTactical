@@ -234,13 +234,13 @@ function deg(d) { return d * Math.PI / 180; }
 // it is concealment, not cover — shoot through it if you have eyes some other way.
 const MATERIALS = {
   air:        { resist: 0,    opaque: false, spall: 0,  defl: 0,       dmgKeep: 1,    col: null },
-  concrete:   { resist: 999,  opaque: true,  spall: 5,  defl: 0,       dmgKeep: 0,    col: "#39434d" },
-  brick:      { resist: 30,   opaque: true,  spall: 11, defl: deg(9),  dmgKeep: 0.45, col: "#6b4a3f" },
-  wood:       { resist: 13,   opaque: true,  spall: 6,  defl: deg(6),  dmgKeep: 0.65, col: "#6b5535" },
-  drywall:    { resist: 5,    opaque: true,  spall: 3,  defl: deg(3.5),dmgKeep: 0.85, col: "#4a5058" },
-  glass:      { resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#7fc8e8" },
-  sheetmetal: { resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#5a6570" },
-  engine:     { resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#2f3841" },
+  concrete:   { name: "concrete", resist: 999,  opaque: true,  spall: 5,  defl: 0,       dmgKeep: 0,    col: "#39434d" },
+  brick:      { name: "brick", resist: 30,   opaque: true,  spall: 11, defl: deg(9),  dmgKeep: 0.45, col: "#6b4a3f" },
+  wood:       { name: "a wooden partition", resist: 13,   opaque: true,  spall: 6,  defl: deg(6),  dmgKeep: 0.65, col: "#6b5535" },
+  drywall:    { name: "drywall", resist: 5,    opaque: true,  spall: 3,  defl: deg(3.5),dmgKeep: 0.85, col: "#4a5058" },
+  glass:      { name: "glass", resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#7fc8e8" },
+  sheetmetal: { name: "sheet metal", resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#5a6570" },
+  engine:     { name: "an engine block", resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#2f3841" },
 };
 
 // ---- ammunition: penetration is caliber x projectile, and the two trade off
@@ -1117,6 +1117,7 @@ function applySpall(x, y, mat, side) {
     if (d > R) continue;
     const raw = mat.spall * (1 - d / R);
     if (raw <= 0.5) continue;
+    e._cause = { by: side, how: "fragments off " + (mat.name || "a wall") };
     // Fragments are low-energy: a plate carrier is very good against spall,
     // which is most of the point of wearing one.
     const res = throughArmor(e, raw, 6, e.x, e.y);
@@ -1164,6 +1165,7 @@ function resolveBarrier(b, hit) {
     b.pen -= mat.resist;
     b.dmg *= mat.dmgKeep;
     b.ang += rand(-mat.defl, mat.defl);          // it comes out crooked
+    b.penetrated = (b.penetrated || []).concat(mat.name || "a wall");
     // step past the tile we just punched through
     const skip = TILE * 1.05;
     b.x = hit.x + Math.cos(b.ang) * skip;
@@ -1264,6 +1266,7 @@ function throughArmor(ent, dmg, pen, hx, hy) {
 }
 
 function applyHit(ent, b, hx, hy) {
+  ent._cause = describeRound(b);
   const raw = b.dmg * rand(0.85, 1.15);
   const res = throughArmor(ent, raw, b.pen, hx, hy);
   ent.hp -= res.dmg;
@@ -1277,6 +1280,36 @@ function applyHit(ent, b, hx, hy) {
   if (ent.side === "enemy" && ent.state !== "combat" && ent.state !== "surrender" && ent.state !== "cuffed") alertEnemy(ent, hx, hy);
   if (ent.hp <= 0) killEntity(ent, b.side);
   else if (ent.side === "player") game.camKick = Math.min(10, game.camKick + 5);
+}
+
+// "A hostage was killed." is not a debrief, it is a rumour. A bystander death
+// has a cause, a place and someone responsible, and the game knows all three at
+// the moment it happens — so it should say so instead of making the player
+// guess whether they did it or whether the build glitched.
+function describeRound(b) {
+  const round = AMMO[(b.owner && b.owner.ammoType) || "fmj"] || AMMO.fmj;
+  let how = "a " + round.name + " round";
+  if (b.penetrated && b.penetrated.length) how += " that came through " + b.penetrated[0];
+  if (b.ricochets) how += " after skipping off a wall";
+  return { by: b.side, how };
+}
+
+const SIDE_NAME = { player: "you", squad: "your team", enemy: "a suspect" };
+
+function recordIncident(ent) {
+  const c = ent._cause || {};
+  const who = SIDE_NAME[c.by] || "something";
+  const what = ent.side === "hostage" ? (ent.secured ? "A secured hostage" : "A hostage")
+             : ent.side === "civ" ? "A civilian" : null;
+  if (!what) return null;
+  const inc = {
+    text: what + " was killed by " + who + " — " + (c.how || "cause unrecorded"),
+    byUs: c.by === "player" || c.by === "squad",
+    x: ent.x, y: ent.y, t: game.stats ? game.stats.time : 0,
+    secured: !!ent.secured,
+  };
+  game.incidents.push(inc);
+  return inc;
 }
 
 function killEntity(ent, bySide) {
@@ -1297,6 +1330,10 @@ function killEntity(ent, bySide) {
   if (ent.side === "hostage") {
     game.stats.hostagesDead++;
     if (!ent.secured) game.stats.hostagesDeadUnsecured++;
+  }
+  if (ent.side === "hostage" || ent.side === "civ") {
+    const inc = recordIncident(ent);
+    if (inc) { game.hint = inc.text; game.fx.push({ kind: "incident", x: ent.x, y: ent.y, t: 6, max: 6 }); }
   }
   if (ent.side === "player") { /* handled in mission fail check */ }
   addNoise(ent.x, ent.y, 120, "bodyfall", ent.side);
@@ -1458,6 +1495,7 @@ function applyBlast(cx, cy, side) {
     if (d > TUNE.blastWound) continue;
     if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;   // the wall shields the far side
     const t = clamp(1 - (d - TUNE.blastLethal) / (TUNE.blastWound - TUNE.blastLethal), 0, 1);
+    e._cause = { by: side, how: "the blast" };
     const rawBlast = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
     if (rawBlast <= 0) continue;
     const dmg = throughArmor(e, rawBlast, 16, e.x, e.y).dmg;   // overpressure and frag
@@ -2853,7 +2891,7 @@ function drawPlan(p) {
 // what emits light ("post", additive), and what is information rather than
 // scenery ("post", plain).
 const FX_EMITTER = new Set(["muzzle", "flash", "explosion", "tracer", "spark", "glass"]);
-const FX_OVERLAY = new Set(["bark", "noisering", "shout", "slam", "surrender"]);
+const FX_OVERLAY = new Set(["bark", "noisering", "shout", "slam", "surrender", "incident"]);
 
 function drawFx(pass) {
   const P = game.player;
@@ -2920,6 +2958,15 @@ function drawFx(pass) {
       if (!f.mine) ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.arc(f.x, f.y, peak * (1 - k) + 4, 0, TAU); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
+    } else if (f.kind === "incident") {
+      const pulse = 1 - (f.t / f.max);
+      ctx.strokeStyle = COLORS.danger; ctx.globalAlpha = clamp(k * 1.6, 0, 0.9);
+      ctx.lineWidth = 2 / game.zoom;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 14 + pulse * 6, 0, TAU); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(f.x - 8, f.y - 8); ctx.lineTo(f.x + 8, f.y + 8);
+      ctx.moveTo(f.x + 8, f.y - 8); ctx.lineTo(f.x - 8, f.y + 8);
+      ctx.stroke(); ctx.globalAlpha = 1;
     } else if (f.kind === "shout" || f.kind === "slam") {
       ctx.strokeStyle = f.kind === "shout" ? "#fff" : COLORS.accent; ctx.globalAlpha = k;
       ctx.beginPath(); ctx.arc(f.x, f.y, (1 - k) * 40 + 8, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
@@ -3274,7 +3321,7 @@ const game = {
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
-  playbook: false, pie: null, lastPlay: null,
+  playbook: false, pie: null, lastPlay: null, incidents: [],
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -3305,7 +3352,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.playbook = false; game.pie = null; game.lastPlay = null;
+  game.playbook = false; game.pie = null; game.lastPlay = null; game.incidents = [];
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -3347,6 +3394,7 @@ function updateExecutionTimer(dt) {
   if (game.execT <= 0) {
     const victim = nearestEntity(game.hostages, taker.x, taker.y, 1e9, h => h.alive && !h.secured);
     if (victim && dist(taker.x, taker.y, victim.x, victim.y) < 70) {
+      victim._cause = { by: "enemy", how: "executed by the hostage-taker" };
       victim.hp = 0; killEntity(victim, "enemy");
       game.fx.push({ kind: "blood", x: victim.x, y: victim.y, ang: rand(0, TAU), t: 0.4, max: 0.4 });
     } else {
@@ -3375,7 +3423,11 @@ const OBJECTIVES = {
     done() { return game.hostages.length > 0 && game.hostages.every(h => h.alive && h.secured); },
     // losing a hostage you had already secured and put on the floor is not the
     // same failure as losing one you never reached
-    failed() { return game.stats.hostagesDeadUnsecured > 0 ? "A hostage was killed." : null; },
+    failed() {
+      if (game.stats.hostagesDeadUnsecured <= 0) return null;
+      const inc = game.incidents.filter(i => !i.secured).pop();
+      return inc ? inc.text : "A hostage was killed.";
+    },
   },
   neutralize: {
     label() { return "THREATS " + threatsLeft(); },
@@ -3456,6 +3508,15 @@ function endMission(won, reason) {
   if (st.civsKilled) rows.push(`<div class="stat" style="color:#ff5555">Civilians dead: ${st.civsKilled} (by your team: ${st.civsKilledByUs})</div>`);
   rows.push(`<div class="stat">Squad lost: ${st.squadLost}/3</div>`);
   rows.push(`<div class="stat">Shots fired: ${st.shotsFired} · Flashbangs: ${st.bangsUsed} · Breaches: ${st.breaches}</div>`);
+  // Every bystander death, timestamped and attributed. A count tells you a
+  // number went up; this tells you what happened and whether it was you.
+  if (game.incidents.length) {
+    rows.push(`<br><div class="stat" style="color:#e8b53a">INCIDENTS</div>`);
+    for (const i of game.incidents) {
+      const mm = String(Math.floor(i.t / 60)).padStart(2, "0") + ":" + String(Math.floor(i.t % 60)).padStart(2, "0");
+      rows.push(`<div class="stat" style="color:${i.byUs ? "#ff5555" : "#c98a8a"}">${mm} &nbsp; ${i.text}</div>`);
+    }
+  }
   document.getElementById("debriefStats").innerHTML = rows.join("");
   document.getElementById("debrief").classList.remove("hidden");
 }

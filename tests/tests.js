@@ -693,3 +693,61 @@ console.log('  suspects wearing armor by tier: ' + JSON.stringify(worn),
               ? 'CORRECT (a difficulty axis, not a baseline)' : 'WRONG');
 console.log('ARMOR TEST DONE');
 })();
+
+(function incidentTests(){
+console.log('--- incidents: every bystander death names its cause ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const P = game.player;
+
+const kill = (setup) => {
+  game.mapIndex = 0; initGame(); game.state = 'play'; game.incidents.length = 0;
+  const h = game.hostages[0];
+  setup(h);
+  return game.incidents[0];
+};
+
+const cases = [
+  ['direct player round', h => { const P2 = game.player; P2.ammoType = 'fmj';
+      applyHit(h, { dmg: 999, ang: 0, pen: 26, side: 'player', owner: P2 }, h.x, h.y); }],
+  ['round through drywall', h => { const P2 = game.player; P2.ammoType = 'fmj';
+      applyHit(h, { dmg: 999, ang: 0, pen: 26, side: 'squad', owner: P2, penetrated: ['drywall'] }, h.x, h.y); }],
+  ['ricochet', h => { const P2 = game.player; P2.ammoType = 'fmj';
+      applyHit(h, { dmg: 999, ang: 0, pen: 26, side: 'enemy', owner: P2, ricochets: 1 }, h.x, h.y); }],
+  ['spall off brick', h => { h.hp = 1; applySpall(h.x + 8, h.y, MATERIALS.brick, 'player'); }],
+  ['breach blast', h => { h.hp = 1; applyBlast(h.x, h.y, 'squad'); }],
+  ['executed', h => { const t = game.enemies.find(e => e.kind === 'taker') || game.enemies[0];
+      t.kind = 'taker'; t.x = h.x + 10; t.y = h.y; game.alarm = true; game.execT = -1;
+      game.hostages.forEach((x, i) => { if (i) x.alive = false; });
+      updateExecutionTimer(0.016); }],
+];
+let missing = [];
+for (const [label, setup] of cases) {
+  const inc = kill(setup);
+  if (!inc) { missing.push(label + ': NO INCIDENT'); continue; }
+  if (/cause unrecorded/.test(inc.text)) missing.push(label + ': unattributed');
+  console.log('  ' + label.padEnd(22) + ' -> "' + inc.text + '"' + (inc.byUs ? '  [charged to you]' : ''));
+}
+console.log('  all six attributed:', missing.length ? 'WRONG -> ' + missing.join('; ') : 'CORRECT');
+
+// the failure message must carry the cause, not a shrug
+game.mapIndex = 0; initGame(); game.state = 'play'; game.incidents.length = 0;
+const h0 = game.hostages[0]; game.player.ammoType = 'fmj';
+applyHit(h0, { dmg: 999, ang: 0, pen: 26, side: 'player', owner: game.player, penetrated: ['drywall'] }, h0.x, h0.y);
+const msg = OBJECTIVES.rescue.failed();
+console.log('  mission failure text: "' + msg + '"',
+            msg && msg !== 'A hostage was killed.' && /drywall/.test(msg) ? 'CORRECT' : 'WRONG');
+
+// a secured hostage is prone and must not be a bullet target at all
+game.mapIndex = 0; initGame(); game.state = 'play';
+const h1 = game.hostages[0];
+game.enemies.forEach(e => e.alive = false);
+trySecureHostage(h1);
+const hitable = firstEntityOnSegment({ x: h1.x - 60, y: h1.y, side: 'player', owner: null }, h1.x + 60, h1.y);
+console.log('  secured hostage: prone=' + h1.prone + ', r=' + h1.r +
+            ', still a bullet target: ' + (hitable && hitable.ent === h1),
+            h1.prone && !(hitable && hitable.ent === h1) ? 'CORRECT' : 'WRONG');
+console.log('  securing damages nobody: hostages alive ' +
+            game.hostages.filter(x => x.alive).length + '/' + game.hostages.length,
+            game.hostages.every(x => x.alive) ? 'CORRECT' : 'WRONG');
+console.log('INCIDENT TEST DONE');
+})();
