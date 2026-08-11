@@ -99,7 +99,11 @@ can both drive this file.
 - (Opus) ✅ U31 CHECK FIRE warning — the squad already refused unsafe shots via clearShot(); the player now gets a red crosshair and a ring on whoever is in the line. Added after bot testing showed the player had no equivalent of the discipline the AI already had
 - ℹ correction: FLIGHT 214 was never reliably winnable by the test bot. An earlier claim that it was came from a single lucky run. Isolation testing (spall off / penetration off / both off) showed ballistics are NOT the cause — the bot simply fires down a packed tube with no fire discipline. Map fairness for a human is still unmeasured
 - (Opus) ✅ U32 briefing loadout: primary weapon (M4 / shotgun / MP5) with the ammunition list constrained to the weapon in hand, utility kits trading bangs against charges, squad templates assigning roles, and per-mission loadout advice
-- ▶ NEXT: cars as multi-tile props (sheet metal + engine block) and the extreme-rendition mission; ship boarding; assassination; compound infiltration with an `undetected` objective
+- (Opus) ✅ improvement study: 8 agents audited the build and researched the genre; 121 raw recommendations pruned to 38. Plan at improvement_plan_v1.0.md, measured evidence at tests/MEASUREMENTS.md
+- (Opus) ✅ CRITICAL fixes found by the study: closeDoor() ReferenceError that froze the render loop (and the HUD prompted you into it); room flood fill leaking through windows; hostage securing gated on flood-fill room identity, unsatisfiable on FLIGHT 214; HIGH VALUE deploying a one-man squad; debrief dead end making 5 of 6 missions unreachable after one completion. Bot wins after: FLIGHT 214 0/20 -> 11/20, THE PLANT 4/20 -> 10/20
+- (Opus) ✅ firing solution fixed: rounds were leaving the offset muzzle at the body-to-target angle, displacing every shot sideways — 45% hit rate at 10px offset on a stationary target with zero spread. Committed 82aec23
+- ▶ NEXT: per improvement_plan_v1.0.md session 1 — remaining feedback work, then STOP and play all six missions personally. Explicitly NOT more missions: content is not the constraint
+- ▶ SUPERSEDED: cars as multi-tile props (sheet metal + engine block) and the extreme-rendition mission; ship boarding; assassination; compound infiltration with an `undetected` objective
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
 ## Handoff

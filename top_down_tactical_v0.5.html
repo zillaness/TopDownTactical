@@ -91,6 +91,7 @@
   <div class="grade" id="debriefGrade">A</div>
   <div class="panel" id="debriefStats"></div>
   <button class="btn" id="btnRestart">Run It Again</button>
+  <button class="btn" id="btnDebriefMenu" style="background:#2a3138; margin-top:10px;">Mission Select</button>
 </div>
 
 <script>
@@ -545,8 +546,8 @@ const MAPS = [
 "#,,,,,,,,,,,#...........D.............#,,,,,,#",
 "#,,,,,,,,,,,#...........#.............#,,,,,,#",
 "#,,,,,,,,,,,#...........#######D#######,,,,,,#",
-"#,XXX,,,,,,,#..c........#.............#,,,,,,#",
-"#,XXP,,,,,,,D...........#.............#,,,,,,#",
+"#,XXXs,,,,,,#..c........#.............#,,,,,,#",
+"#,XXP,s,,,,,D...........#.............#,,,,,,#",
 "#,XXXs,,,,,,#...........#.............#,,,,,,#",
 "#,,,,,,,,,,,######D######.............#,,,,,,#",
 "#,,,,,,,,,,,#...........#.............#,,,,,,#",
@@ -573,6 +574,17 @@ let MAP_SRC = MAPS[0].src;
       if (row.length !== w) throw new Error(`${m.name} row ${y} length ${row.length} != ${w}`);
       if (!/^[#,.DLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
+    // A map that deploys the wrong number of people is silently broken — HIGH VALUE
+    // shipped with a one-man squad because the extraction block ate two spawn tiles.
+    const count = ch => m.src.reduce((n, r) => n + r.split(ch).length - 1, 0);
+    if (count("P") !== 1) throw new Error(`${m.name} declares ${count("P")} player spawns, needs exactly 1`);
+    if (count("s") < 3) throw new Error(`${m.name} declares ${count("s")} squad spawns, needs at least 3`);
+    if (m.objectives.includes("extract") && count("X") === 0)
+      throw new Error(`${m.name} has an extract objective but no X extraction tiles`);
+    if ((m.objectives.includes("capture") || m.objectives.includes("eliminate")) && count("V") === 0)
+      throw new Error(`${m.name} needs an HVT (V) for its objectives`);
+    if (m.objectives.includes("rescue") && count("h") === 0)
+      throw new Error(`${m.name} has a rescue objective but no hostages`);
   }
 })();
 
@@ -3038,6 +3050,23 @@ document.getElementById("btnStart").addEventListener("click", () => {
 });
 document.getElementById("btnAbort").addEventListener("click", () => startMission(true));
 document.getElementById("btnRestart").addEventListener("click", () => startMission(true));
+
+// Without this the debrief is a dead end: its only control restarted the SAME
+// mission, and Escape is ignored outside the play state, so five of six missions
+// became unreachable after your first completion without reloading the page.
+function toMissionSelect() {
+  game.state = "menu";
+  game.inProgress = false;
+  document.getElementById("debrief").classList.add("hidden");
+  document.getElementById("menu").classList.remove("hidden");
+  document.getElementById("btnStart").textContent = "Breach";
+  document.getElementById("btnAbort").style.display = "none";
+  refreshMenu();
+}
+document.getElementById("btnDebriefMenu").addEventListener("click", toMissionSelect);
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && game.state === "debrief") toMissionSelect();
+});
 
 requestAnimationFrame(frame);
 </script>
