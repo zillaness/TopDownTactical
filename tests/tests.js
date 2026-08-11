@@ -486,3 +486,54 @@ console.log('  hostages sharing a room with the spawn point:', leaked,
             leaked === 0 ? 'CORRECT (interiors sealed from exterior)' : 'WRONG — rooms leaking outdoors');
 console.log('CRASH+ROOM TEST DONE');
 })();
+
+(function feedbackTests(){
+console.log('--- feedback: damage direction, spall, corpse identity ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const P = game.player;
+
+// a round that lands tells you which way it came from
+game.hurt.length = 0;
+const inbound = deg(30);
+applyHit(P, { dmg: 10, ang: inbound, side: 'enemy' }, P.x + 8, P.y + 4);
+const arc = game.hurt[0];
+console.log('  round inbound on bearing ' + (inbound * 180 / Math.PI).toFixed(0) +
+            '° -> arc points at ' + (arc ? (arc.ang * 180 / Math.PI).toFixed(0) + '°' : 'NOTHING'),
+            arc && Math.abs(Math.abs(angDiff(arc.ang, inbound)) - Math.PI) < 0.01 ? 'CORRECT (back down the line)' : 'WRONG');
+
+// spall reports itself the way a hit does, instead of subtracting hp in silence
+game.hurt.length = 0; game.camKick = 0; game.fx.length = 0;
+const hpBefore = P.hp;
+applySpall(P.x + 14, P.y, MATERIALS.concrete, 'enemy');
+console.log('  spall at 14px: hp ' + hpBefore.toFixed(1) + ' -> ' + P.hp.toFixed(1) +
+            ', arcs ' + game.hurt.length + ', camKick ' + game.camKick.toFixed(1) +
+            ', fx ' + game.fx.length,
+            (P.hp < hpBefore && game.hurt.length === 1 && game.camKick > 0 && game.fx.length >= 2)
+              ? 'CORRECT' : 'WRONG (damage without feedback)');
+
+// only the player gets arcs — they are a HUD channel, not a world event
+game.hurt.length = 0;
+applySpall(game.squad[0].x + 10, game.squad[0].y, MATERIALS.concrete, 'enemy');
+console.log('  spall on a squaddie pushes ' + game.hurt.length + ' player arcs',
+            game.hurt.length === 0 ? 'CORRECT' : 'WRONG');
+
+// four categories the grade scores separately must not share one corpse colour
+const mk = (side, extra) => Object.assign({ side, r: 9 }, extra || {});
+const kinds = { operator: mk('squad'), player: mk('player'), hostage: mk('hostage'),
+                civilian: mk('civ'), suspect: mk('enemy'), executed: mk('enemy', { wasSurrendered: true }) };
+const cols = {}; for (const k in kinds) cols[k] = corpseTint(kinds[k]);
+const distinct = new Set(Object.values(cols)).size;
+console.log('  corpse tints ' + JSON.stringify(cols));
+console.log('  distinct colours: ' + distinct + '/6', distinct === 6 ? 'CORRECT' : 'WRONG');
+
+// the muzzle flash belongs on the muzzle, which is the whole premise
+P.face = 0; P.cooldown = 0; P.reloading = 0; P.ammo = 30; P.shoulder = 'strong'; P.handed = 'right';
+game.fx.length = 0;
+const eye = eyePoint(P);
+tryFire(P, aimAngle(P, P.x + 300, P.y));
+const flash = game.fx.find(f => f.kind === 'muzzle');
+console.log('  muzzle flash offset from the centreline: ' +
+            (flash ? Math.abs(flash.y - P.y).toFixed(1) + 'px (eye is ' + Math.abs(eye.y - P.y).toFixed(1) + 'px off)' : 'NO FLASH'),
+            flash && Math.abs(flash.y - eye.y) < 0.5 ? 'CORRECT (on the muzzle)' : 'WRONG (on the body)');
+console.log('FEEDBACK TEST DONE');
+})();

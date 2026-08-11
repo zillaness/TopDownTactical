@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.6.html
-  version: 0.6
+  file: top_down_tactical_v0.7.html
+  version: 0.7
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-07
+  last_updated: 2026-08-11
   description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.6 (working title)</title>
+<title>Top-Down Tactical v0.7 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -48,7 +48,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.6 prototype &mdash; working title &mdash; six missions</h2>
+  <h2>v0.7 prototype &mdash; working title &mdash; six missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -207,6 +207,7 @@ const TUNE = {
   shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
   supportSideSpread: 2.3,           // accuracy cost of shooting off the weak shoulder
   supportSideReact: 1.35,           // slower to break a shot off the weak shoulder
+  playerTurnRate: 22,               // rad/s-ish lerp: ~110ms for a 180° reversal
 
   // surrender / compliance
   surrenderBase: 0.10,          // per shout, unmodified
@@ -937,8 +938,11 @@ function updatePlayer(p, dt) {
     if (!p.walking) emitFootstepNoise(p, dt);
   }
 
-  // aim
-  p.face = angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy);
+  // Aim. The body turns like a person — every other actor in the file uses
+  // angLerp — but the firing solution below still reads the true cursor angle,
+  // so nothing is lost off the mouse. Only the sprite and the shoulder lag.
+  p.face = angLerp(p.face, angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy),
+                   clamp(dt * TUNE.playerTurnRate, 0, 1));
 
   // weapon
   updateShooterWeapon(p, dt);
@@ -1054,7 +1058,9 @@ function tryFire(s, ang) {
       traveled: 0, range: s.weapon.range, alive: true, owner: s,
     });
   }
-  game.fx.push({ kind: "muzzle", x: s.x + Math.cos(ang) * (s.r + 6), y: s.y + Math.sin(ang) * (s.r + 6), ang, t: 0.05, max: 0.05 });
+  // The flash belongs on the muzzle, not the centreline — the whole point of
+  // the corner game is that those are not the same place.
+  game.fx.push({ kind: "muzzle", x: eye.x + Math.cos(ang) * 7, y: eye.y + Math.sin(ang) * 7, ang, t: 0.05, max: 0.05 });
   addNoise(s.x, s.y, TUNE.noiseShot, "shot", s.side);
   sfxAt("shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
@@ -1075,7 +1081,14 @@ function applySpall(x, y, mat, side) {
     const dmg = mat.spall * (1 - d / R);
     if (dmg <= 0.5) continue;
     e.hp -= dmg;
+    // Spall used to subtract hp and push one spark. A player correctly using
+    // cover concluded the game was damaging them at random — so it reports
+    // itself through the same channels as a hit.
     game.fx.push({ kind: "spark", x: e.x, y: e.y, t: 0.1, max: 0.1 });
+    game.fx.push({ kind: "blood", x: e.x, y: e.y, ang: angleTo(x, y, e.x, e.y), t: 0.3, max: 0.3 });
+    sfxAt("hit", e.x, e.y);
+    noteHurt(e, angleTo(e.x, e.y, x, y));
+    if (e === game.player) game.camKick = Math.min(8, game.camKick + 2.5 + dmg * 0.2);
     if (e.hp <= 0) killEntity(e, side);
   }
 }
@@ -1178,11 +1191,21 @@ function segCircle(x1, y1, x2, y2, cx, cy, r) {
   return { x: px, y: py, d: t * Math.sqrt(len2) };
 }
 
+// An undirected camera jolt is not information. Record the bearing the damage
+// came from so the HUD can point at it — the honest answer to a shooter who is
+// legitimately off-screen, which telemetry puts at 4% of rounds that land.
+function noteHurt(ent, ang) {
+  if (ent !== game.player) return;
+  game.hurt.push({ ang, t: 0.9, max: 0.9 });
+  if (game.hurt.length > 6) game.hurt.shift();
+}
+
 function applyHit(ent, b, hx, hy) {
   ent.hp -= b.dmg * rand(0.85, 1.15);
   game.fx.push({ kind: "blood", x: hx, y: hy, ang: b.ang, t: 0.4, max: 0.4 });
   sfxAt("hit", hx, hy);
   game.decals.push({ x: hx + Math.cos(b.ang) * rand(2, 14), y: hy + Math.sin(b.ang) * rand(2, 14), r: rand(3, 7) });
+  noteHurt(ent, b.ang + Math.PI);   // back along the round's travel = the shooter
   if (ent.side === "enemy" && ent.state !== "combat" && ent.state !== "surrender" && ent.state !== "cuffed") alertEnemy(ent, hx, hy);
   if (ent.hp <= 0) killEntity(ent, b.side);
   else if (ent.side === "player") game.camKick = Math.min(10, game.camKick + 5);
@@ -1191,8 +1214,10 @@ function applyHit(ent, b, hx, hy) {
 function killEntity(ent, bySide) {
   if (!ent.alive) return;
   ent.alive = false;
+  ent.deadAt = game.stats ? game.stats.time : 0;
+  ent.deadSpin = rand(-0.5, 0.5);
   if (ent.side === "enemy") {
-    if (ent.state === "surrender" || ent.state === "cuffed") game.stats.surrenderedKilled++;
+    if (ent.state === "surrender" || ent.state === "cuffed") { game.stats.surrenderedKilled++; ent.wasSurrendered = true; }
     game.stats.kills++;
   }
   if (ent.side === "squad") {
@@ -1267,6 +1292,7 @@ function detonateBang(g) {
     if (!lineOfSight(g.x, g.y, ent.x, ent.y, opaque)) return;
     ent.blind = Math.max(ent.blind, dur);
     ent.stagger = Math.max(ent.stagger, dur * 0.6);
+    if (ent === game.player) sfxFlashed(dur);
     if (ent.side === "enemy") { ent.flashedRecently = TUNE.bangBlindEnemy; alertEnemy(ent, g.x, g.y); }
   };
   for (const e of game.enemies) affect(e, TUNE.bangBlindEnemy);
@@ -1368,6 +1394,7 @@ function applyBlast(cx, cy, side) {
     if (dmg <= 0) continue;
     e.hp -= dmg;
     game.fx.push({ kind: "blood", x: e.x, y: e.y, ang: angleTo(cx, cy, e.x, e.y), t: 0.4, max: 0.4 });
+    noteHurt(e, angleTo(e.x, e.y, cx, cy));
     if (e.hp <= 0) killEntity(e, side);
   }
 }
@@ -2181,8 +2208,8 @@ function render() {
   ctx.fillStyle = "#aab2ba";
   for (const g of game.bangs) { ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, TAU); ctx.fill(); }
 
-  // fx
-  drawFx();
+  // fx the world occludes — blood, and anything else the fog should dim
+  drawFx("pre");
 
   // fog: dim everything outside the player's current view
   if (game.player.alive) {
@@ -2205,6 +2232,10 @@ function render() {
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     if (inBounds(tx, ty) && !seen.grid[ty][tx]) ctx.fillRect(tx * TILE - 0.5, ty * TILE - 0.5, TILE + 1, TILE + 1);
   }
+
+  // light emitters and information rings go ON TOP of the fog: a muzzle flash
+  // that is dimmed 86% is not a muzzle flash
+  drawFx("post");
 
   // shoulder pip: shows which side your eye is on, so the corner game is learnable
   if (game.player.alive && game.eye) {
@@ -2288,8 +2319,27 @@ function squadSpriteFor(s) {
   return (ROLES[s.role] && ROLES[s.role].sprite) || SQUAD_SPRITES[s.slot % 3] || "squad_rifleman";
 }
 
+// A dead hostage, a dead operator, an executed surrendered suspect and a dead
+// patrolman are four things `computeGrade` scores separately. One corpse colour
+// for all four leaves the room illegible until a debrief screen.
+function dimHex(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 255) * f), g = Math.round(((n >> 8) & 255) * f), b = Math.round((n & 255) * f);
+  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+
+function corpseTint(e) {
+  const base = e.side === "player" ? COLORS.player
+             : e.side === "squad" ? COLORS.squad
+             : e.side === "hostage" ? COLORS.hostage
+             : e.side === "civ" ? COLORS.civilian
+             : e.wasSurrendered ? COLORS.surrendered
+             : COLORS.enemy;
+  return dimHex(base, 0.45);
+}
+
 function spriteFor(e, dead) {
-  if (dead) return { key: "corpse", tint: COLORS.corpse };
+  if (dead) return { key: "corpse", tint: corpseTint(e) };
   if (e.side === "player") return { key: "player", tint: COLORS.player };
   if (e.side === "squad")  return { key: squadSpriteFor(e), tint: COLORS.squad };
   if (e.side === "enemy") {
@@ -2310,13 +2360,22 @@ function spriteFor(e, dead) {
 
 // Handedness is a Y-flip, NOT an X-flip: sprites face +X, so the unit's
 // left/right lie along ±Y. Flipping X would reverse the facing direction.
-function blitSprite(sp, x, y, ang, handed) {
+function blitSprite(sp, x, y, ang, handed, scale) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(ang);
   if (handed === "left") ctx.scale(1, -1);
+  if (scale && scale !== 1) ctx.scale(scale, scale);
   ctx.drawImage(sp.canvas, -SPRITE_PX / 2, -SPRITE_PX / 2, SPRITE_PX, SPRITE_PX);
   ctx.restore();
+}
+
+// Bodies used to snap from standing to dead on the tile lattice. A third of a
+// second of settle is the whole cost of them reading as having fallen.
+function deadSettle(e) {
+  if (!e.deadAt && e.deadAt !== 0) return { k: 1, scale: 0.85, spin: 0 };
+  const k = clamp(((game.stats ? game.stats.time : 0) - e.deadAt) / 0.35, 0, 1);
+  return { k, scale: 1 - 0.15 * k, spin: (e.deadSpin || 0) * k };
 }
 
 function drawDoor(d) {
@@ -2346,7 +2405,8 @@ function drawBody(e, dead) {
   const s = spriteFor(e, dead);
   const sp = s ? getSprite(s.key, s.tint) : null;
   if (sp && sp.ready) {
-    blitSprite(sp, e.x, e.y, e.face || 0, e.handed);
+    const st = dead ? deadSettle(e) : null;
+    blitSprite(sp, e.x, e.y, (e.face || 0) + (st ? st.spin : 0), e.handed, st ? st.scale : 1);
     if (!dead && e.blind > 0) {
       ctx.fillStyle = "rgba(255,255,200,0.5)";
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU); ctx.fill();
@@ -2368,7 +2428,7 @@ function drawBody(e, dead) {
   else if (e.side === "civ") col = COLORS.civilian;
   else if (e.side === "enemy") col = e.state === "cuffed" ? COLORS.cuffed : e.state === "surrender" ? COLORS.surrendered : e.kind === "elite" ? "#b03a8c" : COLORS.enemy;
   if (dead) {
-    ctx.fillStyle = COLORS.corpse; ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = corpseTint(e); ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = "#2a1515"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-e.r * 0.7, -e.r * 0.7); ctx.lineTo(e.r * 0.7, e.r * 0.7);
     ctx.moveTo(e.r * 0.7, -e.r * 0.7); ctx.lineTo(-e.r * 0.7, e.r * 0.7); ctx.stroke();
@@ -2421,9 +2481,25 @@ function drawPlan(p) {
   ctx.fillText(label, c.x, c.y - 14);
 }
 
-function drawFx() {
+// Everything used to be painted before the fog, which then dimmed the whole
+// frame 86% — so firing in a dark corridor lit nothing and a noise ring two
+// rooms away was invisible. Three passes now: what the world occludes ("pre"),
+// what emits light ("post", additive), and what is information rather than
+// scenery ("post", plain).
+const FX_EMITTER = new Set(["muzzle", "flash", "explosion", "tracer", "spark", "glass"]);
+const FX_OVERLAY = new Set(["bark", "noisering", "shout", "slam", "surrender"]);
+
+function drawFx(pass) {
   const P = game.player;
+  const post = pass === "post";
+  let lit = false;
   for (const f of game.fx) {
+    const emitter = FX_EMITTER.has(f.kind), overlay = FX_OVERLAY.has(f.kind);
+    if (post !== (emitter || overlay)) continue;
+    if (post) {
+      const want = emitter;
+      if (want !== lit) { ctx.globalCompositeOperation = want ? "lighter" : "source-over"; lit = want; }
+    }
     // combat fx you couldn't actually see stay hidden; loud events (flash,
     // explosion, shout rings) deliberately telegraph through walls
     if ((f.kind === "muzzle" || f.kind === "spark" || f.kind === "blood")
@@ -2487,14 +2563,38 @@ function drawFx() {
       ctx.fillText("HANDS UP!", f.x, f.y - 16); ctx.globalAlpha = 1;
     }
   }
+  if (lit) ctx.globalCompositeOperation = "source-over";
 }
 
 function drawHud() {
   const p = game.player;
   ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
+
+  // Blind and stagger take the controls away for up to 1.1s. Nothing used to
+  // render either state, so the honest reading of a self-bang was "the build
+  // froze". Wash the screen, name the state, and point at what hit you.
+  if (p.blind > 0) {
+    const a = Math.pow(clamp(p.blind / TUNE.bangBlindFriendly, 0, 1), 0.5) * 0.92;
+    ctx.fillStyle = "rgba(255,255,255," + a.toFixed(3) + ")";
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  if (game.hurt.length) {
+    const psx = (p.x - game.cam.x) * game.zoom + viewW / 2;
+    const psy = (p.y - game.cam.y) * game.zoom + viewH / 2;
+    ctx.lineWidth = 7;
+    for (const h of game.hurt) {
+      const k = clamp(h.t / h.max, 0, 1);
+      ctx.strokeStyle = "rgba(255,85,85," + (k * 0.8).toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.arc(psx, psy, 118, h.ang - deg(20), h.ang + deg(20));
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1.5;
+  }
+
   // player status (bottom left)
   const bx = 18, by = viewH - 74;
-  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 240, 76);
+  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 292, 76);
   ctx.fillStyle = COLORS.hud; ctx.fillText("POINT MAN (YOU)", bx, by - 4);
   ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
   ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
@@ -2506,6 +2606,16 @@ function drawHud() {
                + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 26);
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
+  // Losing the controls needs to be the loudest thing on screen, not a note in
+  // the corner: the state lasts about a second and reads as a freeze otherwise.
+  if (p.blind > 0 || p.stagger > 0) {
+    const word = p.blind > 0 ? "FLASHED — " + p.blind.toFixed(1) + "s"
+                             : "STUNNED — " + p.stagger.toFixed(1) + "s";
+    ctx.textAlign = "center"; ctx.font = "bold 22px Consolas, monospace";
+    ctx.fillStyle = "#000c"; ctx.fillRect(viewW / 2 - 150, viewH / 2 + 60, 300, 34);
+    ctx.fillStyle = COLORS.danger; ctx.fillText(word, viewW / 2, viewH / 2 + 84);
+    ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
+  }
   // squad panel (top left)
   game.squad.forEach((s, i) => {
     const sy = 18 + i * 44;
@@ -2565,13 +2675,17 @@ function drawHud() {
     ctx.fillText("COMMAND — release [TAB] to resume", viewW / 2, viewH / 2 - 110);
     ctx.font = "13px Consolas, monospace";
   }
-  // crosshair with spread gap
+  // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
+  // the two most important negative states on one signal. Blind is now a white
+  // bloom carrying no spread information, because you cannot aim.
   const m = input.mouse;
+  const blind = p.blind > 0;
   const spreadPx = Math.tan(currentSpread(p) / 2) * dist(p.x, p.y, m.wx, m.wy) * game.zoom;
-  const gap = clamp(4 + spreadPx, 4, 60);
+  const gap = blind ? 30 : clamp(4 + spreadPx, 4, 60);
   const hazard = lineOfFireHazard(p);
-  ctx.strokeStyle = hazard ? COLORS.danger : p.blind > 0 ? COLORS.danger : "#ffffffcc";
-  ctx.lineWidth = hazard ? 2.5 : 1.5;
+  // mid-tone while blind: white would vanish into the wash it sits on
+  ctx.strokeStyle = hazard ? COLORS.danger : blind ? COLORS.hudDim : "#ffffffcc";
+  ctx.lineWidth = hazard ? 2.5 : blind ? 4 : 1.5;
   for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
     ctx.beginPath(); ctx.moveTo(m.x + ox * gap, m.y + oy * gap); ctx.lineTo(m.x + ox * (gap + 7), m.y + oy * (gap + 7)); ctx.stroke();
   }
@@ -2688,6 +2802,28 @@ function sfxAt(name, x, y) {
   try { SFX[name](vol, pan); } catch (e) {}
 }
 
+// Tinnitus. This one is in your head, so it bypasses sfxAt's distance model and
+// routes past masterGain — which is simultaneously ducked, because ducking the
+// world is what actually sells a bang.
+function sfxFlashed(dur) {
+  if (!AC || !masterGain) return;
+  try {
+    const t0 = AC.currentTime, ring = Math.max(1.4, dur * 2.2);
+    const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = 4200;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.10, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + ring);
+    o.connect(g); g.connect(AC.destination);          // past the duck, into your ears
+    o.start(t0); o.stop(t0 + ring + 0.05);
+    const base = 0.4;
+    masterGain.gain.cancelScheduledValues(t0);
+    masterGain.gain.setValueAtTime(base, t0);
+    masterGain.gain.linearRampToValueAtTime(0.06, t0 + 0.04);
+    masterGain.gain.linearRampToValueAtTime(base, t0 + 0.04 + Math.max(0.6, dur));
+  } catch (e) {}
+}
+
 // ---------------------------------------------------------------- S12 game
 const DIFFICULTIES = [
   { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 32, surrender: 1.35 },
@@ -2703,7 +2839,7 @@ const game = {
   zoom: 1.6,
   loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard" },
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
-  bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [],
+  bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, mirror: null, wallCharge: null,
   hint: "", _hintPrev: "", _hintT: 0,
@@ -2727,7 +2863,7 @@ function initGame() {
   game.enemies = level.spawns.enemies.map(makeEnemy);
   game.hostages = level.spawns.hostages.map(sp => makeCivilian(sp, true));
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
-  game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = [];
+  game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = [];
   game.selected = new Set();
   game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
   game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.mirror = null; game.wallCharge = null;
@@ -2761,6 +2897,8 @@ function update(dt) {
 function updateFx(dt) {
   for (const f of game.fx) f.t -= dt;
   game.fx = game.fx.filter(f => f.t > 0);
+  for (const h of game.hurt) h.t -= dt;
+  game.hurt = game.hurt.filter(h => h.t > 0);
   if (game.decals.length > 400) game.decals.splice(0, game.decals.length - 400);
 }
 
@@ -3127,6 +3265,22 @@ requestAnimationFrame(frame);
     improvement study: the closeDoor crash that froze the render loop, rooms leaking
     through windows, the hostage gate, HIGH VALUE's one-man squad, the debrief dead
     end, and the firing solution being computed from the body instead of the muzzle.
+  v0.7 (2026-08-11): Feedback pass — the seconds where the game used to stop
+    talking. Blind and stagger now wash the screen, name themselves in a centred
+    banner, and ring in your ears through a ducked mix, instead of silently
+    disabling WASD and the trigger for a second; blind and CHECK FIRE no longer
+    share one colour. Rounds that land push a directional arc on the true inbound
+    bearing, which is the honest answer to a shooter who is legitimately
+    off-screen. Spall reports itself through blood, sound and camera kick rather
+    than subtracting hp in silence. Effects are drawn in three passes — world,
+    additive light emitters, information overlays — so a muzzle flash is no longer
+    painted and then dimmed 86% by the fog laid over it, and the flash itself has
+    moved to the muzzle, which is the entire premise of the corner game. Corpses
+    are tinted by side, so an operator, a hostage, a civilian, a suspect and an
+    executed suspect are five readable facts about the room instead of one colour,
+    and they settle over a third of a second instead of snapping to the lattice.
+    The player's body turns at a human rate (~110ms for a 180 reversal) while the
+    firing solution still reads the true cursor exactly.
 -->
 </body>
 </html>

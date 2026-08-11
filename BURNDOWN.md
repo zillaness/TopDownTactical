@@ -3,7 +3,7 @@ file: BURNDOWN.md (top-down-tactical)
 version: 1.0
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-07
+last_updated: 2026-08-11
 description: Living ranked backlog and checkpoint ledger for the top-down-tactical project, compatible with the token-burndown skill's ledger format.
 ai_update: Update last_updated in this frontmatter (filename stays BURNDOWN.md). Keep the ▶ NEXT line current at all times. Append ✅ ledger lines with commit hashes as units finish; never delete finished lines. Bump version only on structural changes to this file.
 ---
@@ -103,7 +103,8 @@ can both drive this file.
 - (Opus) ✅ CRITICAL fixes found by the study: closeDoor() ReferenceError that froze the render loop (and the HUD prompted you into it); room flood fill leaking through windows; hostage securing gated on flood-fill room identity, unsatisfiable on FLIGHT 214; HIGH VALUE deploying a one-man squad; debrief dead end making 5 of 6 missions unreachable after one completion. Bot wins after: FLIGHT 214 0/20 -> 11/20, THE PLANT 4/20 -> 10/20
 - (Opus) ✅ firing solution fixed: rounds were leaving the offset muzzle at the body-to-target angle, displacing every shot sideways — 45% hit rate at 10px offset on a stationary target with zero spread. Committed 82aec23
 - (Opus) ✅ sprite set v2 integrated (27 assets): realistic helmets with NVG shrouds, top-plan weapons distinguishable by silhouette, correct two-handed arm geometry, dedicated enemy_hvt, five night variants held unused. Validated before swap — every weapon centreline at y=36 as specced, nothing out of bounds, no external refs. Game → v0.6
-- ▶ NEXT: per improvement_plan_v1.0.md session 1 — remaining feedback work, then STOP and play all six missions personally. Explicitly NOT more missions: content is not the constraint
+- (Opus) ✅ session 1 feedback batch (plan item 5 + theme A4 + theme D6), game → v0.7: full-screen wash and a centred FLASHED/STUNNED banner for the ~1s the controls are taken away, plus a tinnitus tone routed past the duck; directional damage arcs from the true inbound bearing (the honest answer to an off-screen shooter); spall now reports through the same channels as a hit instead of subtracting hp in silence; drawFx split into pre-fog / additive-emitter / overlay passes so a muzzle flash is no longer dimmed 86% by the fog painted over it; muzzle flash moved to eyePoint, which is the whole premise of the corner game; corpses tinted by side so the four categories computeGrade scores separately are four colours, with a 0.35s settle; player facing rate-limited to ~110ms for a 180° reversal while the firing solution still reads the true cursor (verified 0.0000px error). Five headless regressions added; render path verified in Chromium since the harness never calls render()
+- ▶ NEXT: **STOP CODING — play all six missions on REGULAR and write down every sentence you say out loud.** That playtest is the deliverable of session 1, not more code. Session 2 (make the fight losable) is entirely justified by a harness that aims perfectly and never takes cover
 - ▶ SUPERSEDED: cars as multi-tile props (sheet metal + engine block) and the extreme-rendition mission; ship boarding; assassination; compound infiltration with an `undetected` objective
 - 08:00 ⏸ PAUSED on schedule — tokens reset; fresh quota untouched. Tree clean, branch fully pushed, no work in flight.
 
