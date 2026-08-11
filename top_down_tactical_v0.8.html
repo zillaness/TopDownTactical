@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.7.html
-  version: 0.7
+  file: top_down_tactical_v0.8.html
+  version: 0.8
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.7 (working title)</title>
+<title>Top-Down Tactical v0.8 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -48,7 +48,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.7 prototype &mdash; working title &mdash; six missions</h2>
+  <h2>v0.8 prototype &mdash; working title &mdash; six missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -3725,6 +3725,21 @@ requestAnimationFrame(frame);
     and they settle over a third of a second instead of snapping to the lattice.
     The player's body turns at a human rate (~110ms for a 180 reversal) while the
     firing solution still reads the true cursor exactly.
+  v0.8 (2026-08-11): Plays, formation, and armour. The squad travels in a wedge
+    instead of a huddle — each slot holds a bearing off your facing so nobody is
+    ever downrange of you, and on station they cover flanks and rear rather than
+    all staring where you stare. Measured: the squad's share of team fire went
+    from 3.6% to 17.7% and clearShot went from allowing 3.4% of engagements to
+    67%. A blocked man now steps off the line instead of standing there mute, and
+    the squad only acquires inside the 160-degree arc it reports contacts through.
+    The playbook (P) calls five plays with one key at command time: dynamic entry
+    to points of domination read out of the room's own flood fill, slicing the pie
+    from three angles outside the door, the travel wedge, anchoring on split
+    sectors, and closing up to cover you. You are #1; they are #2, #3 and #4, and
+    the plays assign roles by those numbers. Body armour treats a plate as a
+    material you wear: IIIA turns pistol and shot, III adds rifle ball, IV turns
+    armour-piercing, every tier costs move speed, plates wear out after a handful
+    of hits, and a fifth of hits miss the armour entirely.
 -->
 </body>
 </html>
