@@ -715,8 +715,10 @@ const cases = [
       applyHit(h, { dmg: 999, ang: 0, pen: 26, side: 'enemy', owner: P2, ricochets: 1 }, h.x, h.y); }],
   ['spall off brick', h => { h.hp = 1; applySpall(h.x + 8, h.y, MATERIALS.brick, 'player'); }],
   ['breach blast', h => { h.hp = 1; applyBlast(h.x, h.y, 'squad'); }],
+  // the clock is the taker's own awareness now, not the global flag
   ['executed', h => { const t = game.enemies.find(e => e.kind === 'taker') || game.enemies[0];
-      t.kind = 'taker'; t.x = h.x + 10; t.y = h.y; game.alarm = true; game.execT = -1;
+      t.kind = 'taker'; t.x = h.x + 10; t.y = h.y; t.alerted = true; t.state = 'hunt';
+      game.alarm = true; game.execT = -1;
       game.hostages.forEach((x, i) => { if (i) x.alive = false; });
       updateExecutionTimer(0.016); }],
 ];
