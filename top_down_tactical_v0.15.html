@@ -59,7 +59,7 @@
     <h3>You are the point man</h3>
     <table>
       <tr><td class="key">W A S D</td><td>move</td><td class="key">Mouse</td><td>aim &middot; LMB shoot</td></tr>
-      <tr><td class="key">Shift</td><td>sprint &mdash; fast and loud, you cannot shoot from it, and armour limits how long</td><td class="key">Space</td><td>steady &mdash; slow, silent, tightest cone</td></tr>
+      <tr><td class="key">Shift</td><td>sprint &mdash; fast and loud, 17&deg; cone so you can barely hit anything, and armour limits how long</td><td class="key">Space</td><td>steady &mdash; slow, silent, tightest cone</td></tr>
       <tr><td class="key">R</td><td>reload</td><td class="key">Tab</td><td>tactical pause (orders still work)</td></tr>
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
@@ -1516,8 +1516,9 @@ function updatePlayer(p, dt) {
   let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
   let dy = (held("s") ? 1 : 0) - (held("w") ? 1 : 0);
   // Three gaits on two modifiers: SPACE settles you down to a quiet, steady
-  // walk; SHIFT opens you up to a sprint you cannot shoot from and cannot hold
-  // forever. Nothing held is the honest middle.
+  // walk; SHIFT opens you up to a sprint you can technically shoot from and
+  // will not hit anything with, and cannot hold forever. Nothing held is the
+  // honest middle.
   p.steady = held(" ");
   const wantSprint = held("shift") && !p.steady;
   updateStamina(p, dt, wantSprint);
