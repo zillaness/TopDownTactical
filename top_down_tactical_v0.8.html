@@ -227,6 +227,11 @@ const TUNE = {
   leftHandedRate: 0.1,              // ~1 in 10, as in life
   shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
   gunSwapTime: 0.35,                // dead time going to the sidearm and back
+
+  // suppression: rounds that crack past keep a man's head down
+  suppressRadius: 46, suppressPerRound: 0.34, suppressMax: 2.4, suppressDecay: 0.8,
+  suppressPinned: 1.2,              // above this he stops shooting back
+  suppressSpread: deg(7),           // how much his aim opens up at full suppression
   supportSideSpread: 2.3,           // accuracy cost of shooting off the weak shoulder
   supportSideReact: 1.35,           // slower to break a shot off the weak shoulder
   playerTurnRate: 22,               // rad/s-ish lerp: ~110ms for a 180° reversal
@@ -806,6 +811,39 @@ const MAPS = [
 ",,,,,,###############################W#W####,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
+{ name: "THE PILLBOX", advice: "Open ground into firing slits. Put the belt-fed on the slits and bound the rest of the team up, or take the long way round to the back door.", brief: "Fortified strongpoint across open ground — suppress and bound, or flank",
+  type: "ASSAULT — FORTIFIED POSITION", objectives: ["neutralize"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,#################,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,.................,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,.................,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,=.,,,,,,,,,,,,,..,",
+",,,,,,,,,,,,,,,,,,,,,,,==,,,.g,,,,,,,,,,,,,..,",
+",,,,,,,,,==,,,,,,,,,,,,==,,,..,,,,,,,,,,,,,..,",
+",,,,,,,,,==,,,,,,p,,,,,==,,,.=,,,,,,,,,,,,,..,",
+",,,,,,,,,==,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,..,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,,,,,,,,,,,,,,,,,..,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,,,,,#########,,,..,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......#,,,..,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......#,,,..,",
+",,,,,,,,,,,,,,,,,,,%%,===,,,,,,W...-...#,,,..,",
+",,s,,,,,===,,,,,,,,%%,===,,,,,,#.E.-...#,,,..,",
+",,,,,,,,===,,,,,,,,,,,,,,,,,,,,W...-...#,,,..,",
+",sP,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.....g.D.....,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,W...-...#.....,",
+",,s,,,,,,,,,,,,,,===,,,,,,,,,,,#.g.-...#,,,,,,",
+",,,,,,,,,,,,,,,,,===,,,,,,,,,,,W.......#,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......#,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,==,,,,,#########,,,,,,",
+",,,,,,,,,,==,,,,,,,,,,,,==,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,==,,,,,,p,,,,,==,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,==,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,==,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,==,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] }
 ];
 let MAP_SRC = MAPS[0].src;
@@ -1163,6 +1201,8 @@ function makePlayer(sp) {
 function currentSpread(s) {
   const t = s.weapon;
   let sp = t.spreadBase + s.recoil;
+  // incoming fire opens everyone's cone, yours included
+  if (s.suppress) sp += TUNE.suppressSpread * clamp(s.suppress / TUNE.suppressMax, 0, 1);
   if (s.moving) sp += s.walking ? (t.spreadWalkMove ?? t.spreadMove * 0.45) : t.spreadMove;
   if (s.shoulder === "support") sp *= TUNE.supportSideSpread;
   return sp;
@@ -1236,6 +1276,7 @@ function updatePlayer(p, dt) {
   p.blind = Math.max(0, p.blind - dt);
   p.stagger = Math.max(0, p.stagger - dt);
   p.shoutCd = Math.max(0, p.shoutCd - dt);
+  p.suppress = Math.max(0, (p.suppress || 0) - dt * TUNE.suppressDecay);
   updateShoulder(p, dt);
 
   // movement
@@ -1496,6 +1537,23 @@ function resolveBarrier(b, hit) {
   b.alive = false;
 }
 
+// A round that misses by a foot is not a miss. Anything that cracks past you
+// keeps your head down — which is the entire reason a base of fire exists, and
+// the reason the SUPPORT gunner's belt-fed is worth carrying.
+function suppressAlong(b, ex, ey) {
+  const victims = b.side === "enemy" ? [game.player, ...game.squad] : game.enemies;
+  for (const e of victims) {
+    if (!e || !e.alive || e === b.owner) continue;
+    if (e.state === "surrender" || e.state === "cuffed") continue;
+    const h = segCircle(b.x, b.y, ex, ey, e.x, e.y, TUNE.suppressRadius);
+    if (!h) continue;
+    const near = dist(h.x, h.y, e.x, e.y);
+    const add = TUNE.suppressPerRound * (1 - near / TUNE.suppressRadius);
+    e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + add);
+    e._suppressedBy = b.side;
+  }
+}
+
 function updateBullets(dt) {
   for (const b of game.bullets) {
     if (!b.alive) continue;
@@ -1514,6 +1572,7 @@ function updateBullets(dt) {
         break;
       }
       game.fx.push({ kind: "tracer", x: b.x, y: b.y, x2: ex, y2: ey, t: 0.06, max: 0.06 });
+      suppressAlong(b, ex, ey);
       const seg = dist(b.x, b.y, ex, ey);
       budget -= seg; b.traveled += seg;
       b.x = ex; b.y = ey;
@@ -1952,6 +2011,7 @@ function enemyCallout(from, tx, ty) {
 function updateEnemy(e, dt) {
   if (!e.alive) return;
   if (e._calloutCd) e._calloutCd -= dt;
+  e.suppress = Math.max(0, (e.suppress || 0) - dt * TUNE.suppressDecay);
   e.blind = Math.max(0, e.blind - dt);
   e.stagger = Math.max(0, e.stagger - dt);
   e.flashedRecently = Math.max(0, e.flashedRecently - dt);
@@ -2000,13 +2060,18 @@ function updateEnemy(e, dt) {
       const t = e.target;
       e.face = angLerp(e.face, angleTo(e.x, e.y, t.x, t.y), dt * 10);
       e.reactT -= dt;
-      if (e.reactT <= 0 && e.stagger <= 0) {
+      // Pinned: enough rounds have cracked past that he is not leaning back out.
+      // Short of pinned he still shoots, just badly — which is what suppression
+      // buys the element that is moving.
+      const pinned = (e.suppress || 0) >= TUNE.suppressPinned;
+      if (e.reactT <= 0 && e.stagger <= 0 && !pinned) {
         if (e.burstLeft <= 0 && e.burstPauseT <= 0) {
           e.burstLeft = Math.round(randIn(e.weapon.burst));
           e.burstPauseT = 0;
         }
         if (e.burstLeft > 0) {
-          const aimErr = deg(2.5) * (visD / 300);
+          const aimErr = deg(2.5) * (visD / 300)
+                       + TUNE.suppressSpread * ((e.suppress || 0) / TUNE.suppressMax);
           if (tryFire(e, aimAngle(e, t.x, t.y) + rand(-aimErr, aimErr))) {
             e.burstLeft--;
             if (e.burstLeft <= 0) e.burstPauseT = randIn(e.weapon.burstPause);
@@ -2640,11 +2705,15 @@ const WHEEL = [
     label() { return "BOUND FORWARD"; } },
   { dir: "down", name: "HOLD", hint: "stop and cover",
     run(team, ctx) {
+      if (ctx.threat) return orderBaseOfFire(team, ctx.threat.x, ctx.threat.y);
       if (ctx.door) return runPlay("2", team, { door: ctx.door });
       if (ctx.far) return orderAnchorAt(team, ctx.x, ctx.y);
       return runPlay("4", team, {});
     },
-    label(ctx) { return ctx.door ? "COVER THAT DOOR" : ctx.far ? "HOLD THERE" : "HOLD HERE"; } },
+    label(ctx) {
+      if (ctx.threat) return "SUPPRESS THAT";
+      return ctx.door ? "COVER THAT DOOR" : ctx.far ? "HOLD THERE" : "HOLD HERE";
+    } },
   { dir: "left", name: "ON ME", hint: "form up and follow",
     run(team) { return runPlay("3", team, {}); },
     label() { return "FORM ON ME"; } },
@@ -2689,6 +2758,21 @@ function orderAdvance(team, x, y, aggressive) {
   return aggressive ? "ASSAULT — moving hard" : "MOVING — quiet";
 }
 
+// Base of fire. They shoot at the PLACE, not the man — bursts into a window,
+// a doorway, a firing slit — so the other element can cross ground that would
+// otherwise kill it. This is the order that makes the squad and the player do
+// genuinely different jobs at the same time.
+function orderBaseOfFire(team, x, y) {
+  team.forEach(s => {
+    removeFromPlans(s);
+    s.order = { type: "suppress", x, y, face: angleTo(s.x, s.y, x, y) };
+    s.path = null;
+  });
+  game.pie = null; game.bound = null;
+  bark(team[0], "SUPPRESSING!");
+  return "BASE OF FIRE — rounds on that position until you say otherwise";
+}
+
 function orderAnchorAt(team, x, y) {
   team.forEach((s, i) => {
     removeFromPlans(s);
@@ -2726,7 +2810,17 @@ function wheelContext() {
   const x = w ? w.wx : input.mouse.wx, y = w ? w.wy : input.mouse.wy;
   const d = nearestDoor(x, y, 46);
   const from = game.player;
-  return { x, y, door: (d && d.state !== "breached") ? d : null,
+  // a contact you can see, or the last place you saw one — you suppress a
+  // POSITION, which is the whole point; he does not have to be visible
+  let threat = null, td = 80;
+  for (const e of game.enemies) {
+    if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
+    const seen0 = visibleToPlayerSide(e) ? { x: e.x, y: e.y } : (e.lastSeen || null);
+    if (!seen0) continue;
+    const dd = dist(x, y, seen0.x, seen0.y);
+    if (dd < td) { td = dd; threat = seen0; }
+  }
+  return { x, y, threat, door: (d && d.state !== "breached") ? d : null,
            far: dist(from.x, from.y, x, y) > 90 };
 }
 
@@ -2827,6 +2921,7 @@ function updateSquaddie(s, dt) {
   if (!s.alive) return;
   s.blind = Math.max(0, s.blind - dt);
   s.stagger = Math.max(0, s.stagger - dt);
+  s.suppress = Math.max(0, (s.suppress || 0) - dt * TUNE.suppressDecay);
   if (s._barkCd) s._barkCd -= dt;
   updateShoulder(s, dt);
   updateShooterWeapon(s, dt);
@@ -2861,7 +2956,7 @@ function updateSquaddie(s, dt) {
     if (s.reloading <= 0 && s.ammo < s.weapon.mag * 0.45) tryReload(s);
   }
 
-  const executingEntry = s.order.type === "entry";
+  const executingEntry = s.order.type === "entry" || s.order.type === "suppress";
   if (threat) {
     s.face = angLerp(s.face, angleTo(s.x, s.y, threat.x, threat.y), dt * 12);
     s.reactT -= dt;
@@ -2919,6 +3014,26 @@ function updateSquaddie(s, dt) {
         s._legX = undefined; s._legY = undefined; s._bounded = false;
         // set and watching the ground the other element has to cross
         if (!threat) s.face = angLerp(s.face, angleTo(s.x, s.y, B.x, B.y), dt * 5);
+      }
+      break;
+    }
+    // Put rounds on a position. He needs line of sight to the spot, not to a
+    // body; if he loses it he shuffles until he has it again.
+    case "suppress": {
+      const o = s.order;
+      s.face = angLerp(s.face, angleTo(s.x, s.y, o.x, o.y), dt * 8);
+      const clear = lineOfSight(s.x, s.y, o.x, o.y, opaque);
+      if (!clear) { squadMove(s, o.x, o.y, TUNE.squadRun * 0.8, dt); break; }
+      if (s.reloading > 0) break;
+      if (s.ammo <= 0) { tryReload(s); break; }
+      // hold a little back so the belt-fed does not empty in three seconds
+      s._supT = (s._supT || 0) - dt;
+      if (s._supT <= 0) {
+        const spread = deg(3.2);
+        if (tryFire(s, angleTo(s.x, s.y, o.x, o.y) + rand(-spread, spread))) {
+          s._supBurst = (s._supBurst || 0) + 1;
+          if (s._supBurst >= 5) { s._supBurst = 0; s._supT = rand(0.5, 1.1); }
+        }
       }
       break;
     }

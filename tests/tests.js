@@ -1083,3 +1083,101 @@ console.log('  snake cam: door ' + onDoor + ', window ' + onWin + ', open ground
             onDoor && onWin && !game.snake ? 'CORRECT' : 'WRONG');
 console.log('LOADOUT+VISION TEST DONE');
 })();
+
+(function suppressionAndPillboxTests(){
+console.log('--- suppression, base of fire, and the pillbox ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const P = game.player, e = game.enemies[0];
+
+// a round that misses close must still count
+e.x = P.x + 300; e.y = P.y; e.suppress = 0;
+const b = { x: P.x, y: P.y, ang: 0, side: 'player', owner: P, dmg: 1, pen: 26 };
+suppressAlong(b, P.x + 600, P.y + 20);           // passes 20px off him
+console.log('  a round 20px wide adds ' + (e.suppress || 0).toFixed(2) + ' suppression',
+            e.suppress > 0 ? 'CORRECT' : 'WRONG');
+e.suppress = 0;
+suppressAlong(b, P.x + 600, P.y + 300);          // passes 300px off him
+console.log('  a round 300px wide adds ' + (e.suppress || 0).toFixed(2),
+            !e.suppress ? 'CORRECT (only near misses count)' : 'WRONG');
+
+// friendly rounds must not suppress the friendlies who fired them
+game.squad[0].x = P.x + 100; game.squad[0].y = P.y; game.squad[0].suppress = 0;
+suppressAlong(b, P.x + 600, P.y);
+console.log('  your own rounds do not suppress your own team: ' + !game.squad[0].suppress,
+            !game.squad[0].suppress ? 'CORRECT' : 'WRONG');
+const eb = { x: e.x, y: e.y, ang: Math.PI, side: 'enemy', owner: e, dmg: 1, pen: 26 };
+P.suppress = 0; suppressAlong(eb, P.x, P.y + 15);
+console.log('  incoming fire suppresses YOU too: ' + (P.suppress || 0).toFixed(2),
+            P.suppress > 0 ? 'CORRECT' : 'WRONG');
+
+// suppression must open the cone and, past the threshold, stop him firing back
+const base = currentSpread(e);
+e.suppress = TUNE.suppressMax;
+const wide = currentSpread(e);
+console.log('  his cone at full suppression: ' + (base * 180 / Math.PI).toFixed(1) + '° -> ' +
+            (wide * 180 / Math.PI).toFixed(1) + '°', wide > base ? 'CORRECT' : 'WRONG');
+console.log('  pinned threshold ' + TUNE.suppressPinned + ' of max ' + TUNE.suppressMax,
+            TUNE.suppressPinned < TUNE.suppressMax ? 'CORRECT (he is degraded before he is pinned)' : 'WRONG');
+
+// measure it end to end: does a pinned enemy actually stop shooting?
+function volley(suppressed) {
+  // open ground on the pillbox approach, so he genuinely has line of sight —
+  // updateEnemy drops him to hunt the moment he cannot see you
+  game.mapIndex = MAPS.findIndex(m => m.name === 'THE PILLBOX'); initGame(); game.state = 'play';
+  const t = game.enemies[0], pl = game.player;
+  pl.x = 6 * TILE; pl.y = 15 * TILE;
+  t.x = pl.x + 230; t.y = pl.y; t.state = 'combat'; t.target = pl; t.reactT = 0; t.alerted = true;
+  // enemies spawn with a random homeFace; point him at the player or he never
+  // acquires and the measurement is a coin flip
+  t.face = angleTo(t.x, t.y, pl.x, pl.y); t.homeFace = t.face;
+  t.ammo = 999;
+  let shots = 0;
+  const _tf = tryFire;
+  tryFire = function (sh, a) { const r = _tf(sh, a); if (r && sh === t) shots++; return r; };
+  for (let f = 0; f < 60 * 6; f++) {
+    if (suppressed) t.suppress = TUNE.suppressMax;
+    t.ammo = 999; t.reloading = 0;
+    updateEnemy(t, 1 / 60);
+  }
+  tryFire = _tf;
+  return shots;
+}
+const free = volley(false), pinned = volley(true);
+console.log('  rounds he gets off in 6s: unsuppressed ' + free + ', pinned ' + pinned,
+            free > 0 && pinned === 0 ? 'CORRECT (a base of fire buys the crossing)' : 'WRONG');
+
+// the base-of-fire order
+game.mapIndex = 0; initGame(); game.state = 'play';
+const t0 = game.enemies[0];
+t0.lastSeen = { x: t0.x, y: t0.y, t: 0 };
+const ctx = wheelContext.call ? { x: t0.x, y: t0.y, threat: { x: t0.x, y: t0.y }, door: null, far: true } : null;
+const down = WHEEL.find(w => w.dir === 'down');
+console.log('  wheel down on a known contact reads: "' + down.label(ctx, game.squad) + '"',
+            /SUPPRESS/.test(down.label(ctx, game.squad)) ? 'CORRECT' : 'WRONG');
+down.run(game.squad.filter(s => s.alive), ctx);
+console.log('  orders: ' + JSON.stringify(game.squad.map(s => s.order.type)),
+            game.squad.every(s => s.order.type === 'suppress') ? 'CORRECT' : 'WRONG');
+
+// the pillbox
+const pb = MAPS.findIndex(m => m.name === 'THE PILLBOX');
+console.log('  THE PILLBOX exists at index ' + pb, pb >= 0 ? 'CORRECT' : 'WRONG');
+game.mapIndex = pb; initGame();
+console.log('  skirmish, not a rescue: objectives ' + JSON.stringify(MAPS[pb].objectives) +
+            ', hostages ' + game.hostages.length,
+            !MAPS[pb].objectives.includes('rescue') && game.hostages.length === 0 ? 'CORRECT' : 'WRONG');
+console.log('  firing slits: ' + level.windowAt.size + ' windows, ' +
+            level.doors.length + ' door(s) into the strongpoint',
+            level.windowAt.size >= 3 && level.doors.length >= 1 ? 'CORRECT' : 'WRONG');
+let brick = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (level.mat[y][x] === 'brick') brick++;
+console.log('  hard cover on the approach: ' + brick + ' brick tiles to bound between',
+            brick >= 20 ? 'CORRECT' : 'WRONG');
+const st = tileAt(level.spawns.player.x, level.spawns.player.y);
+const unreach = level.spawns.enemies.filter(sp => {
+  const et = tileAt(sp.x, sp.y);
+  return !astar(st.tx, st.ty, et.tx, et.ty, passForPath, pathCostSquad);
+});
+console.log('  all ' + level.spawns.enemies.length + ' defenders reachable: ' + (unreach.length === 0),
+            unreach.length === 0 ? 'CORRECT (the flank goes through)' : 'WRONG');
+console.log('SUPPRESSION+PILLBOX TEST DONE');
+})();
