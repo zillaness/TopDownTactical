@@ -1181,3 +1181,181 @@ console.log('  all ' + level.spawns.enemies.length + ' defenders reachable: ' + 
             unreach.length === 0 ? 'CORRECT (the flank goes through)' : 'WRONG');
 console.log('SUPPRESSION+PILLBOX TEST DONE');
 })();
+
+(function throwablesTests(){
+console.log('--- frag, concussion, smoke, and bounding into cover ---');
+const pbIdx = MAPS.findIndex(m => m.name === 'THE PILLBOX');
+game.mapIndex = pbIdx; initGame(); game.state = 'play';
+const P = game.player;
+
+console.log('  the bag: ' + THROW_ORDER.map(k => THROWABLES[k].name + ' ' + (P.nades[k] || 0)).join(', '),
+            THROW_ORDER.length === 4 ? 'CORRECT' : 'WRONG');
+const dirs = THROW_ORDER.map(k => THROWABLES[k].dir);
+console.log('  one direction each: ' + dirs.join('/'),
+            new Set(dirs).size === 4 ? 'CORRECT' : 'WRONG');
+
+// FRAG kills, and the incident names it
+game.mapIndex = pbIdx; initGame(); game.state = 'play'; game.incidents.length = 0;
+const victim = game.enemies[0];
+victim.x = game.player.x + 400; victim.y = game.player.y;
+wearArmor(victim, 'none'); victim.hp = 65;
+detonateFrag({ x: victim.x, y: victim.y, side: 'player', kind: 'frag' });
+console.log('  frag on a man at zero range: ' + (victim.alive ? 'survived ' + victim.hp.toFixed(0) + 'hp' : 'killed'),
+            !victim.alive ? 'CORRECT' : 'WRONG');
+game.mapIndex = pbIdx; initGame(); game.state = 'play';
+const far = game.enemies[0]; far.x = game.player.x + 400; far.y = game.player.y; far.hp = 65;
+detonateFrag({ x: far.x + TUNE.fragWound + 60, y: far.y, side: 'player', kind: 'frag' });
+console.log('  frag beyond its wounding radius: ' + far.hp.toFixed(0) + 'hp left',
+            far.hp === 65 ? 'CORRECT (it has an edge)' : 'WRONG');
+
+// CONCUSSION reaches around a corner that a flashbang cannot
+game.mapIndex = pbIdx; initGame(); game.state = 'play';
+function behindWall() {
+  // find a spot with a wall between two open tiles
+  for (let y = 10; y < 25; y++) for (let x = 16; x < 42; x++) {
+    if (!isWall(x, y) || level.mat[y][x] !== 'drywall') continue;
+    const a = { x: (x - 2) * TILE + 16, y: y * TILE + 16 }, b = { x: (x + 2) * TILE + 16, y: y * TILE + 16 };
+    if (!isWall(tileAt(a.x, a.y).tx, tileAt(a.x, a.y).ty) && !isWall(tileAt(b.x, b.y).tx, tileAt(b.x, b.y).ty)
+        && !lineOfSight(a.x, a.y, b.x, b.y, opaque)) return { a, b };
+  }
+  return null;
+}
+// use a PARTITION, not concrete — the claim is that overpressure carries
+// through thin structure and around a corner, not through a bunker wall
+game.mapIndex = MAPS.findIndex(m => m.training); initGame(); game.state = 'play';
+const pair = behindWall();
+if (pair) {
+  const e1 = game.enemies[0];
+  e1.x = pair.b.x; e1.y = pair.b.y; e1.stagger = 0; e1.blind = 0; e1.hp = 65;
+  detonateBang({ x: pair.a.x, y: pair.a.y, side: 'player', kind: 'bang' });
+  const flashHit = e1.blind > 0;
+  e1.stagger = 0; e1.blind = 0;
+  detonateConcussion({ x: pair.a.x, y: pair.a.y, side: 'player', kind: 'conc' });
+  const concHit = e1.stagger > 0;
+  console.log('  through a wall: flashbang reached him ' + flashHit + ', concussion reached him ' + concHit,
+              !flashHit && concHit ? 'CORRECT (that is the difference between them)' : 'WRONG');
+} else console.log('  through a wall: NO TEST GEOMETRY FOUND');
+
+// SMOKE blocks sight but not bullets or movement
+game.mapIndex = pbIdx; initGame(); game.state = 'play';
+game.smokes.length = 0; level.smokeGrid = null;
+const A = { x: 8 * TILE + 16, y: 15 * TILE + 16 }, B = { x: 16 * TILE + 16, y: 15 * TILE + 16 };
+const losBefore = lineOfSight(A.x, A.y, B.x, B.y, opaque);
+popSmoke({ x: (A.x + B.x) / 2, y: A.y, side: 'player', kind: 'smoke' });
+for (let i = 0; i < 120; i++) updateSmokes(1 / 60);
+const mid = tileAt((A.x + B.x) / 2, A.y);
+console.log('  sight across open ground before smoke: ' + losBefore + ', after: ' +
+            lineOfSight(A.x, A.y, B.x, B.y, opaque),
+            losBefore && !lineOfSight(A.x, A.y, B.x, B.y, opaque) ? 'CORRECT' : 'WRONG');
+console.log('  smoke stops bullets: ' + blocksBullet(mid.tx, mid.ty) +
+            ', smoke stops movement: ' + solidForMove(mid.tx, mid.ty),
+            !blocksBullet(mid.tx, mid.ty) && !solidForMove(mid.tx, mid.ty)
+              ? 'CORRECT (sight only)' : 'WRONG');
+// and it must clear itself up
+for (let i = 0; i < 60 * (TUNE.smokeLife + 2); i++) updateSmokes(1 / 60);
+console.log('  it dissipates: ' + game.smokes.length + ' clouds left, sight back: ' +
+            lineOfSight(A.x, A.y, B.x, B.y, opaque),
+            game.smokes.length === 0 && lineOfSight(A.x, A.y, B.x, B.y, opaque) ? 'CORRECT' : 'WRONG');
+
+// BOUNDING must finish its legs behind something
+game.mapIndex = pbIdx; initGame(); game.state = 'play';
+const s0 = game.squad[0];
+s0.x = 6 * TILE; s0.y = 15 * TILE;
+const goal = { x: 30 * TILE, y: 15 * TILE };
+const threat = threatBearingFor(s0, goal.x, goal.y);
+let covered = 0, naive = 0, N = 24;
+for (let i = 0; i < N; i++) {
+  s0.x = (6 + (i % 6)) * TILE; s0.y = (11 + (i % 9)) * TILE;
+  const leg = pickBoundLeg(s0, goal.x, goal.y);
+  if (coveredFrom(leg.x, leg.y, threat.x, threat.y) > 0.25) covered++;
+  const straight = nearestPassable(s0.x + Math.cos(angleTo(s0.x, s0.y, goal.x, goal.y)) * TUNE.boundLeg,
+                                   s0.y + Math.sin(angleTo(s0.x, s0.y, goal.x, goal.y)) * TUNE.boundLeg);
+  if (coveredFrom(straight.x, straight.y, threat.x, threat.y) > 0.25) naive++;
+}
+console.log('  bound legs that end in cover: ' + covered + '/' + N +
+            '   (straight-line legs: ' + naive + '/' + N + ')',
+            covered > naive ? 'CORRECT (it is looking for cover now)' : 'WRONG — no better than a sprint');
+console.log('THROWABLES TEST DONE');
+})();
+
+(function weaponRosterTests(){
+console.log('--- the squad automatic and the marksman rifle ---');
+const cells = [];
+for (const [k, v] of Object.entries(PRIMARIES)) {
+  cells.push({ k, name: v.name, dmg: v.w.dmg, rpm: v.w.rpm, mag: v.w.mag,
+               range: v.w.range, spread: +(v.w.spreadBase * 180 / Math.PI).toFixed(1),
+               carry: v.speed || 1 });
+}
+cells.forEach(c => console.log('  ' + c.name.padEnd(17) + String(c.dmg).padStart(3) + 'dmg ' +
+  String(c.rpm).padStart(4) + 'rpm ' + String(c.mag).padStart(4) + 'rd ' +
+  String(c.range).padStart(5) + 'px  cone ' + String(c.spread).padStart(4) + '°  move x' + c.carry));
+const saw = PRIMARIES.saw, dmr = PRIMARIES.dmr, m4 = PRIMARIES.carbine;
+console.log('  the belt-fed trades: ' + (saw.w.mag / m4.w.mag).toFixed(1) + 'x the ammunition, ' +
+            (saw.w.spreadBase / m4.w.spreadBase).toFixed(1) + 'x the cone, ' +
+            Math.round((1 - saw.speed) * 100) + '% slower',
+            saw.w.mag > m4.w.mag && saw.w.spreadBase > m4.w.spreadBase && saw.speed < 1 ? 'CORRECT' : 'WRONG');
+console.log('  the marksman trades: ' + (dmr.w.dmg / m4.w.dmg).toFixed(1) + 'x the damage and ' +
+            (dmr.w.range / m4.w.range).toFixed(1) + 'x the reach, at ' +
+            (dmr.w.rpm / m4.w.rpm).toFixed(2) + 'x the rate',
+            dmr.w.dmg > m4.w.dmg && dmr.w.range > m4.w.range && dmr.w.rpm < m4.w.rpm ? 'CORRECT' : 'WRONG');
+
+// rounds-to-kill: each gun should own a different range band
+function rtk(prim, ammoKey, hp) {
+  const round = AMMO[ammoKey];
+  let n = 0, left = hp;
+  while (left > 0 && n < 60) { n++; left -= prim.w.dmg * round.dmgMul; }
+  return n;
+}
+console.log('  rounds to put down a 65hp guard — M4 ' + rtk(m4, 'fmj', 65) +
+            ', SAW ' + rtk(saw, 'fmj', 65) + ', DMR ' + rtk(dmr, 'fmj', 65),
+            rtk(dmr, 'fmj', 65) === 1 ? 'CORRECT (one round, one guard)' : 'WRONG');
+console.log('  ...but a 120hp elite still takes ' + rtk(dmr, 'fmj', 120) + ' from the DMR',
+            rtk(dmr, 'fmj', 120) > 1 ? 'CORRECT (the hard men are still a problem)' : 'WRONG');
+// and no duplicate keys quietly eating a template
+const tmplSrc = Object.keys(SQUAD_TEMPLATES);
+console.log('  ' + tmplSrc.length + ' distinct squad templates: ' + tmplSrc.join(', '),
+            tmplSrc.length === new Set(tmplSrc).size && tmplSrc.length >= 4 ? 'CORRECT' : 'WRONG');
+
+// the weight must actually be felt in the legs
+game.mapIndex = 0;
+game.loadout.primary = 'carbine'; game.loadout.armor = 'none'; initGame();
+const fast = gunSpeed(game.player) * armorSpeed(game.player);
+game.loadout.primary = 'saw'; initGame();
+const slow = gunSpeed(game.player) * armorSpeed(game.player);
+game.loadout.primary = 'carbine'; initGame();
+console.log('  move multiplier: carbine x' + fast.toFixed(2) + ', belt-fed x' + slow.toFixed(2),
+            slow < fast ? 'CORRECT (carrying it costs you)' : 'WRONG');
+
+// and the squad can field them
+const roles = Object.keys(ROLES);
+console.log('  squad roles: ' + roles.join(', '),
+            roles.includes('support') && roles.includes('marksman') ? 'CORRECT' : 'WRONG');
+const tmpls = Object.entries(SQUAD_TEMPLATES).map(([k, v]) => k + '(' + v.roles.join('/') + ')');
+console.log('  templates: ' + tmpls.join('  '));
+let badRole = [];
+for (const [k, v] of Object.entries(SQUAD_TEMPLATES)) v.roles.forEach(r => { if (!ROLES[r]) badRole.push(k + ':' + r); });
+console.log('  every template names real roles:', badRole.length ? 'WRONG -> ' + badRole.join() : 'CORRECT');
+console.log('WEAPON ROSTER TEST DONE');
+})();
+
+(function missionPickerTests(){
+console.log('--- mission buttons must name the mission they load ---');
+// Regression: the buttons render training-first while MAPS keeps its own order,
+// so any code that reads a mission index off a button's POSITION picks the
+// wrong mission. It highlighted one and loaded another, and hung best-grade
+// labels on missions that never earned them.
+const rendered = MAPS.map((m, i) => ({ m, i }))
+  .sort((a, b) => (b.m.training ? 1 : 0) - (a.m.training ? 1 : 0));
+let drift = [];
+rendered.forEach((r, pos) => { if (r.i !== pos) drift.push(r.m.name + ' renders at ' + pos + ' but is MAPS[' + r.i + ']'); });
+console.log('  render order differs from MAPS order: ' + (drift.length > 0),
+            drift.length > 0 ? 'CORRECT (so position must never be used as an index)' : 'n/a');
+console.log('    ' + drift.slice(0, 3).join('; '));
+const usesPosition = /querySelectorAll\("\.mapbtn"\)\.forEach\(\(x, j\) => \{\s*x\.classList\.toggle\("sel", j === game\.mapIndex\)/;
+console.log('  refreshMenu keys off the button position:', usesPosition.test(refreshMenu.toString()) ? 'WRONG' : 'CORRECT (it reads dataset.idx)');
+console.log('  and best grades are keyed by the same index: ' +
+            (/bests\[j \+ ":"/.test(refreshMenu.toString()) && /\+x\.dataset\.idx/.test(refreshMenu.toString())
+              ? 'yes' : 'check'),
+            /\+x\.dataset\.idx/.test(refreshMenu.toString()) ? 'CORRECT' : 'WRONG');
+console.log('MISSION PICKER TEST DONE');
+})();

@@ -62,7 +62,7 @@
       <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
-      <tr><td class="key">MMB / G</td><td>throw flashbang at cursor</td><td class="key">C</td><td>shout "hands up!"</td></tr>
+      <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
@@ -210,6 +210,7 @@ const TUNE = {
   noiseRunStep: 100, noiseDoor: 60, noiseBangBlast: 700, noiseGlass: 340,
   calloutRange: 430,                // how far "CONTACT!" carries to a comrade
   boundLeg: 130,                    // how far one element moves per bound
+  boundCoverWeight: 150,            // how much a covered stopping point is worth in px of ground
   wheelDeadzone: 34,                // px of drag before the wheel commits to a direction
 
   // flashbang
@@ -221,6 +222,11 @@ const TUNE = {
   // breaching charges are explosives, not stun grenades: they maim what is
   // behind the wall. Lethal radius is short, wounding radius reaches further.
   blastLethal: 46, blastWound: 105, blastDmg: 120,
+
+  // hand throwables
+  fragLethal: 34, fragWound: 96, fragDmg: 98, noiseFrag: 700,
+  concRadius: 210, concDmg: 34, concStagger: 1.7, concWallFactor: 0.55,
+  smokeRadius: 108, smokeLife: 17, smokeGrow: 1.4,
 
   // handedness & the corner game
   eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
@@ -1000,6 +1006,7 @@ function solidForMove(tx, ty) {
 // blocks sight: whatever the material says. Drywall is opaque but not bulletproof.
 function opaque(tx, ty) {
   if (!inBounds(tx, ty)) return true;
+  if (level.smokeGrid && level.smokeGrid[ty * level.w + tx]) return true;
   return materialAt(tx, ty).opaque;
 }
 // pathfinding traversability: doors are traversable (AI opens them); walls and
@@ -1150,10 +1157,13 @@ canvas.addEventListener("wheel", e => {
 }, { passive: false });
 window.addEventListener("mouseup", e => {
   if (e.button === 0) input.mouse.down = false;
+  if (e.button === 1) input.justReleased.add("mmb");
   if (e.button === 2) { input.mouse.rdown = false; input.justReleased.add("rmb"); }
 });
 // the window can lose the button entirely (alt-tab mid-drag); do not strand the wheel
-window.addEventListener("blur", () => { input.mouse.rdown = false; input.justReleased.add("rmb"); });
+window.addEventListener("blur", () => {
+  input.mouse.rdown = false; input.justReleased.add("rmb"); input.justReleased.add("mmb");
+});
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 function pressed(k) { return input.justPressed.has(k); }
 function released(k) { return input.justReleased.has(k); }
@@ -1179,13 +1189,20 @@ function wearArmor(ent, key) {
   return ent;
 }
 function armorSpeed(ent) { return (ARMOR[ent.armorType] || ARMOR.none).speed; }
+// a belt-fed is heavy; carrying one should be felt in the legs, not just the HUD
+function gunSpeed(ent) { return (ent.weapon && ent.weapon.carrySpeed) || 1; }
 
 function makePlayer(sp) {
   const L = game.loadout;
   const prim = PRIMARIES[L.primary] || PRIMARIES.carbine;
   const kit = UTILITY_KITS[L.kit] || UTILITY_KITS.entry;
-  const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w });
-  p.bangs = kit.bangs; p.charges = kit.charges; p.shoutCd = 0;
+  const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w, carrySpeed: prim.speed || 1 });
+  p.charges = kit.charges; p.shoutCd = 0;
+  p.nades = { bang: kit.bangs, frag: kit.frag || 0, conc: kit.conc || 0, smoke: kit.smoke || 0 };
+  p.nadeKind = "bang";
+  Object.defineProperty(p, "bangs", {                       // squad breach plans still read p.bangs
+    get() { return this.nades.bang; }, set(v) { this.nades.bang = v; },
+  });
   // keep the ammo legal for the weapon in hand
   p.ammoType = prim.ammo.includes(L.ammo) ? L.ammo : prim.ammo[0];
   // two guns on the man: index 0 is the primary, 1 is the sidearm
@@ -1286,7 +1303,7 @@ function updatePlayer(p, dt) {
   p.moving = dx !== 0 || dy !== 0;
   if (p.moving && p.stagger <= 0) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const spd = (p.walking ? TUNE.playerWalk : TUNE.playerRun) * armorSpeed(p);
+    const spd = (p.walking ? TUNE.playerWalk : TUNE.playerRun) * armorSpeed(p) * gunSpeed(p);
     const res = moveCircle(p.x, p.y, p.r, dx * spd * dt, dy * spd * dt, solidForMove);
     p.x = res.x; p.y = res.y;
     if (!p.walking) emitFootstepNoise(p, dt);
@@ -1314,10 +1331,25 @@ function updatePlayer(p, dt) {
     const d = nearestDoor(p.x, p.y, 56);
     if (d && d.state === "closed") kickDoor(d, p);
   }
-  // middle mouse is the bang; G still works for anyone with a two-button mouse
-  if ((pressed("g") || pressed("mmb")) && p.bangs > 0) {
-    throwBang(p, input.mouse.wx, input.mouse.wy); p.bangs--;
-  } else if ((pressed("g") || pressed("mmb")) && p.bangs <= 0) game.hint = "Out of flashbangs";
+  // Middle mouse is the bag: hold it and flick to pick, release to throw. Same
+  // idiom as the command wheel, so four grenades cost zero new keys.
+  if (pressed("mmb")) {
+    game.nadeWheel = { sx: input.mouse.x, sy: input.mouse.y,
+                       wx: input.mouse.wx, wy: input.mouse.wy, dir: null };
+  }
+  if (game.nadeWheel) {
+    const nw = game.nadeWheel;
+    const dx = input.mouse.x - nw.sx, dy = input.mouse.y - nw.sy;
+    nw.dir = Math.hypot(dx, dy) < TUNE.wheelDeadzone ? null
+           : (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    if (released("mmb")) {
+      const picked = nw.dir ? (THROW_ORDER.find(k => THROWABLES[k].dir === nw.dir) || p.nadeKind) : p.nadeKind;
+      game.nadeWheel = null;
+      throwSelected(p, picked, nw.wx, nw.wy);
+    }
+  } else if (pressed("g")) {
+    throwSelected(p, p.nadeKind, input.mouse.wx, input.mouse.wy);
+  }
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
   if (pressed("h")) {
     if (game.wallCharge) detonateWallCharge();
@@ -1373,6 +1405,15 @@ function nearestWindowTo(x, y, maxD) {
     if (d < bd) { bd = d; best = w; }
   }
   return best;
+}
+
+function throwSelected(p, kind, wx, wy) {
+  const T = THROWABLES[kind] || THROWABLES.bang;
+  if ((p.nades[T.key] || 0) <= 0) { game.hint = "No " + T.name.toLowerCase() + " left"; return; }
+  p.nades[T.key]--;
+  p.nadeKind = T.key;
+  throwNade(p, wx, wy, T.key);
+  game.hint = T.name + " out";
 }
 
 function playerInteract(p) {
@@ -1725,6 +1766,37 @@ function killEntity(ent, bySide) {
 }
 
 // ---- flashbangs
+// ---- throwables
+// Four things you can put through a doorway, each answering a different
+// problem. The flashbang buys a second, the frag ends the room, the concussion
+// reaches around a corner the flashbang cannot, and the smoke takes the room's
+// eyes away — including your own.
+const THROWABLES = {
+  bang: { key: "bang", name: "FLASHBANG", dir: "left", col: "#e8eef4",
+          fuse: 1.0, note: "blinds, no damage — buys you a second" },
+  frag: { key: "frag", name: "FRAG", dir: "up", col: "#ff8c42",
+          fuse: 1.7, note: "kills the room, and everyone in it" },
+  conc: { key: "conc", name: "CONCUSSION", dir: "down", col: "#ffd27a",
+          fuse: 1.3, note: "overpressure — reaches around a corner" },
+  smoke: { key: "smoke", name: "SMOKE", dir: "right", col: "#9aa6b2",
+           fuse: 1.1, note: "takes the room's eyes, yours included" },
+};
+const THROW_ORDER = ["bang", "frag", "conc", "smoke"];
+
+function throwNade(thrower, txw, tyw, kind) {
+  const T = THROWABLES[kind] || THROWABLES.bang;
+  const ang = angleTo(thrower.x, thrower.y, txw, tyw);
+  const d = Math.min(dist(thrower.x, thrower.y, txw, tyw), 420);
+  const clear = raycast(thrower.x, thrower.y, ang, thrower.r + 6, solidForMove);
+  const off = clear.hit ? Math.max(1, clear.d - 2) : thrower.r + 6;
+  game.bangs.push({
+    x: thrower.x + Math.cos(ang) * off, y: thrower.y + Math.sin(ang) * off,
+    vx: Math.cos(ang) * TUNE.bangThrowSpeed, vy: Math.sin(ang) * TUNE.bangThrowSpeed,
+    fuse: T.fuse, travelLeft: clear.hit ? 0 : d, side: thrower.side, kind: T.key,
+  });
+  addNoise(thrower.x, thrower.y, 80, "throw", thrower.side);
+}
+
 function throwBang(thrower, txw, tyw) {
   const ang = angleTo(thrower.x, thrower.y, txw, tyw);
   const d = Math.min(dist(thrower.x, thrower.y, txw, tyw), 420);
@@ -1734,9 +1806,52 @@ function throwBang(thrower, txw, tyw) {
   game.bangs.push({
     x: thrower.x + Math.cos(ang) * off, y: thrower.y + Math.sin(ang) * off,
     vx: Math.cos(ang) * TUNE.bangThrowSpeed, vy: Math.sin(ang) * TUNE.bangThrowSpeed,
-    fuse: TUNE.bangFuse, travelLeft: clear.hit ? 0 : d, side: thrower.side,
+    fuse: TUNE.bangFuse, travelLeft: clear.hit ? 0 : d, side: thrower.side, kind: "bang",
   });
   addNoise(thrower.x, thrower.y, 80, "throw", thrower.side);
+}
+
+// Smoke is written into a tile grid rather than tested as circles, because
+// opaque() is called once per DDA step of every ray of every viewer — a grid
+// lookup is the only version of this that is affordable. Cleared through a
+// dirty list so the cost is proportional to the smoke, not to the map.
+function updateSmokes(dt) {
+  if (!level.smokeGrid) {
+    level.smokeGrid = new Uint8Array(level.w * level.h);
+    level._smokeDirty = [];
+  }
+  for (const i of level._smokeDirty) level.smokeGrid[i] = 0;
+  level._smokeDirty.length = 0;
+  for (const sm of game.smokes) {
+    sm.t += dt;
+    const grow = clamp(sm.t / TUNE.smokeGrow, 0, 1);
+    const fade = clamp((sm.life - sm.t) / 3.5, 0, 1);
+    sm.r = sm.max * grow * (0.35 + 0.65 * fade);
+    if (sm.r <= 1) continue;
+    const t0 = tileAt(sm.x - sm.r, sm.y - sm.r), t1 = tileAt(sm.x + sm.r, sm.y + sm.r);
+    for (let ty = t0.ty; ty <= t1.ty; ty++) for (let tx = t0.tx; tx <= t1.tx; tx++) {
+      if (!inBounds(tx, ty)) continue;
+      const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+      if (dist(sm.x, sm.y, cx, cy) > sm.r) continue;
+      const i = ty * level.w + tx;
+      if (!level.smokeGrid[i]) { level.smokeGrid[i] = 1; level._smokeDirty.push(i); }
+    }
+  }
+  game.smokes = game.smokes.filter(sm => sm.t < sm.life);
+}
+
+function drawSmoke() {
+  for (const sm of game.smokes) {
+    if (sm.r <= 1) continue;
+    const fade = clamp((sm.life - sm.t) / 3.5, 0, 1);
+    const g = ctx.createRadialGradient(sm.x, sm.y, sm.r * 0.15, sm.x, sm.y, sm.r);
+    const a = 0.82 * fade;
+    g.addColorStop(0, "rgba(168,176,184," + a.toFixed(3) + ")");
+    g.addColorStop(0.7, "rgba(140,150,160," + (a * 0.8).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(120,130,140,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, TAU); ctx.fill();
+  }
 }
 
 function updateBangs(dt) {
@@ -1765,9 +1880,79 @@ function updateBangs(dt) {
         }
       } else { g.x = hit.x; g.y = hit.y; g.travelLeft -= step; }
     }
-    if (g.fuse <= 0) detonateBang(g);
+    if (g.fuse <= 0) detonateNade(g);
   }
   game.bangs = game.bangs.filter(g => g.fuse > 0);
+}
+
+function detonateNade(g) {
+  if (g.kind === "frag") return detonateFrag(g);
+  if (g.kind === "conc") return detonateConcussion(g);
+  if (g.kind === "smoke") return popSmoke(g);
+  return detonateBang(g);
+}
+
+// Fragmentation. This is the charge blast already in the build, delivered by
+// hand: walls shield it, armour blunts it, and everything it kills is written
+// into the incident ledger with your name on it.
+function detonateFrag(g) {
+  game.fx.push({ kind: "explosion", x: g.x, y: g.y, t: 0.5, max: 0.5 });
+  game.decals.push({ x: g.x + rand(-6, 6), y: g.y + rand(-6, 6), r: rand(5, 9) });
+  addNoise(g.x, g.y, TUNE.noiseFrag, "breach", g.side);
+  sfxAt("breach", g.x, g.y);
+  game.camKick = Math.min(14, game.camKick + 8);
+  applyBlast(g.x, g.y, g.side, TUNE.fragLethal, TUNE.fragWound, TUNE.fragDmg);
+  // and everyone still standing nearby has had a very bad second
+  for (const e of [game.player, ...game.squad, ...game.enemies]) {
+    if (!e || !e.alive) continue;
+    const d = dist(g.x, g.y, e.x, e.y);
+    if (d > TUNE.fragWound * 1.6) continue;
+    if (!lineOfSight(g.x, g.y, e.x, e.y, opaque)) continue;
+    e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + 1.6);
+    if (e.side === "enemy") alertEnemy(e, g.x, g.y);
+  }
+  game.stats.fragsUsed = (game.stats.fragsUsed || 0) + 1;
+}
+
+// Overpressure. Less lethal than a frag and far more forgiving of geometry:
+// it does not need clean line of sight, it attenuates through structure the
+// same way sound does, so it will reach around a corner and through a doorway
+// that a flashbang cannot see past.
+function detonateConcussion(g) {
+  game.fx.push({ kind: "explosion", x: g.x, y: g.y, t: 0.4, max: 0.4 });
+  addNoise(g.x, g.y, TUNE.noiseBangBlast, "bang", g.side);
+  sfxAt("breach", g.x, g.y);
+  game.camKick = Math.min(12, game.camKick + 7);
+  for (const e of [game.player, ...game.squad, ...game.enemies, ...game.civilians, ...game.hostages]) {
+    if (!e || !e.alive) continue;
+    const d = dist(g.x, g.y, e.x, e.y);
+    const reach = TUNE.concRadius - soundLoss(g.x, g.y, e.x, e.y) * TUNE.concWallFactor;
+    if (d > reach) continue;
+    const f = clamp(1 - d / Math.max(1, reach), 0, 1);
+    e.stagger = Math.max(e.stagger, TUNE.concStagger * f);
+    e.blind = Math.max(e.blind, TUNE.concStagger * f * 0.45);
+    e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + 1.2 * f);
+    if (e === game.player) sfxFlashed(TUNE.concStagger * f * 0.45);
+    const raw = TUNE.concDmg * f;
+    if (raw > 0.5) {
+      e._cause = { by: g.side, how: "a concussion grenade", from: { x: g.x, y: g.y } };
+      e.hp -= throughArmor(e, raw, 14, e.x, e.y).dmg;
+      noteHurt(e, angleTo(e.x, e.y, g.x, g.y));
+      if (e.hp <= 0) killEntity(e, g.side);
+    }
+    if (e.alive && e.side === "enemy") { e.flashedRecently = TUNE.concStagger; alertEnemy(e, g.x, g.y); }
+  }
+  game.stats.concsUsed = (game.stats.concsUsed || 0) + 1;
+}
+
+// Smoke does not hurt anyone. It takes line of sight away from whoever is on
+// the wrong side of it, which — now that the squad shares vision and a base of
+// fire needs eyes on a position — is the strongest thing in the bag.
+function popSmoke(g) {
+  game.smokes.push({ x: g.x, y: g.y, t: 0, life: TUNE.smokeLife, r: 0, max: TUNE.smokeRadius });
+  addNoise(g.x, g.y, 200, "throw", g.side);
+  sfxAt("door", g.x, g.y);
+  game.stats.smokesUsed = (game.stats.smokesUsed || 0) + 1;
 }
 
 function detonateBang(g) {
@@ -1871,16 +2056,18 @@ function chargeDoor(d, by) {
 
 // Blast damage with falloff, attributed to whoever set the charge — so killing
 // a hostage with your own breach lands on your ROE score, as it should.
-function applyBlast(cx, cy, side) {
+function applyBlast(cx, cy, side, lethalR, woundR, dmgMax) {
+  const LETH = lethalR ?? TUNE.blastLethal, WOUND = woundR ?? TUNE.blastWound, DMG = dmgMax ?? TUNE.blastDmg;
   const victims = [game.player, ...game.squad, ...game.enemies, ...game.hostages, ...game.civilians];
   for (const e of victims) {
     if (!e || !e.alive) continue;
     const d = dist(cx, cy, e.x, e.y);
-    if (d > TUNE.blastWound) continue;
+    if (d > WOUND) continue;
     if (!lineOfSight(cx, cy, e.x, e.y, opaque)) continue;   // the wall shields the far side
-    const t = clamp(1 - (d - TUNE.blastLethal) / (TUNE.blastWound - TUNE.blastLethal), 0, 1);
-    e._cause = { by: side, how: "the blast", from: { x: cx, y: cy } };
-    const rawBlast = d <= TUNE.blastLethal ? TUNE.blastDmg : TUNE.blastDmg * t * 0.45;
+    const t = clamp(1 - (d - LETH) / Math.max(1, WOUND - LETH), 0, 1);
+    e._cause = { by: side, how: dmgMax !== undefined ? "a fragmentation grenade" : "the blast",
+                 from: { x: cx, y: cy } };
+    const rawBlast = d <= LETH ? DMG : DMG * t * 0.45;
     if (rawBlast <= 0) continue;
     const dmg = throughArmor(e, rawBlast, 16, e.x, e.y).dmg;   // overpressure and frag
     e.hp -= dmg;
@@ -2315,7 +2502,11 @@ const ROLES = {
   breacher: { name: "BREACHER", sprite: "squad_breacher",
               w: { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7,   reload: 3.2 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
-              w: { ammo: "fmj",  rpm: 700, dmg: 30, range: 950, mag: 100, reload: 5.0 } },
+              w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 950, mag: 100, reload: 5.0,
+                   spreadBase: deg(3.4), carrySpeed: 0.86 } },
+  marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
+              w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1100, mag: 20, reload: 2.9,
+                   spreadBase: deg(0.7), penMul: 1.15, carrySpeed: 0.95 } },
 };
 
 const PRIMARIES = {
@@ -2326,6 +2517,18 @@ const PRIMARIES = {
              note: "devastating close, useless far",
              w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
                   spreadBase: deg(2.4), recoil: deg(3), recoilMax: deg(9) } },
+  saw:     { name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
+             note: "belt-fed — you are the base of fire, and you are slow",
+             w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 900,
+                  spreadBase: deg(3.4), spreadMove: deg(13), spreadWalkMove: deg(6.5),
+                  recoil: deg(1.1), recoilMax: deg(8), recoilDecay: deg(7) },
+             speed: 0.86 },
+  dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
+             note: "one round at a time, from across the map",
+             w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
+                  spreadBase: deg(0.7), spreadMove: deg(12), spreadWalkMove: deg(5),
+                  recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 },
+             speed: 0.95 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
@@ -2343,15 +2546,18 @@ const SIDEARM = {
 };
 
 const UTILITY_KITS = {
-  entry: { name: "ENTRY",       bangs: 3, charges: 2, note: "balanced" },
-  bang:  { name: "DISTRACTION", bangs: 6, charges: 0, note: "rooms full of people" },
-  demo:  { name: "DEMOLITION",  bangs: 1, charges: 4, note: "make your own doors" },
+  entry:  { name: "ENTRY",       bangs: 3, frag: 0, conc: 1, smoke: 1, charges: 2, note: "balanced" },
+  bang:   { name: "DISTRACTION", bangs: 5, frag: 0, conc: 2, smoke: 1, charges: 0, note: "rooms full of people" },
+  demo:   { name: "DEMOLITION",  bangs: 1, frag: 2, conc: 1, smoke: 0, charges: 4, note: "make your own doors" },
+  assault:{ name: "ASSAULT",     bangs: 1, frag: 3, conc: 1, smoke: 2, charges: 0, note: "nobody in there to save" },
+  screen: { name: "SCREENING",   bangs: 2, frag: 0, conc: 0, smoke: 4, charges: 1, note: "cross ground they can see" },
 };
 
 const SQUAD_TEMPLATES = {
   standard: { name: "STANDARD", roles: ["rifleman", "breacher", "support"], note: "one of each" },
+  weight:   { name: "WEIGHT OF FIRE", roles: ["support", "support", "rifleman"], note: "two belts — suppress and bound" },
   assault:  { name: "ASSAULT",  roles: ["rifleman", "rifleman", "breacher"], note: "rifles forward" },
-  overwatch:{ name: "OVERWATCH",roles: ["rifleman", "support", "support"],  note: "hold long angles" },
+  overwatch:{ name: "OVERWATCH",roles: ["marksman", "rifleman", "support"],  note: "one man reaching, one man suppressing" },
 };
 
 function makeSquaddie(sp, i) {
@@ -2857,6 +3063,54 @@ function callPlay(play) {
   return true;
 }
 
+// Where the next bound ends. It used to be a fixed step straight at the goal,
+// which is a sprint with extra stops — a bound is only worth anything if it
+// finishes somewhere that stops rounds. Samples an arc of candidate legs and
+// scores them on how much ground they gain against how exposed they are to the
+// direction the shooting is coming from.
+function threatBearingFor(s, gx, gy) {
+  let best = null, bd = Infinity;
+  for (const e of game.enemies) {
+    if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
+    const at = visibleToPlayerSide(e) ? { x: e.x, y: e.y } : (e.lastSeen || null);
+    if (!at) continue;
+    const d = dist(s.x, s.y, at.x, at.y);
+    if (d < bd) { bd = d; best = at; }
+  }
+  return best || { x: gx, y: gy };   // nothing known: assume it comes from where you are going
+}
+
+function coveredFrom(x, y, tx, ty) {
+  const ang = angleTo(x, y, tx, ty);
+  const hit = raycast(x, y, ang, 240, blocksBullet);
+  if (!hit.hit) return 0;
+  // cover you are tucked right behind is worth far more than a distant wall
+  return clamp(1 - hit.d / 240, 0, 1);
+}
+
+function pickBoundLeg(s, gx, gy) {
+  const threat = threatBearingFor(s, gx, gy);
+  const toGoal = angleTo(s.x, s.y, gx, gy);
+  const remaining = dist(s.x, s.y, gx, gy);
+  let best = null, bestScore = -Infinity;
+  for (let a = -5; a <= 5; a++) {
+    for (const frac of [0.55, 0.8, 1.0]) {
+      const ang = toGoal + deg(a * 11);
+      const len = Math.min(TUNE.boundLeg * frac, Math.max(30, remaining));
+      const raw = { x: s.x + Math.cos(ang) * len, y: s.y + Math.sin(ang) * len };
+      const pt = nearestPassable(raw.x, raw.y);
+      if (dist(pt.x, pt.y, raw.x, raw.y) > TILE) continue;      // snapped somewhere silly
+      const gain = remaining - dist(pt.x, pt.y, gx, gy);         // ground actually taken
+      const cover = coveredFrom(pt.x, pt.y, threat.x, threat.y);
+      const score = gain * 0.85 + cover * TUNE.boundCoverWeight;
+      if (score > bestScore) { bestScore = score; best = pt; }
+    }
+  }
+  const fallback = nearestPassable(s.x + Math.cos(toGoal) * TUNE.boundLeg,
+                                   s.y + Math.sin(toGoal) * TUNE.boundLeg);
+  return best || fallback;
+}
+
 // The bound controller. It swaps which element is up as soon as the moving one
 // is set, and ends the manoeuvre when everyone has arrived — at which point
 // they hold facing the way they came, which is where the threat was.
@@ -3003,11 +3257,10 @@ function updateSquaddie(s, dt) {
       if (!B) { s.order = { type: "hold", face: s.face }; break; }
       const up = s.order.element === B.moving;
       if (up) {
-        const legLen = Math.min(TUNE.boundLeg, dist(s.x, s.y, B.x, B.y));
-        const ang = angleTo(s.x, s.y, B.x, B.y);
-        const leg = nearestPassable(s._legX !== undefined ? s._legX : s.x + Math.cos(ang) * legLen,
-                                    s._legY !== undefined ? s._legY : s.y + Math.sin(ang) * legLen);
-        if (s._legX === undefined) { s._legX = leg.x; s._legY = leg.y; }
+        if (s._legX === undefined) {
+          const leg = pickBoundLeg(s, B.x, B.y);
+          s._legX = leg.x; s._legY = leg.y;
+        }
         const arrived = squadMove(s, s._legX, s._legY, TUNE.squadRun, dt);
         if (arrived || dist(s.x, s.y, s._legX, s._legY) < 16) s._bounded = true;
       } else {
@@ -3072,7 +3325,7 @@ function updateSquaddie(s, dt) {
 }
 
 function squadMove(s, gx, gy, speed, dt, noisy) {
-  const done = moveAlongPath(s, gx, gy, speed * armorSpeed(s), dt, pathCostSquad);
+  const done = moveAlongPath(s, gx, gy, speed * armorSpeed(s) * gunSpeed(s), dt, pathCostSquad);
   return done;
 }
 
@@ -3309,8 +3562,10 @@ function render() {
   }
 
   // flashbangs in flight
-  ctx.fillStyle = "#aab2ba";
-  for (const g of game.bangs) { ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, TAU); ctx.fill(); }
+  for (const g of game.bangs) {
+    ctx.fillStyle = (THROWABLES[g.kind] || THROWABLES.bang).col;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, TAU); ctx.fill();
+  }
 
   // fx the world occludes — blood, and anything else the fog should dim
   drawFx("pre");
@@ -3354,6 +3609,7 @@ function render() {
   // What you remember, drawn above the fog. Explored ground you cannot
   // currently see used to be a uniform dark smear; the doors and windows you
   // walked past are exactly the things you would still have in your head.
+  drawSmoke();
   drawMemory(x0, y0, x1, y1);
 
   // light emitters and information rings go ON TOP of the fog: a muzzle flash
@@ -3922,7 +4178,19 @@ function drawHud() {
   ctx.fillText(gunName + "  " + (p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag)
                + "  " + rnd.name, bx, by + 40);
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText(shoulderTxt + " [N]   BANG " + p.bangs + "  CHG " + p.charges, bx, by + 56);
+  ctx.fillText(shoulderTxt + " [N]", bx, by + 56);
+  // the bag, with whatever is currently on the throw button called out
+  ctx.font = "11px Consolas, monospace";
+  let gx = bx + 128;
+  for (const k of THROW_ORDER) {
+    const T = THROWABLES[k], have = p.nades[k] || 0;
+    ctx.fillStyle = have <= 0 ? "#3c444b" : (k === p.nadeKind ? COLORS.accent : COLORS.hudDim);
+    ctx.fillText(T.name.slice(0, 4) + " " + have, gx, by + 56);
+    gx += 46;
+  }
+  ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText("CHG " + p.charges, gx, by + 56);
+  ctx.font = "13px Consolas, monospace";
   // Losing the controls needs to be the loudest thing on screen, not a note in
   // the corner: the state lasts about a second and reads as a freeze otherwise.
   if (p.blind > 0 || p.stagger > 0) {
@@ -4030,6 +4298,7 @@ function drawWheel() {
     ctx.fillText("\u25b6 " + game.lastPlay.name, viewW / 2, 118);
     ctx.globalAlpha = 1; ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
   }
+  drawNadeWheel();
   const w = game.wheel; if (!w) return;
   const team = selectedSquaddies();
   const cmd = team.length ? team : game.squad.filter(s => s.alive);
@@ -4063,6 +4332,41 @@ function drawWheel() {
   ctx.fillText(w.dir ? "release to call it" : "release to send " +
                (team.length ? "them" : "the team") + " there \u00b7 flick for a play",
                w.sx, w.sy + R + 26);
+  ctx.textAlign = "left";
+}
+
+function drawNadeWheel() {
+  const w = game.nadeWheel; if (!w) return;
+  const p = game.player, R = 82;
+  const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  ctx.fillStyle = "rgba(6,9,12,0.55)";
+  ctx.beginPath(); ctx.arc(w.sx, w.sy, R + 30, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#2a333c"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(w.sx, w.sy, TUNE.wheelDeadzone, 0, TAU); ctx.stroke();
+  ctx.textAlign = "center";
+  for (const k of THROW_ORDER) {
+    const T = THROWABLES[k], off = OFF[T.dir];
+    const x = w.sx + off[0] * R, y = w.sy + off[1] * R;
+    const have = p.nades[k] || 0;
+    const on = w.dir === T.dir, dead = have <= 0;
+    ctx.font = "bold 12px Consolas, monospace";
+    const label = T.name + " " + have;
+    const bw = Math.max(ctx.measureText(label).width, 96) + 20;
+    ctx.fillStyle = on && !dead ? "rgba(232,181,58,0.22)" : "rgba(6,9,12,0.85)";
+    ctx.fillRect(x - bw / 2, y - 16, bw, 32);
+    ctx.strokeStyle = dead ? "#2a333c" : on ? COLORS.accent : T.col;
+    ctx.lineWidth = on ? 2 : 1;
+    ctx.strokeRect(x - bw / 2 + 0.5, y - 15.5, bw - 1, 31);
+    ctx.fillStyle = dead ? "#4a545d" : on ? COLORS.accent : T.col;
+    ctx.fillText(label, x, y - 1);
+    ctx.font = "9px Consolas, monospace";
+    ctx.fillStyle = dead ? "#3c444b" : COLORS.hudDim;
+    ctx.fillText(T.note, x, y + 11);
+  }
+  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
+  ctx.fillText(w.dir ? "release to throw it there"
+                     : "release to throw " + THROWABLES[p.nadeKind].name.toLowerCase(),
+               w.sx, w.sy + R + 24);
   ctx.textAlign = "left";
 }
 
@@ -4211,10 +4515,10 @@ const game = {
   zoom: 1.6,
   loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft" },
   player: null, squad: [], enemies: [], hostages: [], civilians: [],
-  bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [],
+  bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
-  wheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
+  wheel: null, nadeWheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
   visPoly: null,
@@ -4242,7 +4546,8 @@ function initGame() {
   game.enemies = level.spawns.enemies.map(makeEnemy);
   game.hostages = level.spawns.hostages.map(sp => makeCivilian(sp, true));
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
-  game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = [];
+  game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = []; game.smokes = [];
+  level.smokeGrid = null;
   game.selected = new Set();
   game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
   game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.snake = null; game.wallCharge = null;
@@ -4251,7 +4556,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.wheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null;
+  game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -4268,6 +4573,7 @@ function update(dt) {
   for (const h of game.hostages) updateCivilian(h, dt);
   updateBullets(dt);
   updateBangs(dt);
+  updateSmokes(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -4513,7 +4819,7 @@ function frame(now) {
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
     // hold Tab, or hold the wheel open: command time. Choosing what the squad
     // does is a decision, and decisions should not be a dexterity test.
-    game.slowmo = (held("tab") || !!game.wheel) && !game.paused;
+    game.slowmo = (held("tab") || !!game.wheel || !!game.nadeWheel) && !game.paused;
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       // A thrown exception here must never take the render loop with it: the
@@ -4597,7 +4903,12 @@ function mkBtn(parent, key, title, sub, onPick) {
 function refreshMenu() {
   const bests = loadBests();
   const dk = DIFFICULTIES[game.diffIndex].key;
-  mapPickEl.querySelectorAll(".mapbtn").forEach((x, j) => {
+  // Read the mission index off the button, NEVER off its position. The buttons
+  // are rendered in a different order than MAPS (training first), so position
+  // and index stopped agreeing — which highlighted one mission while loading
+  // another, and hung best-grade labels on the wrong missions.
+  mapPickEl.querySelectorAll(".mapbtn").forEach((x) => {
+    const j = +x.dataset.idx;
     x.classList.toggle("sel", j === game.mapIndex);
     const best = bests[j + ":" + dk];
     const span = x.querySelector(".best");
@@ -4639,6 +4950,7 @@ MAPS.map((m, i) => ({ m, i }))
     .forEach(({ m, i }) => {
   const b = document.createElement("button");
   b.className = "mapbtn";
+  b.dataset.idx = i;
   b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span><br><span class=\"best\" style=\"color:#e8b53a\"></span>";
   b.addEventListener("click", () => { game.mapIndex = i; refreshMenu(); });
   mapPickEl.appendChild(b);
