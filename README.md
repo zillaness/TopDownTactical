@@ -49,7 +49,7 @@ real browser with Playwright.
 | File | What it is |
 |---|---|
 | `top_down_tactical_v0.12.html` | The game (single file, canvas 2D) |
-| `top_down_tactical_prd_v1.1.1.md` | Product requirements — pillars, systems, deferred list |
+| `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |

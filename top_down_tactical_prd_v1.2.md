@@ -1,16 +1,16 @@
 ---
-file: top_down_tactical_prd_v1.1.1.md
-version: 1.1.1
+file: top_down_tactical_prd_v1.2.md
+version: 1.2
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-07
+last_updated: 2026-08-11
 description: Product requirements for a top-down Door Kickers 2-style tactical game where the player directly controls the point man (WASD + mouse aim/shoot) while commanding an AI squad through stacks, breaches, and hostage rescue.
 ai_update: Update last_updated and version. Rename file to match. Append changelog at bottom.
 ---
 
 # Top-Down Tactical (working title — game name TBD)
 
-**Status:** PRD v1.0, written alongside prototype v0.1 (playable). Research base: `tactical_research_v1.0.md`.
+**Status:** PRD v1.2, synced to build v0.12 after the first human playtest. Research base: `tactical_research_v1.0.md`.
 
 ---
 
@@ -34,40 +34,62 @@ The fantasy in one line: *stack your guys on the back door, breach the front you
 
 If a feature doesn't sharpen one of these, cut it.
 
-## 3. Player Controls (locked by Sam's request)
+## 3. Player Controls
+
+Rewritten at v0.9-v0.12 after the first human playtest. Sam's note was "too many
+controls all across the keyboard" and "controlling your squad is the hard part",
+so the squad moved wholesale onto the right mouse button and eight bindings were
+deleted (P, 1-7 as play calls, B, T, X, Z, and the hold-Tab command time).
 
 | Input | Action |
 |---|---|
-| WASD | Move (default tactical trot) |
-| Shift | Walk — slow, quiet, tighter aim |
+| WASD | Move — the honest middle gait |
+| Shift (hold) | Sprint — fast and loud, an 11° cone so you cannot shoot from it, and armour limits how long |
+| Space (hold) | Steady — slow, silent, tightest cone |
 | Mouse | Aim; operator faces cursor; camera leads toward cursor |
-| LMB | Fire (auto carbine; spread blooms with movement + recoil) |
+| LMB | Fire (spread blooms with movement, recoil, suppression and how hard you just turned) |
+| Scroll | Swap primary ↔ sidearm — faster than a reload |
 | R | Reload |
 | E | Context: open/close door, cuff surrendered suspect, secure hostage |
-| F | Kick door (fast, loud, staggers anyone behind it) |
-| G | Throw flashbang at cursor |
+| F | Kick door |
 | C | Shout "hands up!" — compliance check on enemies with LOS |
-| Q | Mirror under a closed door — mark contacts in the room (4s) |
+| Q | Snake cam — under a closed door or over a window sill |
 | H | Wall charge: plant on the wall you face, H again to detonate |
-| Space | Tactical pause — world freezes, orders still issuable |
-| Tab (hold) | Command time — world runs at 15% while you order |
-| Esc | Menu (Resume continues the run; Restart Mission starts over) |
+| N | Swap shoulder — peek the other side of a corner |
+| Tab | Tactical pause — world freezes, orders still issuable |
+| Esc | Menu |
+| [ ] | Zoom |
 
-**Squad command (same cursor, no mode switch):**
+**The grenade bag** — hold MMB, flick a direction, release to throw. Releasing
+without a flick throws whatever is already selected.
+
+| Flick | Throwable |
+|---|---|
+| ↑ | Frag — kills the room |
+| ↓ | Concussion — overpressure; reaches around a corner a flashbang cannot see past |
+| ← | Flashbang — blinds, no damage |
+| → | Smoke — takes sight away, including yours |
+
+**The squad** — one button. Right-click an operator to select or deselect him;
+no selection means the whole team. Right-click anywhere else holds the wheel
+open and drops the world to command speed.
 
 | Input | Action |
 |---|---|
-| 1 / 2 / 3 | Select teammate (toggle) |
-| 4 or ` | Select all |
-| RMB on ground | Selected: move there and hold |
-| RMB on door | Selected: stack on that door (slots hug the wall, never the fatal funnel) |
-| B | Cycle stacked door's breach method: open / kick / charge |
-| T | Toggle flashbang on that breach |
-| X | **GO** — every READY stack breaches simultaneously |
-| Z | Selected: follow me |
-| V | Cycle ROE for selected (or all): hold / return fire / weapons free |
+| RMB on an operator | Select / deselect |
+| RMB elsewhere, release with no flick | Go there — and breach the first closed door on the path |
+| flick ↑ | **TAKE IT** — bang it and flood the room, to points of domination |
+| flick → | **BOUND** — leapfrog, one element always still and watching |
+| flick ↓ | **HOLD** — stop and cover; on a door, slice the pie; on a known contact, **SUPPRESS** |
+| flick ← | **ON ME** — form the travel wedge and follow |
+| V | Cycle ROE: hold / return fire / weapons free |
+| 1 2 3 / 4 | Select by number, for anyone who prefers keys |
 
-Design rules from research: cursor carries aim + camera + command (never a separate command screen); GO is the only input a set-piece needs mid-fight; camera lead must cover the enemy's lethal range so nothing kills you from outside obtainable information.
+Design rules from research, all still holding: the cursor carries aim, camera and
+command with no mode switch; every wheel slot names what it will do to the thing
+actually under the cursor before you commit; a stack executes itself when it is
+set, and multiple stacks wait for each other, so there is no GO key to press at
+the one moment it could ever be correct to press it.
 
 ## 4. Success Criteria
 
@@ -149,3 +171,4 @@ It fails if the optimal play is soloing the map with the squad parked, or puppet
 - v1.0 (2026-08-07): Initial PRD, written from tactical_research_v1.0.md alongside prototype v0.1.
 - v1.1 (2026-08-07, burndown night): Synced to shipped state — slow-mo command time, ROE, mirror peek, wall charges, feint surrender, audio, second mission + mission select moved from deferred to §5; deferred list renumbered; control table expanded (Q/H/Tab/V).
 - v1.1.1 (2026-08-07, review pass): ROE engagement rule documented precisely; door-open honesty (no slow swing yet); Esc resume path; friendly fire now applies to teammates and cuffed suspects per 5.1.
+- v1.2 (2026-08-11): Controls section rewritten around the command wheel, the grenade bag and the three gaits, after the first human playtest collapsed the squad layer onto the right mouse button and deleted eight bindings. Everything below §3 still describes the v0.1 scope and is next to sync.
