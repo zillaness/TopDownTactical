@@ -1,10 +1,10 @@
 ---
-file: ART_BRIEF_v1.0.md (top-down-tactical)
-version: 1.0
+file: ART_BRIEF_v1.1.md (top-down-tactical)
+version: 1.1
 author: Sam Cao
 created: 2026-08-12
 last_updated: 2026-08-12
-description: Self-contained art direction brief for an external model with no repo access. Everything needed to do a graphical pass on the sprite set and the render palette.
+description: Self-contained art direction brief for an external model with no repo access. Everything needed to do a graphical pass on the sprite set and the render palette, including the game mechanics the art has to serve.
 ai_update: Update last_updated and bump version in frontmatter. Rename file to match. Append changelog at bottom.
 ---
 
@@ -17,6 +17,9 @@ images ship alongside it and are the other half of the brief:
 - `art/sprite_contact_sheet_v2.0.png` — all 27 current sprites, each shown at a
   120px study next to the actual 40px in-game blit, on the real floor colour.
 - `art/gameplay_frame_v0.15.png` — an honest gameplay frame, fog and all.
+
+You do not need any other document. §1.1 carries the game mechanics that bear on
+art decisions; nothing else in the project would change what you draw.
 
 Look at both before proposing anything. The contact sheet is what the art *is*;
 the gameplay frame is what the art *reads as*, and the gap between them is the
@@ -35,6 +38,69 @@ canvas once at load, then blitted.
 Reference points for tone: Door Kickers 2, Ready or Not's top-down planning
 view, SWAT 4's blueprint aesthetic. Reads as an operations screen, not a
 cartoon. Grounded, legible, no outlines-as-style, no chunky pixel art.
+
+### 1.1 The eight game facts that should change your decisions
+
+You do not need the design docs. You do need these, because each one is a
+constraint the art has to satisfy and none of them is guessable from the
+screenshots.
+
+1. **Reading the screen fast is the core skill.** A door opens, three bodies are
+   revealed, and the player has under a second to decide shoot / arrest /
+   protect / do-not-touch. Every legibility argument in this brief comes back to
+   that one second.
+
+2. **There are five body categories with different consequences, not two.**
+   Shoot a suspect. **Arrest** one who has surrendered — worth more than killing
+   him, and killing him after he surrenders is scored as an atrocity. **Protect**
+   hostages and civilians. **Do not touch** the HVT; he is the objective. And
+   already-neutralized bodies (cuffed, dead) are clutter that must not read as
+   threats. Confusing any two of these is how a mission is failed, so they must
+   be distinguishable in the same glance.
+
+3. **The corner game is the signature mechanic, and it depends on the sprite.**
+   A shooter's eye and muzzle sit off to his shooting shoulder, not on his
+   centreline. Roll out around a corner on that side and your eye clears the
+   wall while your body is still masked — you see them first. Roll out the wrong
+   way and your body clears before your eye does. Enemies always test line of
+   sight against the body centre, so that asymmetry *is* the mechanic. The
+   player has to be able to see which shoulder his weapon is on at a glance, and
+   handedness is randomised per operator. **This is why the Y-flip rule in §2
+   matters and why a vertically symmetric sprite silently breaks the game.**
+
+4. **There are three visibility states, not two.** Currently visible (full
+   colour). **Remembered** — you walked through it, so you know where the doors
+   and windows are, drawn as a faint schematic, but you do not know what is in
+   there now. Never seen (solid black). On top of that sit last-known-position
+   ghosts for contacts that moved out of view, and shared squad vision, so
+   leaving a man covering a corner keeps that ground live. A palette proposal
+   has to keep those three states clearly apart.
+
+5. **Wall colour is load-bearing information.** Each material in §4 has a
+   ballistic value: concrete stops everything, drywall stops almost nothing,
+   glass lets you see and shoot through it. Players learn to read a wall and
+   decide whether to shoot through it. If a repaint makes two materials look
+   alike, it breaks a mechanic, not just a mood.
+
+6. **Body count varies 0.65x to 2.3x by an enemy-density option.** The largest
+   map is 74x42 tiles with thirty-six armed defenders at the top setting.
+   Legibility has to survive a screen that crowded, at 60fps.
+
+7. **Several important states currently have no visual at all.** Alerted,
+   suppressed (taking incoming fire), reloading, blinded by a flashbang, and
+   rules-of-engagement setting all live in HUD text today. So does **rank** —
+   squadmates now carry persistent experience across missions and climb five
+   tiers from BOOT to MASTER, and if one dies he loses all of it and is replaced
+   by a boot. A veteran and a rookie currently look identical. There is an
+   opening for a visual language there and it is wide open.
+
+8. **Performance model, so you do not design something that cannot ship.** Each
+   (sprite key, tint colour) pair is rasterised to an offscreen canvas **once at
+   load** and blitted thereafter. Adding a new *tint* is nearly free. Adding a
+   new *key* costs one raster. Per-frame SVG, per-frame filters, and per-entity
+   unique colours are all off the table. State changes are better expressed as
+   something the engine draws on top of the sprite than as thirty new keys — if
+   you want a state variant, say so and say why it earns its raster.
 
 ## 2. The hard contract — break any of these and the art will not load
 
@@ -228,9 +294,15 @@ In priority order:
    the seven materials by value as well as hue, and still survives the 80% fog
    wash. Propose values; do not assume the current ones are load-bearing. The
    material colours have to keep signalling what a round will cross.
-4. **Optional, if you want to go further:** state variants (alert / suppressed),
-   a door treatment that reads at 40px, and a proposal for what the smoke, blood
-   and muzzle flash effects should look like against a revised palette.
+4. **A door treatment that reads at 40px.** Doors are the most tactically loaded
+   object in the game and currently look like wall segments. Closed / open /
+   breached must be distinguishable instantly, and a locked door needs to read as
+   locked before the player walks into it.
+5. **Optional, if you want to go further:** a visual language for state — alerted,
+   suppressed, and squad rank (see §1.1 item 7; a veteran and a boot look
+   identical today, which is a gap worth filling). Bear the raster cost in mind
+   and prefer something the engine can overlay. Also welcome: what smoke, blood
+   and muzzle flash should look like against a revised palette.
 
 ## 8. How to hand work back
 
@@ -257,3 +329,4 @@ file, no network, still true.
 
 ## CHANGELOG
 - v1.0 (2026-08-12): Written for a hand-off to a model with no repo access, against build v0.15.
+- v1.1 (2026-08-12): Added §1.1, the eight game facts that change art decisions, so no second design document is needed. Doors promoted to a required deliverable; rank added as an open visual gap. Synced to v0.16.

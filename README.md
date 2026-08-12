@@ -53,7 +53,7 @@ real browser with Playwright.
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
-| `ART_BRIEF_v1.0.md` | Self-contained art direction brief for an external pass (no repo access needed) |
+| `ART_BRIEF_v1.1.md` | Self-contained art brief for an external pass — contract, assets, palette, and the mechanics the art serves |
 | `art/` | Sprite contact sheet + an honest gameplay frame, the other half of the art brief |
 | `improvement_plan_v1.1.md` | Ranked plan from the eight-agent audit-and-research study |
 | `tests/` | Headless Node test harness |
