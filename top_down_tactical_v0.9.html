@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.8.html
-  version: 0.8
+  file: top_down_tactical_v0.9.html
+  version: 0.9
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.8 (working title)</title>
+<title>Top-Down Tactical v0.9 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.8 prototype &mdash; working title &mdash; six missions</h2>
+  <h2>v0.9 prototype &mdash; working title &mdash; eight missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -5100,6 +5100,35 @@ requestAnimationFrame(frame);
     material you wear: IIIA turns pistol and shot, III adds rifle ball, IV turns
     armour-piercing, every tier costs move speed, plates wear out after a handful
     of hits, and a fifth of hits miss the armour entirely.
+  v0.9 (2026-08-11): The playtest build. Twelve units shipped against Sam playing
+    it, which is the first time this project has had a human in the loop.
+    COMMAND: the squad moved from P/1-7/B/T/X/Z onto one mouse button — right
+    click a man to select, right click anywhere else and flick a direction for
+    TAKE IT / BOUND / HOLD / ON ME, or release without flicking to send them
+    there. Each slot names what it will do to the thing under the cursor before
+    you commit, and the plain release runs the real A* path and breaches the first
+    closed door on it, so pointing into a room IS ordering a breach. The GO key
+    went with it: stacks execute themselves and wait for each other. Middle mouse
+    holds the grenade bag on the same idiom.
+    INFORMATION: squadmates cast vision cones that lift the fog for you, so
+    leaving a man on a corner is a real order; explored ground keeps a schematic
+    of the walls, doors and windows you have seen; contacts leave a last-known
+    mark that ages and fades; the mirror became a snake cam that works over a
+    window sill and writes what it sees into memory.
+    THE CLOCK: game.alarm was a global flag any guard set by hearing anything,
+    and the executioner's countdown keyed off it — so a man sealed in a back room
+    started executing because someone outside heard a door. Sound now attenuates
+    per barrier crossed, the clock starts on the taker's OWN awareness, and
+    enemies call out to each other so information spreads through people.
+    FIGHTING: suppression (a round inside 46px keeps a head down; pinned means he
+    stops shooting back), a base-of-fire order on the wheel, frag, concussion and
+    smoke grenades, a sidearm on the scroll wheel, the squad automatic and the
+    marksman rifle, and bounding that scores its legs on cover instead of walking
+    straight at the objective.
+    MISSIONS: THE SHOOT HOUSE (training, no clock) and THE PILLBOX (the first
+    straight skirmish), plus a briefing and floor plan derived from the map source
+    itself, and an after-action review that turns the lights on when you fail and
+    draws the line of fire from the muzzle that did it.
 -->
 </body>
 </html>

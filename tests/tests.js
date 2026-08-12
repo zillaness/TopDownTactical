@@ -1359,3 +1359,32 @@ console.log('  and best grades are keyed by the same index: ' +
             /\+x\.dataset\.idx/.test(refreshMenu.toString()) ? 'CORRECT' : 'WRONG');
 console.log('MISSION PICKER TEST DONE');
 })();
+
+(function versionConsistencyTests(){
+console.log('--- the build must agree with itself about what version it is ---');
+// This exists because it did not: twelve feature commits shipped under one
+// filename because nothing failed when the version was left alone. This cannot
+// catch "forgot to bump", but it catches every way the three records disagree.
+const fs = require('fs'), path = require('path');
+// the suite runs as a concatenated bundle in /tmp, so __dirname is useless;
+// run.sh cds into tests/, so the repo is one level up from cwd
+const dir = path.join(process.cwd(), '..');
+const files = fs.readdirSync(dir).filter(f => /^top_down_tactical_v[\d.]+\.html$/.test(f));
+console.log('  exactly one game file: ' + files.join(', '), files.length === 1 ? 'CORRECT' : 'WRONG');
+const name = files[0], src = fs.readFileSync(path.join(dir, name), 'utf8');
+const fileV = name.match(/_v([\d.]+)\.html$/)[1];
+const headerName = (src.match(/^\s*file:\s*(\S+)/m) || [])[1];
+const headerV = (src.match(/^\s*version:\s*([\d.]+)/m) || [])[1];
+const titleV = (src.match(/<title>[^<]*v([\d.]+)/) || [])[1];
+const h2V = (src.match(/<h2>v([\d.]+) prototype/) || [])[1];
+const logged = [...src.matchAll(/^\s{2}v([\d.]+) \(\d{4}-\d{2}-\d{2}\)/gm)].map(m => m[1]);
+const newest = logged[logged.length - 1];
+console.log('  filename ' + fileV + ' | header ' + headerV + ' | title ' + titleV +
+            ' | menu ' + h2V + ' | newest changelog entry ' + newest);
+const agree = [headerV, titleV, h2V, newest].every(v => v === fileV) && headerName === name;
+console.log('  all five agree:', agree ? 'CORRECT' : 'WRONG — the build is lying about its own version');
+console.log('  changelog is in order: ' + logged.join(' -> '),
+            logged.length > 1 && logged.every((v, i) => i === 0 || parseFloat(v) > parseFloat(logged[i - 1]))
+              ? 'CORRECT' : 'WRONG');
+console.log('VERSION TEST DONE');
+})();
