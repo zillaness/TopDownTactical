@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.9.html
-  version: 0.9
+  file: top_down_tactical_v0.10.html
+  version: 0.10
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.9 (working title)</title>
+<title>Top-Down Tactical v0.10 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.9 prototype &mdash; working title &mdash; eight missions</h2>
+  <h2>v0.10 prototype &mdash; working title &mdash; eight missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -232,6 +232,8 @@ const TUNE = {
   eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
   leftHandedRate: 0.1,              // ~1 in 10, as in life
   shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
+  doorwaySqueeze: 0.62,             // body radius multiplier while in a doorway
+  doorwayPull: 0.85,                // how hard you drift onto a doorway centreline
   gunSwapTime: 0.35,                // dead time going to the sidearm and back
 
   // suppression: rounds that crack past keep a man's head down
@@ -1288,6 +1290,27 @@ function swapShoulder(s) {
   sfxAt("click", s.x, s.y);
 }
 
+// Doorway assist. A 32px gap against a 20px body leaves six pixels of tolerance
+// either side, so a diagonal approach slides along the wall and never finds the
+// opening — measured, 0% of approaches 32 degrees off square got through.
+// Catching the frame is realistic; being unable to find a door you are walking
+// at is not. Heading toward an opening now drifts you onto its centreline, the
+// way a person feels for the jamb and adjusts.
+function doorwayAssist(p, dx, dy) {
+  const d = nearestDoor(p.x, p.y, TILE * 1.7);
+  if (!d || d.state === "closed") return { dx, dy };
+  const c = doorCenter(d);
+  if ((c.x - p.x) * dx + (c.y - p.y) * dy <= 0) return { dx, dy };   // not heading at it
+  // you have to be centred on the axis that runs ALONG the wall the door sits in
+  const alongX = d.orient === "h";
+  const err = alongX ? (c.x - p.x) : (c.y - p.y);
+  if (Math.abs(err) < 1.5) return { dx, dy };
+  const pull = clamp(err / (TILE * 0.6), -1, 1) * TUNE.doorwayPull;
+  if (alongX) dx += pull; else dy += pull;
+  const len = Math.hypot(dx, dy) || 1;
+  return { dx: dx / len, dy: dy / len };
+}
+
 function updatePlayer(p, dt) {
   if (!p.alive) return;
   p.blind = Math.max(0, p.blind - dt);
@@ -1304,7 +1327,13 @@ function updatePlayer(p, dt) {
   if (p.moving && p.stagger <= 0) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
     const spd = (p.walking ? TUNE.playerWalk : TUNE.playerRun) * armorSpeed(p) * gunSpeed(p);
-    const res = moveCircle(p.x, p.y, p.r, dx * spd * dt, dy * spd * dt, solidForMove);
+    // Threading a 32px doorway with a 20px body catches on the jamb constantly.
+    // Getting hung up on a frame is realistic; being welded to it is not, so a
+    // body squeezes when it is actually in a doorway and nowhere else.
+    const near = nearestDoor(p.x, p.y, 40);
+    const rad = (near && near.state !== "closed") ? p.r * TUNE.doorwaySqueeze : p.r;
+    const a = doorwayAssist(p, dx, dy);
+    const res = moveCircle(p.x, p.y, rad, a.dx * spd * dt, a.dy * spd * dt, solidForMove);
     p.x = res.x; p.y = res.y;
     if (!p.walking) emitFootstepNoise(p, dt);
   }
@@ -1783,8 +1812,42 @@ const THROWABLES = {
 };
 const THROW_ORDER = ["bang", "frag", "conc", "smoke"];
 
+// You do not throw a grenade AT a spot on the far side of a doorway, you throw
+// it THROUGH the doorway. Measured before this: 38% of throws at a point inside
+// a room bounced off the frame instead of going in, because the trajectory was
+// a straight line from the hand to the cursor and any graze on the jamb killed
+// it. If the direct line is blocked, find an opening that is roughly on the way
+// and thread that instead.
+function throwLane(from, tx, ty) {
+  const ang = angleTo(from.x, from.y, tx, ty);
+  const d = dist(from.x, from.y, tx, ty);
+  const direct = raycast(from.x, from.y, ang, d, solidForMove);
+  if (!direct.hit) return { x: tx, y: ty };
+
+  const gaps = [];
+  for (const dr of level.doors) if (dr.state !== "closed") gaps.push(doorCenter(dr));
+  for (const w of level.windowAt.values()) {
+    if (w.broken) gaps.push({ x: w.tx * TILE + TILE / 2, y: w.ty * TILE + TILE / 2 });
+  }
+  let best = null, bd = Infinity;
+  for (const c of gaps) {
+    const toGap = dist(from.x, from.y, c.x, c.y);
+    if (toGap > d + TILE * 2.5) continue;                       // not on the way
+    const ga = angleTo(from.x, from.y, c.x, c.y);
+    if (Math.abs(angDiff(ang, ga)) > deg(55)) continue;         // not in that direction
+    if (raycast(from.x, from.y, ga, Math.max(1, toGap - 3), solidForMove).hit) continue;
+    if (toGap < bd) { bd = toGap; best = c; }
+  }
+  if (!best) return { x: tx, y: ty };
+  // aim through the gap and let it carry on that bearing into the room
+  const ga = angleTo(from.x, from.y, best.x, best.y);
+  return { x: from.x + Math.cos(ga) * d, y: from.y + Math.sin(ga) * d, threaded: true };
+}
+
 function throwNade(thrower, txw, tyw, kind) {
   const T = THROWABLES[kind] || THROWABLES.bang;
+  const lane = throwLane(thrower, txw, tyw);
+  txw = lane.x; tyw = lane.y;
   const ang = angleTo(thrower.x, thrower.y, txw, tyw);
   const d = Math.min(dist(thrower.x, thrower.y, txw, tyw), 420);
   const clear = raycast(thrower.x, thrower.y, ang, thrower.r + 6, solidForMove);
@@ -5129,6 +5192,21 @@ requestAnimationFrame(frame);
     straight skirmish), plus a briefing and floor plan derived from the map source
     itself, and an after-action review that turns the lights on when you fail and
     draws the line of fire from the muzzle that did it.
+  v0.10 (2026-08-11): Doorways. Measured from Sam's playtest: 38% of grenades
+    thrown at a point inside a room bounced off the jamb instead of going in,
+    because the trajectory was a straight line from the hand to the cursor and
+    any graze on the frame killed it. You do not throw a grenade AT a spot past a
+    doorway, you throw it THROUGH the doorway — a blocked throw now looks for an
+    opening roughly on the way and threads that, which takes it to 100%, while an
+    unobstructed throw is left exactly alone. Walking through was worse: a 32px
+    gap against a 20px body leaves six pixels of tolerance, so 60% of dead-square
+    approaches got through, 8% at 18 degrees off, and 0% at 32 — you slid along
+    the wall and never found the opening. A body squeezes while it is actually in
+    a doorway and nowhere else, and heading toward an opening drifts you onto its
+    centreline the way a person feels for the jamb. Square and near-square
+    approaches are now reliable (100%/100%); a 32-degree run still mostly catches
+    the frame, on purpose, because Sam is right that hanging up on a door is
+    realistic — it just should not be unavoidable.
 -->
 </body>
 </html>

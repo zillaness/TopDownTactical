@@ -1383,8 +1383,87 @@ console.log('  filename ' + fileV + ' | header ' + headerV + ' | title ' + title
             ' | menu ' + h2V + ' | newest changelog entry ' + newest);
 const agree = [headerV, titleV, h2V, newest].every(v => v === fileV) && headerName === name;
 console.log('  all five agree:', agree ? 'CORRECT' : 'WRONG — the build is lying about its own version');
+// compare as tuples, not as floats — parseFloat says 0.10 is older than 0.9
+const cmp = (a, b) => {
+  const A = a.split('.').map(Number), B = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(A.length, B.length); i++) {
+    if ((A[i] || 0) !== (B[i] || 0)) return (A[i] || 0) - (B[i] || 0);
+  }
+  return 0;
+};
 console.log('  changelog is in order: ' + logged.join(' -> '),
-            logged.length > 1 && logged.every((v, i) => i === 0 || parseFloat(v) > parseFloat(logged[i - 1]))
+            logged.length > 1 && logged.every((v, i) => i === 0 || cmp(v, logged[i - 1]) > 0)
               ? 'CORRECT' : 'WRONG');
 console.log('VERSION TEST DONE');
+})();
+
+(function doorwayTests(){
+console.log('--- getting through a doorway, and getting a grenade through one ---');
+game.mapIndex = MAPS.findIndex(m => m.training); initGame(); game.state = 'play';
+
+// grenades must thread an opening rather than bounce off the jamb
+let made = 0, tries = 0;
+for (const d of level.doors) {
+  openDoor(d, true);
+  const c = doorCenter(d);
+  const n = doorNormal(d, c.x + TILE * 2, c.y + TILE * 2);
+  const lat = { x: n.y === 0 ? 0 : 1, y: n.x === 0 ? 0 : 1 };
+  for (let off = -3; off <= 3; off++) {
+    const from = { x: c.x + n.x * TILE * 3 + lat.x * off * 14,
+                   y: c.y + n.y * TILE * 3 + lat.y * off * 14, r: 10, side: 'player' };
+    if (isWall(tileAt(from.x, from.y).tx, tileAt(from.x, from.y).ty)) continue;
+    const target = { x: c.x - n.x * TILE * 2.2, y: c.y - n.y * TILE * 2.2 };
+    game.bangs.length = 0;
+    throwNade(from, target.x, target.y, 'bang');
+    for (let i = 0; i < 200 && game.bangs.length && game.bangs[0].travelLeft > 0; i++) updateBangs(1 / 60);
+    const g = game.bangs[0]; tries++;
+    if (g && (g.x - c.x) * n.x + (g.y - c.y) * n.y < -TILE * 0.5) made++;
+  }
+}
+console.log('  grenades thrown at a point inside a room: ' + made + '/' + tries + ' got in (' +
+            (100 * made / tries).toFixed(0) + '%)',
+            made / tries > 0.9 ? 'CORRECT' : 'WRONG');
+
+// a throw with a clear straight line must NOT be bent toward some other door
+const P = game.player;
+const straight = throwLane({ x: P.x, y: P.y }, P.x + 120, P.y);
+console.log('  an unobstructed throw is left alone: ' +
+            (Math.abs(straight.x - (P.x + 120)) < 0.01 && !straight.threaded),
+            Math.abs(straight.x - (P.x + 120)) < 0.01 ? 'CORRECT' : 'WRONG (aim assist is stealing throws)');
+
+// walking through: near-square approaches must be reliable, oblique ones need work
+function traverse(useAssist, approachDeg) {
+  game.mapIndex = MAPS.findIndex(m => m.training); initGame(); game.state = 'play';
+  let ok = 0, n2 = 0;
+  for (const d of level.doors) {
+    openDoor(d, true);
+    const c = doorCenter(d), nn = doorNormal(d, c.x + TILE * 2, c.y + TILE * 2);
+    const lat = { x: nn.y === 0 ? 0 : 1, y: nn.x === 0 ? 0 : 1 };
+    for (let off = -10; off <= 10; off += 5) {
+      const pl = game.player;
+      pl.x = c.x + nn.x * TILE * 2 + lat.x * off;
+      pl.y = c.y + nn.y * TILE * 2 + lat.y * off;
+      if (isWall(tileAt(pl.x, pl.y).tx, tileAt(pl.x, pl.y).ty)) continue;
+      n2++;
+      const base = Math.atan2(-nn.y, -nn.x) + deg(approachDeg);
+      for (let f = 0; f < 260; f++) {
+        const nd = nearestDoor(pl.x, pl.y, 40);
+        const rad = (nd && nd.state !== 'closed') ? pl.r * TUNE.doorwaySqueeze : pl.r;
+        const a = useAssist ? doorwayAssist(pl, Math.cos(base), Math.sin(base))
+                            : { dx: Math.cos(base), dy: Math.sin(base) };
+        const res = moveCircle(pl.x, pl.y, rad, a.dx * TUNE.playerRun / 60, a.dy * TUNE.playerRun / 60, solidForMove);
+        pl.x = res.x; pl.y = res.y;
+        if ((pl.x - c.x) * nn.x + (pl.y - c.y) * nn.y < -TILE * 0.9) { ok++; break; }
+      }
+    }
+  }
+  return ok / Math.max(1, n2);
+}
+const sq = traverse(true, 0), ob = traverse(true, 18), hard = traverse(true, 32);
+console.log('  walking through, square on: ' + (sq * 100).toFixed(0) + '%',
+            sq > 0.9 ? 'CORRECT' : 'WRONG');
+console.log('  18° off square: ' + (ob * 100).toFixed(0) + '%', ob > 0.8 ? 'CORRECT' : 'WRONG');
+console.log('  32° off square: ' + (hard * 100).toFixed(0) + '% — deliberately still work,',
+            hard < 0.8 ? 'CORRECT (catching a frame stays realistic)' : 'note: fully assisted now');
+console.log('DOORWAY TEST DONE');
 })();

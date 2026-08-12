@@ -27,7 +27,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.9.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.10.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -47,7 +47,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.9.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.10.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.1.1.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
