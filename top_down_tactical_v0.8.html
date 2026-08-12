@@ -3919,13 +3919,10 @@ function drawHud() {
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
   const rnd = AMMO[p.ammoType] || AMMO.fmj;
   const gunName = p.guns ? p.guns[p.gunIndex].name : "";
-  ctx.fillText((p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag) + "  " + rnd.name
-               + "   BANGS " + p.bangs + "  CHG " + p.charges, bx, by + 40);
-  ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
-  ctx.fillText(gunName + "   [scroll] swap", bx + 158, by + 40);
-  ctx.font = "13px Consolas, monospace"; ctx.fillStyle = COLORS.hud;
+  ctx.fillText(gunName + "  " + (p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag)
+               + "  " + rnd.name, bx, by + 40);
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText(shoulderTxt + "  [N]", bx, by + 56);
+  ctx.fillText(shoulderTxt + " [N]   BANG " + p.bangs + "  CHG " + p.charges, bx, by + 56);
   // Losing the controls needs to be the loudest thing on screen, not a note in
   // the corner: the state lasts about a second and reads as a freeze otherwise.
   if (p.blind > 0 || p.stagger > 0) {
