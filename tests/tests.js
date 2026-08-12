@@ -1545,3 +1545,63 @@ console.log('  sprint speed ' + TUNE.playerSprint + ' > run ' + TUNE.playerRun +
             TUNE.playerSprint > TUNE.playerRun && TUNE.playerRun > TUNE.playerWalk ? 'CORRECT' : 'WRONG');
 console.log('SPRINT TEST DONE');
 })();
+
+(function densityTests(){
+console.log('--- enemy density ---');
+const names = DENSITY.map(d => d.name + ' x' + d.mul);
+console.log('  tiers: ' + names.join(', '),
+            DENSITY.length >= 3 && DENSITY.some(d => d.mul === 1) ? 'CORRECT' : 'WRONG');
+
+const rows = [];
+let bad = [];
+for (let m = 0; m < MAPS.length; m++) {
+  const counts = [];
+  for (let d = 0; d < DENSITY.length; d++) {
+    game.densityIndex = d; game.mapIndex = m; initGame();
+    counts.push(game.enemies.length);
+    // uniques must stay unique or the objectives break
+    const takers = game.enemies.filter(e => e.kind === 'taker').length;
+    const hvts = game.enemies.filter(e => e.kind === 'hvt').length;
+    if (takers > 1) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' has ' + takers + ' hostage-takers');
+    if (hvts > 1) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' has ' + hvts + ' principals');
+    // everybody must be somewhere legal and reachable
+    const st = tileAt(level.spawns.player.x, level.spawns.player.y);
+    for (const e of game.enemies) {
+      const t = tileAt(e.x, e.y);
+      if (isWall(t.tx, t.ty) || isWindow(t.tx, t.ty)) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' spawn inside geometry');
+      else if (!astar(st.tx, st.ty, t.tx, t.ty, passForPath, pathCostSquad)) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' unreachable spawn');
+    }
+    // nobody stacked on top of anybody
+    const seenT = new Set();
+    for (const e of game.enemies) {
+      const k = tileAt(e.x, e.y).tx + ',' + tileAt(e.x, e.y).ty;
+      if (seenT.has(k)) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' two men on one tile');
+      seenT.add(k);
+    }
+  }
+  rows.push({ name: MAPS[m].name, counts });
+}
+game.densityIndex = 1; game.mapIndex = 0; initGame();
+rows.forEach(r => console.log('  ' + r.name.padEnd(18) + r.counts.map(c => String(c).padStart(4)).join('')));
+console.log('  ' + ''.padEnd(18) + DENSITY.map(d => d.name.slice(0, 4).padStart(4)).join(''));
+console.log('  every map scales monotonically:',
+            rows.every(r => r.counts.every((c, i) => i === 0 || c >= r.counts[i - 1])) ? 'CORRECT' : 'WRONG');
+console.log('  and SWARM is strictly more than STANDARD everywhere:',
+            rows.every(r => r.counts[3] > r.counts[1]) ? 'CORRECT' : 'WRONG');
+console.log('  placement legal on all ' + MAPS.length + ' maps x ' + DENSITY.length + ' tiers:',
+            bad.length ? 'WRONG -> ' + [...new Set(bad)].slice(0, 4).join('; ') : 'CORRECT');
+
+// the briefing must promise what the mission delivers
+let drift = [];
+for (let m = 0; m < MAPS.length; m++) for (let d = 0; d < DENSITY.length; d++) {
+  game.densityIndex = d; game.mapIndex = m; initGame();
+  const s = surveyMap(MAPS[m].src, game.diffIndex);
+  if (Math.abs(s.contacts - game.enemies.length) > 1) {
+    drift.push(MAPS[m].name + '@' + DENSITY[d].key + ' brief says ' + s.contacts + ', map has ' + game.enemies.length);
+  }
+}
+game.densityIndex = 1; game.mapIndex = 0; initGame();
+console.log('  briefing contact estimate tracks the real count:',
+            drift.length ? 'WRONG -> ' + drift.slice(0, 3).join('; ') : 'CORRECT (within the intel fuzz)');
+console.log('DENSITY TEST DONE');
+})();

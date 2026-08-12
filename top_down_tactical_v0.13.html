@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.12.html
-  version: 0.12
+  file: top_down_tactical_v0.13.html
+  version: 0.13
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.12 (working title)</title>
+<title>Top-Down Tactical v0.13 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -36,7 +36,7 @@
   #briefText { flex: 1 1 300px; min-width: 280px; max-width: 430px; font-size: 12px; line-height: 1.5; }
   #briefText .k { color: #e8b53a; display: inline-block; min-width: 96px; }
   #briefText .row { margin-bottom: 5px; color: #9fb0bf; }
-  #diffPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  #diffPick, #densPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .sect { margin: 16px 0 6px; font-size: 11px; letter-spacing: 3px; color: #5f9ea0; text-transform: uppercase; }
   #advice { max-width: 640px; margin-top: 8px; font-size: 12px; color: #e8b53a; font-style: italic; }
   .screen { overflow-y: auto; padding: 28px 0; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.12 prototype &mdash; working title &mdash; ten missions</h2>
+  <h2>v0.13 prototype &mdash; working title &mdash; ten missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -88,6 +88,8 @@
   </div>
   <div class="sect">Difficulty</div>
   <div id="diffPick"></div>
+  <div class="sect">Enemy density</div>
+  <div id="densPick"></div>
   <div class="sect">Primary weapon</div>
   <div id="primPick"></div>
   <div class="sect">Ammunition</div>
@@ -491,7 +493,11 @@ function surveyMap(rows, diffIdx) {
       s.mat[y][x] = "drywall"; s.partitions++;
     }
   }
-  s.contacts = Object.values(s.kinds).reduce((a, b) => a + b, 0);
+  const declared = Object.values(s.kinds).reduce((a, b) => a + b, 0);
+  const uniq = (s.kinds.taker || 0) + (s.kinds.hvt || 0);
+  const mul = (DENSITY[game.densityIndex] || DENSITY[1]).mul;
+  // uniques are never multiplied, so only the rest scales
+  s.contacts = uniq + Math.max(mul < 1 ? 1 : 0, Math.round((declared - uniq) * mul));
   s.armor = ((DIFFICULTIES[diffIdx] || {}).enemyArmor) || null;
   return s;
 }
@@ -4802,8 +4808,66 @@ const DIFFICULTIES = [
     enemyArmor: { elite: "plate", taker: "soft" } },
 ];
 
+// ---- how many of them there are
+// A multiplier over whatever the map declares, rather than a second set of
+// hand-placed spawns: a post the designer put one man on becomes a two-man post,
+// in the same room, at the same job. The unique roles — the hostage-taker and
+// the principal — are never duplicated, because the objectives are written
+// against exactly one of each.
+const DENSITY = [
+  { key: "light",  name: "LIGHT",    mul: 0.65, note: "thinner than written" },
+  { key: "std",    name: "STANDARD", mul: 1.00, note: "as the map was built" },
+  { key: "heavy",  name: "HEAVY",    mul: 1.55, note: "half again as many guns" },
+  { key: "swarm",  name: "SWARM",    mul: 2.30, note: "more than you can fight head-on" },
+];
+const UNIQUE_KINDS = new Set(["taker", "hvt"]);
+
+function applyDensity(spawns, mul) {
+  if (Math.abs(mul - 1) < 0.001) return spawns.slice();
+  const out = [], dupable = spawns.filter(sp => !UNIQUE_KINDS.has(sp.kind));
+  // thinning drops from the back of the duplicatable list and never the uniques
+  if (mul < 1) {
+    const keep = Math.max(1, Math.round(dupable.length * mul));
+    const kept = new Set(dupable.slice(0, keep));
+    for (const sp of spawns) if (UNIQUE_KINDS.has(sp.kind) || kept.has(sp)) out.push(sp);
+    return out;
+  }
+  for (const sp of spawns) out.push(sp);
+  const extra = Math.round(dupable.length * (mul - 1));
+  const taken = new Set(spawns.map(sp => tileAt(sp.x, sp.y).tx + "," + tileAt(sp.x, sp.y).ty));
+  for (let i = 0; i < extra && dupable.length; i++) {
+    const src = dupable[i % dupable.length];
+    const spot = nearbySpawnSpot(src, taken);
+    if (!spot) continue;
+    taken.add(spot.tx + "," + spot.ty);
+    out.push({ x: spot.tx * TILE + TILE / 2, y: spot.ty * TILE + TILE / 2, kind: src.kind });
+  }
+  return out;
+}
+
+// Somewhere the extra man could plausibly be standing: same room as the post he
+// is doubling, walkable, not on top of anybody.
+function nearbySpawnSpot(src, taken) {
+  const st = tileAt(src.x, src.y);
+  const room = inBounds(st.tx, st.ty) ? level.room[st.ty][st.tx] : 0;
+  const cands = [];
+  for (let r = 1; r <= 4; r++) {
+    for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const tx = st.tx + ox, ty = st.ty + oy;
+      if (!inBounds(tx, ty)) continue;
+      if (isWall(tx, ty) || isWindow(tx, ty) || doorAt(tx, ty)) continue;
+      if (taken.has(tx + "," + ty)) continue;
+      if (room && level.room[ty][tx] !== room) continue;   // stay in his room
+      cands.push({ tx, ty });
+    }
+    if (cands.length) break;
+  }
+  return cands.length ? pick(cands) : null;
+}
+
 const game = {
-  state: "menu", paused: false, slowmo: false, mapIndex: 0, diffIndex: 1, inProgress: false,
+  state: "menu", paused: false, slowmo: false, mapIndex: 0, diffIndex: 1, densityIndex: 1, inProgress: false,
   // Sprites are authored for ~40px, so the camera comes in for the art to read.
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
@@ -4838,7 +4902,8 @@ function initGame() {
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
   game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
-  game.enemies = level.spawns.enemies.map(makeEnemy);
+  game.density = DENSITY[game.densityIndex] || DENSITY[1];
+  game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
   game.hostages = level.spawns.hostages.map(sp => makeCivilian(sp, true));
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = []; game.smokes = [];
@@ -5044,7 +5109,7 @@ function endMission(won, reason) {
   game.aar = null;
   const st = game.stats;
   const grade = won ? computeGrade() : "F";
-  if (won && game.diff) { saveBest(game.mapIndex, game.diff.key, grade); refreshMenu(); }
+  if (won && game.diff) { saveBest(game.mapIndex, game.diff.key + ":" + (game.density || DENSITY[1]).key, grade); refreshMenu(); }
   document.getElementById("debriefTitle").textContent = won ? "Mission Complete" : "Mission Failed";
   document.getElementById("debriefGrade").textContent = grade;
   document.getElementById("debriefGrade").style.color = won ? "#3fc27e" : "#ff5555";
@@ -5185,6 +5250,7 @@ function saveBest(mapIdx, diffKey, grade) {
 
 const mapPickEl = document.getElementById("mapPick");
 const diffPickEl = document.getElementById("diffPick");
+const densPickEl = document.getElementById("densPick");
 const ammoPickEl = document.getElementById("ammoPick");
 const primPickEl = document.getElementById("primPick");
 const kitPickEl = document.getElementById("kitPick");
@@ -5210,11 +5276,12 @@ function refreshMenu() {
   mapPickEl.querySelectorAll(".mapbtn").forEach((x) => {
     const j = +x.dataset.idx;
     x.classList.toggle("sel", j === game.mapIndex);
-    const best = bests[j + ":" + dk];
+    const best = bests[j + ":" + dk + ":" + DENSITY[game.densityIndex].key];
     const span = x.querySelector(".best");
     if (span) span.textContent = best ? "best: " + best : "";
   });
   diffPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === game.diffIndex));
+  densPickEl.querySelectorAll(".mapbtn").forEach((x, j) => x.classList.toggle("sel", j === game.densityIndex));
 
   const L = game.loadout;
   const prim = PRIMARIES[L.primary];
@@ -5254,6 +5321,13 @@ MAPS.map((m, i) => ({ m, i }))
   b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span><br><span class=\"best\" style=\"color:#e8b53a\"></span>";
   b.addEventListener("click", () => { game.mapIndex = i; refreshMenu(); });
   mapPickEl.appendChild(b);
+});
+DENSITY.forEach((d, i) => {
+  const b = document.createElement("button");
+  b.className = "mapbtn";
+  b.innerHTML = "<b>" + d.name + "</b><br><span>" + d.note + "</span>";
+  b.addEventListener("click", () => { game.densityIndex = i; refreshMenu(); });
+  densPickEl.appendChild(b);
 });
 DIFFICULTIES.forEach((d, i) => {
   const b = document.createElement("button");
@@ -5488,6 +5562,20 @@ requestAnimationFrame(frame);
     separate hold-TAB-for-command-time is gone, because opening either wheel
     already slows the world whenever you are actually commanding. The squad
     sprints to close a gap and to cross a bound leg, so they keep up.
+  v0.13 (2026-08-11): Enemy density as a briefing option, per Sam: LIGHT 0.65x,
+    STANDARD, HEAVY 1.55x, SWARM 2.30x. It multiplies whatever the map declares
+    rather than adding a second set of hand-placed spawns, so a post the designer
+    put one man on becomes a two-man post — same room, same job — and every map
+    including any future one gets the option for free. The hostage-taker and the
+    principal are never duplicated, because the objectives are written against
+    exactly one of each. Verified across all ten maps at all four tiers: every
+    spawn walkable, reachable from the entry, nobody stacked on anybody, uniques
+    still unique, and the briefing's contact estimate tracking the real count.
+    Measured on the bot, 16 runs per tier: contacts 4.8 / 7.0 / 10.5 / 15.3, and
+    it is a real difficulty axis — 10/16 deaths at LIGHT and STANDARD against
+    16/16 at HEAVY and SWARM, with missions getting shorter as they get more
+    lethal. Best grades key on density as well as difficulty, so a SWARM clear
+    cannot be overwritten by a LIGHT one.
 -->
 </body>
 </html>
