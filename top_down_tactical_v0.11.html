@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.10.html
-  version: 0.10
+  file: top_down_tactical_v0.11.html
+  version: 0.11
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.10 (working title)</title>
+<title>Top-Down Tactical v0.11 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.10 prototype &mdash; working title &mdash; eight missions</h2>
+  <h2>v0.11 prototype &mdash; working title &mdash; ten missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -172,8 +172,8 @@ const TAU = Math.PI * 2;
 
 const TUNE = {
   // movement (px/s)
-  playerRun: 148, playerWalk: 76,
-  squadRun: 140, squadWalk: 80,
+  playerRun: 196, playerWalk: 104,
+  squadRun: 208, squadWalk: 112,
   enemyWalk: 70, enemyRun: 132,
   civilianRun: 96,
   bodyRadius: 10,
@@ -192,17 +192,20 @@ const TUNE = {
 
   // player weapon (carbine)
   rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
-           spreadBase: deg(1.2), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
+           spreadBase: deg(0.54), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
            recoil: deg(1.1), recoilMax: deg(7), recoilDecay: deg(14), range: 900 },
   // enemy weapon
-  akm:   { dmg: 26, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
-           spreadBase: deg(3.2), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 800 },
+  akm:   { dmg: 21, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
+           spreadBase: deg(1.44), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 800 },
 
   // lethality
-  playerHp: 100, squadHp: 100, enemyHp: 65,
+  playerHp: 100, squadHp: 100, enemyHp: 82,
 
   // enemy reaction: seconds from first LOS acquisition to first shot
   enemyReact: [0.42, 0.85], enemyReactAlert: [0.25, 0.5],
+  enemyReactWatching: [0.17, 0.28],  // already looking at you when you stepped out
+  awareMax: 1.6, awareDecay: 0.4,    // exposure accumulates; breaking LOS only bleeds it
+  reposDist: 150, reposCooldown: 3.2,
   squadReact: [0.18, 0.3],
 
   // noise radii (px)
@@ -242,7 +245,8 @@ const TUNE = {
   suppressSpread: deg(7),           // how much his aim opens up at full suppression
   supportSideSpread: 2.3,           // accuracy cost of shooting off the weak shoulder
   supportSideReact: 1.35,           // slower to break a shot off the weak shoulder
-  playerTurnRate: 22,               // rad/s-ish lerp: ~110ms for a 180° reversal
+  playerTurnRate: 40,               // ~60ms for a 180° reversal — weight, not lag
+  turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
   // surrender / compliance
   surrenderBase: 0.10,          // per shout, unmodified
@@ -514,8 +518,12 @@ function briefingLines(map, s, diffIdx) {
           (named.length ? ", including " + named.join(", ") : "")]);
   L.push(["WEAPONS", "7.62 automatic rifles reported. That round defeats IIIA soft armour — " +
           "a III plate is what turns it."]);
-  L.push(["THEIR ARMOR", s.armor
-    ? "Soft armour on the hard men. Hollow point and buckshot will not get through it; ball, AP and slugs will."
+  const worn = s.armor ? [...new Set(Object.values(s.armor))] : [];
+  L.push(["THEIR ARMOR", worn.length
+    ? worn.map(k => ARMOR[k].name).join(" and ") + " reported on the hard men. " +
+      (worn.includes("plate")
+        ? "A plate turns 5.56 and 7.62 ball outright — bring AP or slugs for those."
+        : "Hollow point and buckshot will not get through it; ball, AP and slugs will.")
     : "No body armour reported."]);
   if (s.hostages.length) {
     L.push(["HOSTAGES", s.hostages.length + " believed held, " +
@@ -851,6 +859,72 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
+{ name: "FIRST NATIONAL", advice: "They are coming out through the glass. Civilians are face-down on the lobby floor and the vault door is locked — mind what your rounds carry through.", brief: "Bank job going loud — robbers pushing out through the storefront",
+  type: "ARMED ROBBERY IN PROGRESS", objectives: ["neutralize"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,##########################,,",
+",,,,,,,,,,,,,,,,,,#........................#,,",
+",,,,,,,,,,,,,,,,,,#........................#,,",
+",,,,,,,,,,,%%%@,,,W........................#,,",
+",,,,,,,,,,,%%%@,,,W....--..................#,,",
+",,,,,,,,,,,,,,,,,,W....--.....=............#,,",
+",,,,,,,,,,,,,,,,,,W....--.....=............#,,",
+",,,,,,,,,,,,,,,,,,W.........g.=.....########,,",
+",,,,,,,,,,,,,,,,,,W......c....=.....#.....##,,",
+",,,,,,,,,,,,,,,,,,W..g........=.....#.....##,,",
+",,,s,,,,,,%%%@,,,,W...........=..c..#.....##,,",
+",,,,,,,,,,%%%@,,,,D.................L..E..##,,",
+",,sP,,,,,,,,,,,,,,D.................#.....##,,",
+",,,,,,,,,,,,,,,,,,W...........=.....#.....##,,",
+",,,s,,,,,,,,,,,,,,W.......c...=.....#.....##,,",
+",,,,,,,,,,,,,,,,,,W..g........=.....#.....##,,",
+",,,,,,,,,,,,,,,,,,W.....c.....=.....########,,",
+",,,,,,,,%%%@,,,,,,W....--...p.=............#,,",
+",,,,,,,,%%%@,,,,,,W....--.....=............#,,",
+",,,,,,,,,,,,,,,,,,W....--..................#,,",
+",,,,,,,,,,,,,,,,,,W........................#,,",
+",,,,,,,,,,,,,,,,,,#........................#,,",
+",,,,,,,,,,,,,,,,,,#........................#,,",
+",,,,,,,,,,,,,,,,,,##########################,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
+{ name: "DOWNTOWN EXCHANGE", advice: "A street fight down a lane of cars. Sheet metal is concealment; only the engine block will stop a round. Suppress, then bound.", brief: "Wall-to-wall cars, long sightlines, nobody to save",
+  type: "RUNNING GUNFIGHT", objectives: ["neutralize"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,####W######W###W###,,,,###################,,",
+",,#.................#,,,,#.................#,,",
+",,#.................#,,,,#.................#,,",
+",,#.......p.........#,,,,#.................#,,",
+",,#.................#,,,,#.................#,,",
+",,#.................#,,,,#.................#,,",
+",,######D######D#####,,,,######D######D#####,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,,,,,",
+",s,,,,,%%%@,,,%%%@,,g%%%@,,,%%%@,,,%%%@,,,,,,,",
+",,s,,,,,,,,,,,,,,,,,,,,,,,,,,,p,,,,,,,,,,,,,,,",
+",P,,%%%@,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%%@,",
+",,,,%%%@,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,E%%%@,",
+",s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,,",
+",,,,,,,,,,%%%@,,,%%%@,,g%%%@,,,%%%@,,,%%%@,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,#######D###########,,,,##########D########,,",
+",,#.................#,,,,#.................#,,",
+",,#.................#,,,,#.................#,,",
+",,#.................#,,,,#.......g.........#,,",
+",,#.................#,,,,#.................#,,",
+",,#.................#,,,,#.................#,,",
+",,###################,,,,#####W######W######,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] }
 ];
@@ -1222,6 +1296,9 @@ function currentSpread(s) {
   let sp = t.spreadBase + s.recoil;
   // incoming fire opens everyone's cone, yours included
   if (s.suppress) sp += TUNE.suppressSpread * clamp(s.suppress / TUNE.suppressMax, 0, 1);
+  // and so does whipping your muzzle onto a new contact: a snapped shot is a
+  // worse shot than a pied one, which is what makes cornering slowly pay
+  if (s.turnBloom) sp += Math.min(TUNE.turnBloomMax, s.turnBloom);
   if (s.moving) sp += s.walking ? (t.spreadWalkMove ?? t.spreadMove * 0.45) : t.spreadMove;
   if (s.shoulder === "support") sp *= TUNE.supportSideSpread;
   return sp;
@@ -1341,8 +1418,11 @@ function updatePlayer(p, dt) {
   // Aim. The body turns like a person — every other actor in the file uses
   // angLerp — but the firing solution below still reads the true cursor angle,
   // so nothing is lost off the mouse. Only the sprite and the shoulder lag.
+  const faceWas = p.face;
   p.face = angLerp(p.face, angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy),
                    clamp(dt * TUNE.playerTurnRate, 0, 1));
+  const swung = Math.abs(angDiff(faceWas, p.face));
+  p.turnBloom = Math.max(0, (p.turnBloom || 0) - dt * TUNE.turnBloomDecay) + swung * TUNE.turnBloomGain;
 
   // weapon
   updateShooterWeapon(p, dt);
@@ -1624,6 +1704,25 @@ function suppressAlong(b, ex, ey) {
   }
 }
 
+// Nobody had a velocity, so nobody could lead a moving target — which is why
+// alternating strafe inputs made the entire enemy roster miss beyond ~88px.
+function trackVelocities(dt) {
+  if (dt <= 0) return;
+  for (const e of [game.player, ...game.squad, ...game.enemies]) {
+    if (!e) continue;
+    if (e._px !== undefined) { e.vx = (e.x - e._px) / dt; e.vy = (e.y - e._py) / dt; }
+    e._px = e.x; e._py = e.y;
+  }
+}
+
+// Where he should shoot to hit you, given how long the round is in the air.
+function leadPoint(shooter, target, speed, lead) {
+  if (!lead) return { x: target.x, y: target.y };
+  const flight = dist(shooter.x, shooter.y, target.x, target.y) / (speed || 1300);
+  return { x: target.x + (target.vx || 0) * flight * lead,
+           y: target.y + (target.vy || 0) * flight * lead };
+}
+
 function updateBullets(dt) {
   for (const b of game.bullets) {
     if (!b.alive) continue;
@@ -1714,6 +1813,14 @@ function throughArmor(ent, dmg, pen, hx, hy) {
 
 function applyHit(ent, b, hx, hy) {
   ent._cause = describeRound(b);
+  // A man who gets shot at moves. Measured before this: an enemy travelled 0.0px
+  // across 600 consecutive combat frames while dealing 501hp, which is why every
+  // fight was the same fight — step out, fire twice, step back.
+  if (ent.side === "enemy" && ent.alive && ent.state === "combat" && !ent.repos
+      && (ent._reposT || 0) <= 0 && b.ox !== undefined) {
+    const spot = coverSpotFrom(ent, b.ox, b.oy);
+    if (spot) { ent.repos = spot; ent._reposT = TUNE.reposCooldown; ent.path = null; }
+  }
   const raw = b.dmg * rand(0.85, 1.15);
   const res = throughArmor(ent, raw, b.pen, hx, hy);
   ent.hp -= res.dmg;
@@ -2208,9 +2315,10 @@ function makeEnemy(sp) {
   const elite = sp.kind === "elite";
   // the HVT is a principal, not a shooter: lightly armed and quick to fold
   const hvt = sp.kind === "hvt";
-  const weapon = elite ? { ...TUNE.akm, spreadBase: deg(2.2), burst: [3, 6] }
-               : hvt ? { ...TUNE.akm, dmg: 18, spreadBase: deg(6), burst: [1, 2] } : TUNE.akm;
-  const e = makeShooter(sp.x, sp.y, "enemy", elite ? 120 : hvt ? 55 : TUNE.enemyHp, weapon);
+  const weapon = elite ? { ...TUNE.akm, spreadBase: deg(0.99), burst: [3, 6] }
+               : hvt ? { ...TUNE.akm, dmg: 18, spreadBase: deg(2.7), burst: [1, 2] } : TUNE.akm;
+  const hpMul = game.diff ? (game.diff.hpMul || 1) : 1;
+  const e = makeShooter(sp.x, sp.y, "enemy", Math.round((elite ? 165 : hvt ? 60 : TUNE.enemyHp) * hpMul), weapon);
   e.kind = sp.kind;                  // guard | patrol | taker | elite
   e.state = "idle";                  // idle | suspicious | hunt | combat | surrender | cuffed
   e.alerted = false;
@@ -2258,10 +2366,29 @@ function enemyCallout(from, tx, ty) {
   }
 }
 
+// Somewhere within reach that stops rounds coming from THAT bearing.
+function coverSpotFrom(e, fromX, fromY) {
+  let best = null, bestScore = 0;
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU;
+    for (const d of [TUNE.reposDist * 0.55, TUNE.reposDist]) {
+      const pt = nearestPassable(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
+      if (dist(pt.x, pt.y, e.x, e.y) < 24) continue;
+      const ang = angleTo(pt.x, pt.y, fromX, fromY);
+      const hit = raycast(pt.x, pt.y, ang, 220, blocksBullet);
+      if (!hit.hit) continue;
+      const score = (1 - hit.d / 220) * 100 - dist(pt.x, pt.y, e.x, e.y) * 0.15;
+      if (score > bestScore) { bestScore = score; best = pt; }
+    }
+  }
+  return best;
+}
+
 function updateEnemy(e, dt) {
   if (!e.alive) return;
   if (e._calloutCd) e._calloutCd -= dt;
   e.suppress = Math.max(0, (e.suppress || 0) - dt * TUNE.suppressDecay);
+  if (e._reposT) e._reposT -= dt;
   e.blind = Math.max(0, e.blind - dt);
   e.stagger = Math.max(0, e.stagger - dt);
   e.flashedRecently = Math.max(0, e.flashedRecently - dt);
@@ -2284,7 +2411,7 @@ function updateEnemy(e, dt) {
     for (const t of threats) {
       if (!t || !t.alive) continue;
       const fov = e.alerted ? TUNE.aiFovAlert : TUNE.aiFov;
-      const vd = e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist;
+      const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1);
       if (canSee(e.x, e.y, t.x, t.y, vd, e.face, fov)) {
         const d = dist(e.x, e.y, t.x, t.y);
         if (d < visD) { visD = d; vis = t; }
@@ -2292,37 +2419,73 @@ function updateEnemy(e, dt) {
     }
   }
 
+  // Awareness is a running total, not a boolean. It used to reset the moment you
+  // broke line of sight for a single frame, so every re-peek handed him a fresh
+  // reaction clock — measured, 0hp taken across 0.17s, 0.25s and 0.35s in/out
+  // duty cycles against 470hp standing still. Now the sixth peek gets shot at.
   if (vis) {
+    if (e.reactNeed === undefined) {
+      // a man already looking your way does not need to find you first
+      const onYou = Math.abs(angDiff(e.face, angleTo(e.x, e.y, vis.x, vis.y))) < deg(18);
+      e.reactNeed = randIn(onYou ? TUNE.enemyReactWatching
+                                 : (e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact))
+                    * (game.diff ? game.diff.react : 1);
+    }
+    e.aware = Math.min(TUNE.awareMax, (e.aware || 0) + dt);
     if (e.state !== "combat") {
       e.state = "combat";
-      e.reactT = randIn(e.kind === "elite" || e.alerted ? TUNE.enemyReactAlert : TUNE.enemyReact)
-        * (game.diff ? game.diff.react : 1);
       e.alerted = true; game.alarm = true;
       enemyCallout(e, vis.x, vis.y);      // and he tells whoever can hear him
     }
     e.target = vis; e.lastKnown = { x: vis.x, y: vis.y };
-  } else if (e.state === "combat") {
-    e.state = "hunt"; e.path = null; e.repathT = 0;
+  } else {
+    e.aware = Math.max(0, (e.aware || 0) - dt * TUNE.awareDecay);
+    if (e.state === "combat") { e.state = "hunt"; e.path = null; e.repathT = 0; }
   }
 
   switch (e.state) {
     case "combat": {
       const t = e.target;
+      // Breaking contact is fire-and-movement, not running away. He keeps
+      // shooting while he moves, just badly — otherwise landing one round on a
+      // man buys you a free kill, which is worse than him standing still.
+      if (e.repos) {
+        const there = moveAlongPath(e, e.repos.x, e.repos.y, e.weapon.moveSpeed || 165, dt, pathCostEnemy);
+        if (there || dist(e.x, e.y, e.repos.x, e.repos.y) < 26) { e.repos = null; e.path = null; }
+        e.face = angLerp(e.face, angleTo(e.x, e.y, t.x, t.y), dt * 8);
+        // fire on the same burst rhythm as anyone else — the repos branch used to
+        // bypass it entirely, so breaking contact turned a burst weapon into a
+        // continuous one and quietly tripled his output
+        e.burstPauseT = Math.max(0, e.burstPauseT - dt);
+        if ((e.suppress || 0) < TUNE.suppressPinned && e.stagger <= 0 && e.burstPauseT <= 0) {
+          if (e.burstLeft <= 0) e.burstLeft = Math.round(randIn(e.weapon.burst));
+          const err = deg(9) * (game.diff ? game.diff.aimMul : 1);
+          const lp = leadPoint(e, t, e.weapon.speed, game.diff ? game.diff.lead : 0);
+          if (tryFire(e, aimAngle(e, lp.x, lp.y) + rand(-err, err))) {
+            e.burstLeft--;
+            if (e.burstLeft <= 0) e.burstPauseT = randIn(e.weapon.burstPause) * 1.4;
+          }
+          if (e.ammo <= 0 && e.reloading <= 0) tryReload(e);
+        }
+        break;
+      }
       e.face = angLerp(e.face, angleTo(e.x, e.y, t.x, t.y), dt * 10);
       e.reactT -= dt;
       // Pinned: enough rounds have cracked past that he is not leaning back out.
       // Short of pinned he still shoots, just badly — which is what suppression
       // buys the element that is moving.
       const pinned = (e.suppress || 0) >= TUNE.suppressPinned;
-      if (e.reactT <= 0 && e.stagger <= 0 && !pinned) {
+      const ready = (e.aware || 0) >= (e.reactNeed || 0);
+      if (ready && e.stagger <= 0 && !pinned) {
         if (e.burstLeft <= 0 && e.burstPauseT <= 0) {
           e.burstLeft = Math.round(randIn(e.weapon.burst));
           e.burstPauseT = 0;
         }
         if (e.burstLeft > 0) {
-          const aimErr = deg(2.5) * (visD / 300)
+          const aimErr = deg(2.5) * (visD / 300) * (game.diff ? game.diff.aimMul : 1)
                        + TUNE.suppressSpread * ((e.suppress || 0) / TUNE.suppressMax);
-          if (tryFire(e, aimAngle(e, t.x, t.y) + rand(-aimErr, aimErr))) {
+          const lp = leadPoint(e, t, e.weapon.speed, game.diff ? game.diff.lead : 0);
+          if (tryFire(e, aimAngle(e, lp.x, lp.y) + rand(-aimErr, aimErr))) {
             e.burstLeft--;
             if (e.burstLeft <= 0) e.burstPauseT = randIn(e.weapon.burstPause);
           }
@@ -2566,10 +2729,10 @@ const ROLES = {
               w: { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7,   reload: 3.2 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
               w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 950, mag: 100, reload: 5.0,
-                   spreadBase: deg(3.4), carrySpeed: 0.86 } },
+                   spreadBase: deg(1.53), carrySpeed: 0.86 } },
   marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1100, mag: 20, reload: 2.9,
-                   spreadBase: deg(0.7), penMul: 1.15, carrySpeed: 0.95 } },
+                   spreadBase: deg(0.32), penMul: 1.15, carrySpeed: 0.95 } },
 };
 
 const PRIMARIES = {
@@ -2579,23 +2742,23 @@ const PRIMARIES = {
   shotgun: { name: "SHOTGUN",    ammo: ["buck", "slug", "bird"],
              note: "devastating close, useless far",
              w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
-                  spreadBase: deg(2.4), recoil: deg(3), recoilMax: deg(9) } },
+                  spreadBase: deg(1.08), recoil: deg(3), recoilMax: deg(9) } },
   saw:     { name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
              note: "belt-fed — you are the base of fire, and you are slow",
              w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 900,
-                  spreadBase: deg(3.4), spreadMove: deg(13), spreadWalkMove: deg(6.5),
+                  spreadBase: deg(1.53), spreadMove: deg(13), spreadWalkMove: deg(6.5),
                   recoil: deg(1.1), recoilMax: deg(8), recoilDecay: deg(7) },
              speed: 0.86 },
   dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
              note: "one round at a time, from across the map",
              w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
-                  spreadBase: deg(0.7), spreadMove: deg(12), spreadWalkMove: deg(5),
+                  spreadBase: deg(0.32), spreadMove: deg(12), spreadWalkMove: deg(5),
                   recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 },
              speed: 0.95 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
-                  spreadBase: deg(1.6), recoil: deg(0.8), penMul: 0.7 } },
+                  spreadBase: deg(0.72), recoil: deg(0.8), penMul: 0.7 } },
 };
 
 // Everybody carries a sidearm. It is not a choice at the briefing — it is the
@@ -2604,7 +2767,7 @@ const PRIMARIES = {
 const SIDEARM = {
   name: "SIDEARM", ammo: "pistol",
   w: { ...TUNE.rifle, dmg: 22, rpm: 380, mag: 15, reload: 1.5, range: 480,
-       spreadBase: deg(2.2), spreadMove: deg(7), recoil: deg(1.6), recoilMax: deg(7),
+       spreadBase: deg(0.99), spreadMove: deg(7), recoil: deg(1.6), recoilMax: deg(7),
        penMul: 0.7, speed: 1150 },
 };
 
@@ -2626,7 +2789,7 @@ const SQUAD_TEMPLATES = {
 function makeSquaddie(sp, i) {
   const tmpl = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
   const role = tmpl.roles[i % 3];
-  const w = { ...TUNE.rifle, spreadBase: deg(2.0), rpm: 480, ...ROLES[role].w };
+  const w = { ...TUNE.rifle, spreadBase: deg(0.9), rpm: 480, ...ROLES[role].w };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
@@ -3192,7 +3355,7 @@ function updateBound(dt) {
     return;
   }
   const legDone = !movers.length || movers.every(s => s._bounded || dist(s.x, s.y, B.x, B.y) < 44);
-  if (legDone && B.t > 0.35) {
+  if (legDone && B.t > 0.35 && movers.every(s => !s.path || s.pathI >= s.path.length)) {
     B.moving = 1 - B.moving;
     B.t = 0;
     live.forEach(s => { s._legX = undefined; s._legY = undefined; s._bounded = false; });
@@ -3287,7 +3450,9 @@ function updateSquaddie(s, dt) {
     }
     // Willing but blocked by a friendly: step off the line instead of standing
     // there mute. The wedge stops the pile-up; this clears the leftovers.
-    else if (mayFire && !canShoot && s._blockedBy && s.stagger <= 0 && (s._sidestep || 0) < 46) {
+    // ...but never while he is the element that is supposed to be standing still
+    else if (mayFire && !canShoot && s._blockedBy && s.stagger <= 0 && (s._sidestep || 0) < 46
+             && !(s.order.type === "bound" && game.bound && s.order.element !== game.bound.moving)) {
       const la = angleTo(s.x, s.y, threat.x, threat.y);
       const side = angDiff(la, angleTo(s.x, s.y, s._blockedBy.x, s._blockedBy.y)) > 0 ? -1 : 1;
       const a = la + Math.PI / 2 * side;
@@ -4564,10 +4729,19 @@ function sfxFlashed(dur) {
 const DIFFICULTIES = [
   // enemyArmor: which suspect kinds are plated. Nobody wears anything below
   // ELITE — armour on the opposition is a difficulty axis, not a baseline.
-  { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 32, surrender: 1.35, enemyArmor: null },
-  { key: "regular", name: "REGULAR", react: 1.0,  exec: 22, surrender: 1.0,  enemyArmor: null },
-  { key: "elite",   name: "ELITE",   react: 0.75, exec: 15, surrender: 0.75,
-    enemyArmor: { elite: "soft", taker: "soft" } },
+  // The tiers used to vary three numbers, and react provably decided nothing —
+  // 100% win rate on ELITE and ROOKIE alike. What separated them was `exec`, a
+  // mission-failure clock, so ELITE did not make the fighting harder, it made
+  // deliberate play illegal. These are the axes that actually decide a fight:
+  // whether he leads you, how tight his cone is, how far he sees, and what he
+  // is wearing.
+  { key: "rookie",  name: "ROOKIE",  react: 1.45, exec: 34, surrender: 1.35,
+    lead: 0.0,  aimMul: 1.9, sightMul: 0.8,  hpMul: 0.8, enemyArmor: null },
+  { key: "regular", name: "REGULAR", react: 1.0,  exec: 26, surrender: 1.0,
+    lead: 0.35, aimMul: 1.5,  sightMul: 0.95, hpMul: 1.0, enemyArmor: { elite: "soft" } },
+  { key: "elite",   name: "ELITE",   react: 0.7,  exec: 22, surrender: 0.75,
+    lead: 0.7,  aimMul: 1.0,  sightMul: 1.1, hpMul: 1.1,
+    enemyArmor: { elite: "plate", taker: "soft" } },
 ];
 
 const game = {
@@ -4636,6 +4810,7 @@ function update(dt) {
   for (const h of game.hostages) updateCivilian(h, dt);
   updateBullets(dt);
   updateBangs(dt);
+  trackVelocities(dt);
   updateSmokes(dt);
   updateBound(dt);
   updatePie();
@@ -5207,6 +5382,33 @@ requestAnimationFrame(frame);
     approaches are now reliable (100%/100%); a 32-degree run still mostly catches
     the frame, on purpose, because Sam is right that hanging up on a door is
     realistic — it just should not be unavoidable.
+  v0.11 (2026-08-11): Pace and lethality, from Sam playing it: "it doesn't feel
+    fun yet", "I want it to feel fast but the fights to take longer", and "on
+    ELITE we just steamroll". A duel harness driving the real update loop
+    confirmed the last one outright — 30 of 30 cells at 100% player win, ELITE at
+    512px leaving you on 95hp.
+    FASTER: player run 148 -> 196 px/s, squad 140 -> 208 so they keep up, and the
+    facing rate limit relaxed from ~110ms to ~60ms for a 180 reversal. Turning is
+    weight now, not lag.
+    LONGER: enemies move in combat instead of standing in the open — measured
+    before this at 0.0px across 600 consecutive combat frames — breaking contact
+    toward cover taken from the bearing they were shot from, firing on the same
+    burst rhythm while they go. Awareness accumulates instead of resetting every
+    time you break line of sight for a frame, so the sixth peek gets shot at. A
+    man already looking your way reacts faster than one facing a wall. Shooters
+    lead a moving target, so alternating strafe inputs stop making the whole
+    roster miss. Whipping your muzzle onto a new contact costs you settle time.
+    Enemy health up so a man survives his own reaction time and can shoot back.
+    PLANTED SHOOTING PAYS: every base cone tightened 55% while every movement
+    penalty is left exactly where it was, so a planted M4 shot is now 11x tighter
+    than a running one and a planted marksman shot is 38x tighter.
+    DIFFICULTY REBUILT on axes that decide fights — lead, cone, sight, health and
+    armour per tier — instead of a reaction number that provably decided nothing
+    and an execution clock that only made deliberate play illegal.
+    MAPS: FIRST NATIONAL (a bank job going loud, robbers pushing out through the
+    storefront with civilians face-down inside) and DOWNTOWN EXCHANGE (a running
+    gunfight down a lane of cars, where sheet metal is concealment and only the
+    engine block stops a round).
 -->
 </body>
 </html>

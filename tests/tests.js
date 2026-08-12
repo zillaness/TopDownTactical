@@ -688,9 +688,11 @@ for (let di = 0; di < DIFFICULTIES.length; di++) {
   worn[DIFFICULTIES[di].name] = game.enemies.filter(e => e.armorMax > 0).length + '/' + game.enemies.length;
 }
 game.diffIndex = 1;
+// armour is a ramp across the tiers now, not a switch that flips at ELITE
+const n = k => +worn[k].split('/')[0];
 console.log('  suspects wearing armor by tier: ' + JSON.stringify(worn),
-            worn.ROOKIE.startsWith('0/') && worn.REGULAR.startsWith('0/') && !worn.ELITE.startsWith('0/')
-              ? 'CORRECT (a difficulty axis, not a baseline)' : 'WRONG');
+            n('ROOKIE') === 0 && n('ELITE') > n('REGULAR') && n('REGULAR') >= n('ROOKIE')
+              ? 'CORRECT (it ramps, and ROOKIE faces nobody armoured)' : 'WRONG');
 console.log('ARMOR TEST DONE');
 })();
 
@@ -795,11 +797,12 @@ console.log('  contact estimate brackets the truth without giving it away:',
             bad.length ? 'WRONG -> ' + bad.join('; ') : 'CORRECT');
 
 // armor intel must track the difficulty that actually arms them
-const r = briefingLines(MAPS[0], surveyMap(MAPS[0].src, 1), 1).find(l => l[0] === 'THEIR ARMOR')[1];
+// ROOKIE is the bare tier now; armour ramps from REGULAR up
+const r = briefingLines(MAPS[0], surveyMap(MAPS[0].src, 0), 0).find(l => l[0] === 'THEIR ARMOR')[1];
 const e = briefingLines(MAPS[0], surveyMap(MAPS[0].src, 2), 2).find(l => l[0] === 'THEIR ARMOR')[1];
-console.log('  armor intel REGULAR: "' + r.slice(0, 26) + '"');
+console.log('  armor intel ROOKIE:  "' + r.slice(0, 26) + '"');
 console.log('  armor intel ELITE:   "' + e.slice(0, 26) + '"',
-            /No body armour/.test(r) && /Soft armour/.test(e) ? 'CORRECT' : 'WRONG');
+            /No body armour/.test(r) && /(PLATE|SOFT|HEAVY)/.test(e) ? 'CORRECT (it names what they wear)' : 'WRONG');
 
 // the command wheel: four directions, each one meaning something on the target
 const dirs = WHEEL.map(w => w.dir);
