@@ -1605,3 +1605,128 @@ console.log('  briefing contact estimate tracks the real count:',
             drift.length ? 'WRONG -> ' + drift.slice(0, 3).join('; ') : 'CORRECT (within the intel fuzz)');
 console.log('DENSITY TEST DONE');
 })();
+
+(function beachTests(){
+console.log('--- the beach maps, and the demolition objective ---');
+const li = MAPS.findIndex(m => m.name === 'THE LANDING');
+const si = MAPS.findIndex(m => m.name === 'SEAWALL');
+console.log('  both maps exist: ' + (li >= 0) + '/' + (si >= 0), li >= 0 && si >= 0 ? 'CORRECT' : 'WRONG');
+
+game.densityIndex = 1; game.mapIndex = li; initGame();
+console.log('  THE LANDING is ' + level.w + 'x' + level.h + ' tiles with ' + game.enemies.length + ' defenders',
+            level.w > 60 && level.h > 35 && game.enemies.length >= 20 ? 'CORRECT (large scale)' : 'WRONG');
+const st = tileAt(level.spawns.player.x, level.spawns.player.y);
+const unreach = level.spawns.enemies.filter(sp => {
+  const t = tileAt(sp.x, sp.y);
+  return !astar(st.tx, st.ty, t.tx, t.ty, passForPath, pathCostSquad);
+});
+console.log('  every defender reachable across the beach: ' + (unreach.length === 0),
+            unreach.length === 0 ? 'CORRECT' : 'WRONG');
+let slits = level.windowAt.size;
+console.log('  bunker firing slits: ' + slits + ', doors ' + level.doors.length,
+            slits >= 6 && level.doors.length >= 3 ? 'CORRECT' : 'WRONG');
+
+// SEAWALL: a mission you can finish without killing anybody
+game.mapIndex = si; initGame(); game.state = 'play';
+console.log('  SEAWALL objectives ' + JSON.stringify(MAPS[si].objectives) + ', charges ' + game.demo.length,
+            MAPS[si].objectives.join() === 'demolish,extract' && game.demo.length === 3 ? 'CORRECT' : 'WRONG');
+console.log('  no neutralize objective — killing is optional:',
+            !MAPS[si].objectives.includes('neutralize') ? 'CORRECT' : 'WRONG');
+const P = game.player;
+console.log('  starts incomplete: demolish ' + OBJECTIVES.demolish.done() + ', extract ' + OBJECTIVES.extract.done(),
+            !OBJECTIVES.demolish.done() && !OBJECTIVES.extract.done() ? 'CORRECT' : 'WRONG');
+
+// planting takes time and being there
+const d0 = game.demo[0];
+P.x = d0.x; P.y = d0.y; P.stagger = 0;
+input.keys.clear();
+updateDemo(P, 1 / 60);
+console.log('  standing on a charge without holding [E]: progress ' + d0.t.toFixed(2),
+            d0.t === 0 ? 'CORRECT' : 'WRONG');
+input.keys.add('e');
+let t = 0;
+while (!d0.armed && t < 10) { updateDemo(P, 1 / 60); t += 1 / 60; }
+console.log('  holding [E] on it: armed after ' + t.toFixed(1) + 's (spec ' + TUNE.demoPlant + 's)',
+            d0.armed && Math.abs(t - TUNE.demoPlant) < 0.2 ? 'CORRECT' : 'WRONG');
+// walking off cancels
+const d1 = game.demo[1];
+P.x = d1.x; P.y = d1.y;
+for (let i = 0; i < 60; i++) updateDemo(P, 1 / 60);
+const partial = d1.t;
+P.x = d1.x + 400; P.y = d1.y;
+for (let i = 0; i < 30; i++) updateDemo(P, 1 / 60);
+console.log('  walking off mid-plant: ' + partial.toFixed(2) + 's -> ' + d1.t.toFixed(2) + 's',
+            d1.t < partial && !d1.armed ? 'CORRECT (it bleeds back)' : 'WRONG');
+
+// exfil must not open until every charge is set
+game.demo.forEach(d => { d.armed = false; });
+const ez = level.extraction[0];
+P.x = ez.tx * TILE + 16; P.y = ez.ty * TILE + 16;
+console.log('  standing on the boat with charges unset: extract ' + OBJECTIVES.extract.done(),
+            !OBJECTIVES.extract.done() ? 'CORRECT' : 'WRONG');
+game.demo.forEach(d => { d.armed = true; });
+console.log('  all three set, standing on the boat: extract ' + OBJECTIVES.extract.done(),
+            OBJECTIVES.extract.done() ? 'CORRECT' : 'WRONG');
+console.log('  ...and the mission is complete with ' + game.enemies.filter(e => e.alive).length + ' defenders still alive',
+            game.mission.objectives.every(k => OBJECTIVES[k].done()) && game.enemies.some(e => e.alive)
+              ? 'CORRECT (you never had to kill them)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('BEACH TEST DONE');
+})();
+
+(function chargeAndAmmoTests(){
+console.log('--- wall charges without H, and a readable magazine ---');
+console.log('  H is no longer bound:', !/pressed\("h"\)/.test(updatePlayer.toString()) ? 'CORRECT' : 'WRONG');
+
+game.mapIndex = MAPS.findIndex(m => m.training); initGame(); game.state = 'play';
+const P = game.player;
+// find an interior wall and stand next to it
+let target = null;
+outer: for (let y = 4; y < level.h - 4; y++) for (let x = 4; x < level.w - 4; x++) {
+  if (!isWall(x, y) || doorAt(x, y)) continue;
+  for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    if (!isWall(x + ox, y + oy) && !isWindow(x + ox, y + oy)) {
+      target = { x, y, from: { x: (x + ox) * TILE + 16, y: (y + oy) * TILE + 16 } }; break outer;
+    }
+  }
+}
+P.x = target.from.x; P.y = target.from.y;
+const wc = { x: target.x * TILE + 16, y: target.y * TILE + 16 };
+console.log('  pointing at a wall in reach: ' + !!breachableAt(P, wc.x, wc.y),
+            breachableAt(P, wc.x, wc.y) ? 'CORRECT (cursor-aimed)' : 'WRONG');
+P.x = target.from.x + 600;
+console.log('  same wall from 600px away: ' + !!breachableAt(P, wc.x, wc.y),
+            !breachableAt(P, wc.x, wc.y) ? 'CORRECT (there is a reach)' : 'WRONG');
+P.x = target.from.x;
+console.log('  pointing at open floor: ' + !!breachableAt(P, P.x, P.y),
+            !breachableAt(P, P.x, P.y) ? 'CORRECT' : 'WRONG');
+
+// it blows on its own
+game.wallCharge = null; P.charges = 2;
+plantWallCharge(P, breachableAt(P, wc.x, wc.y));
+console.log('  planted, charges left ' + P.charges + ', fuse ' + game.wallCharge.fuse + 's',
+            game.wallCharge && P.charges === 1 ? 'CORRECT' : 'WRONG');
+const wallBefore = level.wall[target.y][target.x];
+let t = 0;
+while (game.wallCharge && t < 10) { updateFx(1 / 60); t += 1 / 60;
+  if (game.wallCharge) { game.wallCharge.fuse -= 1 / 60; if (game.wallCharge.fuse <= 0) detonateWallCharge(); } }
+console.log('  it blew itself after ' + t.toFixed(1) + 's, wall ' + wallBefore + ' -> ' + level.wall[target.y][target.x],
+            level.wall[target.y][target.x] === 0 ? 'CORRECT (no second keypress)' : 'WRONG');
+
+// the wheel understands a wall
+game.mapIndex = MAPS.findIndex(m => m.training); initGame(); game.state = 'play';
+const up = WHEEL.find(w => w.dir === 'up');
+const wallCtx = { x: wc.x, y: wc.y, wall: { tx: target.x, ty: target.y }, door: null, threat: null, far: true };
+console.log('  wheel up on a wall reads: "' + up.label(wallCtx, game.squad) + '"',
+            /WALL/.test(up.label(wallCtx, game.squad)) ? 'CORRECT' : 'WRONG');
+up.run(game.squad.filter(s => s.alive), wallCtx);
+const br = game.squad.find(s => s.order.type === 'wallbreach');
+console.log('  it tasks the BREACHER: ' + (br ? br.name + ' (' + br.role + ')' : 'nobody') +
+            ', others ' + JSON.stringify(game.squad.filter(s => s !== br).map(s => s.order.type)),
+            br && br.role === 'breacher' ? 'CORRECT (the role finally does something)' : 'WRONG');
+// and they stand clear of their own blast
+const others = game.squad.filter(s => s !== br);
+const clear = others.every(s => dist(s.order.x, s.order.y, wc.x, wc.y) > TUNE.blastWound);
+console.log('  the rest wait outside the wounding radius: ' + clear, clear ? 'CORRECT' : 'WRONG');
+console.log('CHARGE TEST DONE');
+})();

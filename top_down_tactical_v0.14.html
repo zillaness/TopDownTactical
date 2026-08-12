@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.13.html
-  version: 0.13
+  file: top_down_tactical_v0.14.html
+  version: 0.14
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.13 (working title)</title>
+<title>Top-Down Tactical v0.14 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.13 prototype &mdash; working title &mdash; ten missions</h2>
+  <h2>v0.14 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -64,7 +64,7 @@
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
-      <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
+      <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
@@ -243,6 +243,8 @@ const TUNE = {
   eyeForward: 4, eyeLateral: 6,     // muzzle/eye sits forward and off to the shooting shoulder
   leftHandedRate: 0.1,              // ~1 in 10, as in life
   shoulderSwapTime: 0.5,            // dead time while transitioning the rifle
+  demoReach: 46, demoPlant: 2.6,
+  chargeReach: 78, chargeFuse: 3.5,
   doorwaySqueeze: 0.62,             // body radius multiplier while in a doorway
   doorwayPull: 0.85,                // how hard you drift onto a doorway centreline
   gunSwapTime: 0.35,                // dead time going to the sidearm and back
@@ -940,6 +942,98 @@ const MAPS = [
 ",,#.................#,,,,#.................#,,",
 ",,###################,,,,#####W######W######,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
+{ name: "THE LANDING", advice: "Open sand into three bunkers with slits facing you. Nothing crosses that beach standing up — put the belt-fed on a slit, smoke the gap, and bound between the obstacles.",
+  brief: "Amphibious assault — open sand, a seawall, three bunkers, twenty-three guns",
+  type: "ASSAULT — FORTIFIED BEACH", objectives: ["neutralize"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,==,,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,==,,,,,#,p,.,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,,,,,g,,#,,,=,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,.,,,=,,,,,,#.....E..D..g,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,.,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,#,,,=,,,,,,#..g.....#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,p,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,==,,,,,,,,,,,g,#,,,.,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,==,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,==,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,s,,,,,,,,,,,,,,,,,,==,,,,#,p,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,g,,#,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",sP,,,,,==,,,,,,,,,,,,,,,,,.,,,.,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,==,,,,,,,,,,,,,,,,,.,,,=,,,,,,#.....E..D...,,,,,,,,,,,,,,,,,,,,,,,",
+",,s,,,,,,,,,,,,==,,,,,,,,,,#,,,=,,,,,,W........#,.g,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,==,,,,,,,,,,#,,,=,,,,,,#..g.....#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,p,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,g,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,==,,,,,,,,,,,,#,,,.,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,==,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,==,,,,,,#,p,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,==,,,g,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,.,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,==,,,,,,,,.,,,=,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,==,,,,,,,,#,,,.,,,,,,#.....E..D...,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,,,,,,,,#,,,=,,,,,,W........#,.g,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,p,=,,,,,,#..g.....#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,==,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,==,,,#,,,,,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
+{ name: "SEAWALL", advice: "Same beach, different job. Three charges in three bunkers and back to the boat. Nobody is asking you to clear it — a garrison you never wake is a garrison you never fight.",
+  brief: "Infiltrate, set charges in all three bunkers, and get back to the water",
+  type: "DEMOLITION — INFILTRATE AND EXFIL", objectives: ["demolish", "extract"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,==,,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,==,,,,,#,,,.,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,,,,,,,,#,,,=,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,.,,,=,,,,,,#...B....D...,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,.,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,==,,,,,,,,,#,p,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,##########,.p,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,==,,,,,,,,,,,,,#,,,.,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,==,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",XXX,,,,,,,,,,,,,,,,,==,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",XsX,,,,,,,,,,,,,,,,,==,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",XXX,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",sPX,,,,==,,,,,,,,,,,,,,,,,.,,,.,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",XXX,,,,==,,,,,,,,,,,,,,,,,.,,,=,,,,,,#...B....D...,,,,,,,,,,,,,,,,,,,,,,,",
+",XsX,,,,,,,,,,,==,,,,,,,,,,#,p,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",XXX,,,,,,,,,,,==,,,,,,,,,,#,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,==,,,,,,,,,,,,#,,,.,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,==,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,==,,,,,,#,,,=,,,,,,,,,,,,,,,,,.p,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,==,,,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,.,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,==,,,,,,,,.,,,=,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,==,,,,,,,,#,p,.,,,,,,#...B....D...,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,,,,,,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,==,,,#,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,==,,,#,,,,,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] }
 ];
 let MAP_SRC = MAPS[0].src;
@@ -952,7 +1046,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@,.DLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@,.BDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -989,7 +1083,7 @@ function parseLevel() {
   level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
-  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [] };
+  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.room = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -1024,6 +1118,7 @@ function parseLevel() {
     else if (ch === "T") level.spawns.enemies.push({ x: cx, y: cy, kind: "taker" });
     else if (ch === "V") level.spawns.enemies.push({ x: cx, y: cy, kind: "hvt" });
     else if (ch === "X") level.extraction.push({ tx: x, ty: y });
+    else if (ch === "B") level.spawns.demo.push({ x: cx, y: cy });
     else if (ch === "h") level.spawns.hostages.push({ x: cx, y: cy });
     else if (ch === "c") level.spawns.civilians.push({ x: cx, y: cy });
   }
@@ -1463,7 +1558,8 @@ function updatePlayer(p, dt) {
   if (pressed("r")) tryReload(p);
 
   // interactions
-  if (pressed("e")) playerInteract(p);
+  updateDemo(p, dt);
+  if (pressed("e") && !game.planting) playerInteract(p);
   if (pressed("f")) {
     const d = nearestDoor(p.x, p.y, 56);
     if (d && d.state === "closed") kickDoor(d, p);
@@ -1488,11 +1584,6 @@ function updatePlayer(p, dt) {
     throwSelected(p, p.nadeKind, input.mouse.wx, input.mouse.wy);
   }
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
-  if (pressed("h")) {
-    if (game.wallCharge) detonateWallCharge();
-    else if (p.charges > 0) plantWallCharge(p);
-    else game.hint = "No wall charges left";
-  }
   if (pressed("q")) snakeCam(p);
 }
 
@@ -1553,15 +1644,37 @@ function throwSelected(p, kind, wx, wy) {
   game.hint = T.name + " out";
 }
 
+// Charges take time and you have to stay on them. Walking off cancels it, which
+// is what makes a covering element worth having on this mission type.
+function updateDemo(p, dt) {
+  if (!game.demo.length) return;
+  const near = nearestEntity(game.demo, p.x, p.y, TUNE.demoReach, d => !d.armed);
+  for (const d of game.demo) if (d !== near && !d.armed) d.t = 0;
+  if (!near) { game.planting = null; return; }
+  if (!held("e") || p.stagger > 0) { near.t = Math.max(0, near.t - dt * 2); game.planting = null; return; }
+  near.t += dt;
+  game.planting = near;
+  if (near.t >= TUNE.demoPlant) {
+    near.armed = true; near.t = TUNE.demoPlant;
+    game.planting = null;
+    addNoise(near.x, near.y, TUNE.noiseDoor, "door", "player");
+    sfxAt("click", near.x, near.y);
+    const left = game.demo.filter(x => !x.armed).length;
+    game.hint = left ? "Charge set — " + left + " to go" : "Last charge set — get to the extraction point";
+  }
+}
+
 function playerInteract(p) {
   // priority: cuff surrendered > secure hostage > door
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
   if (hos) { trySecureHostage(hos); return; }
+  const brk = breachableAt(p, input.mouse.wx, input.mouse.wy);
+  if (brk && p.charges > 0 && !game.wallCharge) { plantWallCharge(p, brk); return; }
   const d = nearestDoor(p.x, p.y, 50);
   if (d) {
-    if (d.state === "closed") { if (!d.locked) openDoor(d, true); else game.hint = "Locked — kick [F] or order a charge"; }
+    if (d.state === "closed") { if (!d.locked) openDoor(d, true); else game.hint = "Locked — kick [F] or blow a hole beside it"; }
     else if (d.state === "open") closeDoor(d);
   }
 }
@@ -2302,15 +2415,23 @@ function applyBlast(cx, cy, side, lethalR, woundR, dmgMax) {
 }
 
 // ---- wall charges (make your own door)
-function plantWallCharge(p) {
-  const tx = Math.floor((p.x + Math.cos(p.face) * 38) / TILE);
-  const ty = Math.floor((p.y + Math.sin(p.face) * 38) / TILE);
-  if (!isWall(tx, ty)) { game.hint = "Face a wall to plant a charge"; return; }
-  if (tx <= 0 || ty <= 0 || tx >= level.w - 1 || ty >= level.h - 1) { game.hint = "That wall is structural"; return; }
-  if (doorAt(tx, ty)) return;
+// Which wall section you are pointing at, if it is one you could actually blow.
+// Aiming this with the operator's facing was miserable; the cursor is already
+// how you point at everything else.
+function breachableAt(p, wx, wy) {
+  const t = tileAt(wx, wy);
+  if (!isWall(t.tx, t.ty)) return null;
+  if (t.tx <= 0 || t.ty <= 0 || t.tx >= level.w - 1 || t.ty >= level.h - 1) return null;
+  if (doorAt(t.tx, t.ty)) return null;
+  if (dist(p.x, p.y, t.tx * TILE + TILE / 2, t.ty * TILE + TILE / 2) > TUNE.chargeReach) return null;
+  return { tx: t.tx, ty: t.ty };
+}
+
+function plantWallCharge(p, at) {
+  if (!at) { game.hint = "Point at a wall within reach"; return; }
   p.charges--;
-  game.wallCharge = { tx, ty };
-  game.hint = "Charge set — [H] to blow it";
+  game.wallCharge = { tx: at.tx, ty: at.ty, fuse: TUNE.chargeFuse };
+  game.hint = "Charge set — clear the wall";
   sfxAt("click", p.x, p.y);
 }
 
@@ -3178,11 +3299,13 @@ const PLAYS = [
 const WHEEL = [
   { dir: "up", name: "TAKE IT", hint: "bang it and flood the room",
     run(team, ctx) {
+      if (ctx.wall) return orderWallBreach(team, ctx.wall);
       const d = ctx.door || firstClosedDoorToward(team, ctx.x, ctx.y);
       if (d) return runPlay("1", team, { door: d, point: ctx });
       return orderAdvance(team, ctx.x, ctx.y, true);
     },
     label(ctx, team) {
+      if (ctx.wall) return game.squadCharges > 0 ? "BREACH THAT WALL" : "NO CHARGES LEFT";
       const d = ctx.door || firstClosedDoorToward(team, ctx.x, ctx.y);
       return d ? "BREACH THAT DOOR" : "ASSAULT THERE";
     } },
@@ -3248,6 +3371,28 @@ function orderAdvance(team, x, y, aggressive) {
 // a doorway, a firing slit — so the other element can cross ground that would
 // otherwise kill it. This is the order that makes the squad and the player do
 // genuinely different jobs at the same time.
+// The breacher walks to the wall, sets it, and the team backs off before it
+// goes. This is the first thing the BREACHER role has ever actually been for.
+function orderWallBreach(team, wall) {
+  if (game.squadCharges <= 0) { game.hint = "The team is out of charges"; return "No charges left"; }
+  const breacher = team.find(s => s.role === "breacher" && s.alive) || team[0];
+  const c = { x: wall.tx * TILE + TILE / 2, y: wall.ty * TILE + TILE / 2 };
+  const stand = nearestPassable(c.x, c.y);
+  team.forEach(s => { removeFromPlans(s); s.path = null; });
+  breacher.order = { type: "wallbreach", wall, x: stand.x, y: stand.y,
+                     face: angleTo(breacher.x, breacher.y, c.x, c.y) };
+  // everyone else waits back from the blast
+  team.filter(s => s !== breacher).forEach((s, i) => {
+    const a = angleTo(c.x, c.y, s.x, s.y) + (i - 0.5) * 0.5;
+    const pt = nearestPassable(c.x + Math.cos(a) * TUNE.blastWound * 1.2,
+                               c.y + Math.sin(a) * TUNE.blastWound * 1.2);
+    s.order = { type: "move", x: pt.x, y: pt.y, face: angleTo(pt.x, pt.y, c.x, c.y) };
+  });
+  game.pie = null; game.bound = null;
+  bark(breacher, "SETTING A CHARGE");
+  return "WALL BREACH — " + (breacher.name || "breacher") + " is setting it";
+}
+
 function orderBaseOfFire(team, x, y) {
   team.forEach(s => {
     removeFromPlans(s);
@@ -3306,7 +3451,12 @@ function wheelContext() {
     const dd = dist(x, y, seen0.x, seen0.y);
     if (dd < td) { td = dd; threat = seen0; }
   }
-  return { x, y, threat, door: (d && d.state !== "breached") ? d : null,
+  // a wall is not a place you can send anyone, so pointing at one is unambiguous
+  const t = tileAt(x, y);
+  const wall = (isWall(t.tx, t.ty) && !doorAt(t.tx, t.ty)
+                && t.tx > 0 && t.ty > 0 && t.tx < level.w - 1 && t.ty < level.h - 1)
+             ? { tx: t.tx, ty: t.ty } : null;
+  return { x, y, threat, wall, door: (d && d.state !== "breached") ? d : null,
            far: dist(from.x, from.y, x, y) > 90 };
 }
 
@@ -3554,6 +3704,24 @@ function updateSquaddie(s, dt) {
     }
     // Put rounds on a position. He needs line of sight to the spot, not to a
     // body; if he loses it he shuffles until he has it again.
+    case "wallbreach": {
+      const o = s.order;
+      const c = { x: o.wall.tx * TILE + TILE / 2, y: o.wall.ty * TILE + TILE / 2 };
+      if (dist(s.x, s.y, c.x, c.y) > TUNE.chargeReach) { squadMove(s, o.x, o.y, TUNE.squadRun, dt); break; }
+      s.face = angLerp(s.face, angleTo(s.x, s.y, c.x, c.y), dt * 8);
+      o.t = (o.t || 0) + dt;
+      if (o.t >= TUNE.demoPlant && !game.wallCharge && game.squadCharges > 0) {
+        game.squadCharges--;
+        game.wallCharge = { tx: o.wall.tx, ty: o.wall.ty, fuse: TUNE.chargeFuse };
+        bark(s, "CHARGE SET — BACK UP!");
+        // and he gets out of his own blast radius
+        const away = angleTo(c.x, c.y, s.x, s.y);
+        const pt = nearestPassable(c.x + Math.cos(away) * TUNE.blastWound * 1.2,
+                                   c.y + Math.sin(away) * TUNE.blastWound * 1.2);
+        s.order = { type: "move", x: pt.x, y: pt.y, face: angleTo(pt.x, pt.y, c.x, c.y) };
+      }
+      break;
+    }
     case "suppress": {
       const o = s.order;
       s.face = angLerp(s.face, angleTo(s.x, s.y, o.x, o.y), dt * 8);
@@ -3976,13 +4144,53 @@ function render() {
     }
     ctx.textAlign = "left";
   }
+  // demolition targets: what you came to blow, and how far along you are
+  for (const d of game.demo) {
+    const k = 1 / game.zoom;
+    const t = tileAt(d.x, d.y);
+    if (!seen.grid[t.ty][t.tx]) continue;
+    ctx.strokeStyle = d.armed ? COLORS.danger : COLORS.accent;
+    ctx.lineWidth = 2 * k;
+    ctx.strokeRect(d.x - 10 * k, d.y - 10 * k, 20 * k, 20 * k);
+    if (d.armed) {
+      const pulse = 0.5 + 0.5 * Math.sin(game.stats.time * 6);
+      ctx.fillStyle = "rgba(255,85,85," + (0.3 + pulse * 0.4).toFixed(2) + ")";
+      ctx.fillRect(d.x - 6 * k, d.y - 6 * k, 12 * k, 12 * k);
+    } else if (d.t > 0) {
+      ctx.strokeStyle = COLORS.ok; ctx.lineWidth = 3 * k;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, 16 * k, -Math.PI / 2, -Math.PI / 2 + TAU * (d.t / TUNE.demoPlant));
+      ctx.stroke();
+    }
+  }
   if (game.wallCharge) {
-    const wc = game.wallCharge;
+    const wc = game.wallCharge, k = 1 / game.zoom;
     ctx.fillStyle = "#ff8c42";
     ctx.fillRect(wc.tx * TILE + TILE / 2 - 5, wc.ty * TILE + TILE / 2 - 5, 10, 10);
     ctx.strokeStyle = "#ff8c42"; ctx.setLineDash([3, 3]);
     ctx.strokeRect(wc.tx * TILE + 2.5, wc.ty * TILE + 2.5, TILE - 5, TILE - 5);
     ctx.setLineDash([]);
+    if (wc.fuse !== undefined) {                    // how long you have to be elsewhere
+      ctx.fillStyle = COLORS.danger;
+      ctx.font = "bold " + (13 * k).toFixed(1) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(wc.fuse.toFixed(1), wc.tx * TILE + TILE / 2, wc.ty * TILE - 6 * k);
+      ctx.strokeStyle = "rgba(255,85,85,0.35)"; ctx.lineWidth = 1.5 * k;
+      ctx.beginPath();
+      ctx.arc(wc.tx * TILE + TILE / 2, wc.ty * TILE + TILE / 2, TUNE.blastWound, 0, TAU);
+      ctx.stroke();
+      ctx.textAlign = "left";
+    }
+  }
+  // ghost of where [E] would put one, so you can aim it
+  if (!game.wallCharge && game.player.alive && game.player.charges > 0) {
+    const at = breachableAt(game.player, input.mouse.wx, input.mouse.wy);
+    if (at) {
+      const k = 1 / game.zoom;
+      ctx.strokeStyle = "rgba(255,140,66,0.75)"; ctx.lineWidth = 2 * k; ctx.setLineDash([4 * k, 4 * k]);
+      ctx.strokeRect(at.tx * TILE + 2, at.ty * TILE + 2, TILE - 4, TILE - 4);
+      ctx.setLineDash([]);
+    }
   }
 
   if (game.state === "aar") drawAfterActionWorld();
@@ -4466,21 +4674,20 @@ function drawHud() {
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
   const rnd = AMMO[p.ammoType] || AMMO.fmj;
-  const gunName = p.guns ? p.guns[p.gunIndex].name : "";
-  ctx.fillText(gunName + "  " + (p.reloading > 0 ? "RELOADING" : p.ammo + " / " + p.weapon.mag)
-               + "  " + rnd.name, bx, by + 40);
+  // The ammunition line lived here and was one of six numbers in 13px type.
+  // It has its own large readout bottom-right now, so this row is free for the
+  // bag, which was colliding with the shoulder line.
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText(shoulderTxt + " [N]", bx, by + 56);
-  // the bag, with whatever is currently on the throw button called out
+  ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
   ctx.font = "11px Consolas, monospace";
-  let gx = bx + 128;
+  let gx = bx;
   for (const k of THROW_ORDER) {
     const T = THROWABLES[k], have = p.nades[k] || 0;
     ctx.fillStyle = have <= 0 ? "#3c444b" : (k === p.nadeKind ? COLORS.accent : COLORS.hudDim);
-    ctx.fillText(T.name.slice(0, 4) + " " + have, gx, by + 56);
-    gx += 46;
+    ctx.fillText(T.name.slice(0, 5) + " " + have, gx, by + 56);
+    gx += 52;
   }
-  ctx.fillStyle = COLORS.hudDim;
+  ctx.fillStyle = p.charges > 0 ? COLORS.hudDim : "#3c444b";
   ctx.fillText("CHG " + p.charges, gx, by + 56);
   ctx.font = "13px Consolas, monospace";
   // Losing the controls needs to be the loudest thing on screen, not a note in
@@ -4553,6 +4760,40 @@ function drawHud() {
     ctx.fillText("COMMAND — release [TAB] to resume", viewW / 2, viewH / 2 - 110);
     ctx.font = "13px Consolas, monospace";
   }
+  // Ammo, big enough to read without looking for it. The line in the corner
+  // panel was 13px among five other numbers.
+  {
+    const low = p.ammo <= Math.max(3, p.weapon.mag * 0.25);
+    const ax = viewW - 26, ay = viewH - 34;
+    ctx.textAlign = "right";
+    ctx.font = "bold 40px Consolas, monospace";
+    ctx.fillStyle = p.reloading > 0 ? COLORS.accent : low ? COLORS.danger : COLORS.hud;
+    ctx.fillText(p.reloading > 0 ? "--" : String(p.ammo), ax, ay);
+    ctx.font = "15px Consolas, monospace";
+    ctx.fillStyle = COLORS.hudDim;
+    ctx.fillText("/ " + p.weapon.mag, ax, ay + 18);
+    ctx.font = "11px Consolas, monospace";
+    ctx.fillText((p.guns ? p.guns[p.gunIndex].name + "  " : "") + (AMMO[p.ammoType] || AMMO.fmj).name,
+                 ax, ay - 42);
+    if (p.reloading > 0) {
+      ctx.fillStyle = COLORS.accent; ctx.font = "bold 13px Consolas, monospace";
+      ctx.fillText("RELOADING", ax, ay + 34);
+    } else if (low) {
+      ctx.fillStyle = COLORS.danger; ctx.font = "bold 13px Consolas, monospace";
+      ctx.fillText(p.ammo > 0 ? "LOW — [R]" : "EMPTY — [R]", ax, ay + 34);
+    }
+    // a pip per round for the small magazines, where counting matters
+    if (p.weapon.mag <= 30) {
+      const pw = 5, gap = 2, total = p.weapon.mag * (pw + gap) - gap;
+      let px = ax - total;
+      for (let i = 0; i < p.weapon.mag; i++) {
+        ctx.fillStyle = i < p.ammo ? (low ? COLORS.danger : "#8fa6bd") : "#2a3038";
+        ctx.fillRect(px + i * (pw + gap), ay + 42, pw, 7);
+      }
+    }
+    ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
+  }
+
   drawWheel();
 
   // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
@@ -4696,6 +4937,10 @@ function orderLabel(s) {
 function contextPrompt() {
   const p = game.player;
   if (!p.alive) return null;
+  const dem = nearestEntity(game.demo, p.x, p.y, TUNE.demoReach, d => !d.armed);
+  if (dem) return dem.t > 0
+    ? "planting… hold [E] (" + Math.max(0, TUNE.demoPlant - dem.t).toFixed(1) + "s)"
+    : "[E] hold to set a charge";
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) return "[E] cuff suspect";
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
@@ -4873,7 +5118,7 @@ const game = {
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6,
   loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft" },
-  player: null, squad: [], enemies: [], hostages: [], civilians: [],
+  player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
   selected: new Set(),
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
@@ -4904,6 +5149,7 @@ function initGame() {
   game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
+  game.demo = level.spawns.demo.map(sp => ({ x: sp.x, y: sp.y, armed: false, t: 0 }));
   game.hostages = level.spawns.hostages.map(sp => makeCivilian(sp, true));
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = []; game.smokes = [];
@@ -4925,6 +5171,12 @@ function update(dt) {
   game.stats.time += dt;
   game.underFireT = Math.max(0, game.underFireT - dt);
   if (game.snake) { game.snake.t -= dt; if (game.snake.t <= 0) game.snake = null; }
+  // a planted charge blows on its own — no second keypress at the one moment it
+  // could be correct to press it, same reasoning as the deleted GO key
+  if (game.wallCharge && game.wallCharge.fuse !== undefined) {
+    game.wallCharge.fuse -= dt;
+    if (game.wallCharge.fuse <= 0) detonateWallCharge();
+  }
   updatePlayer(game.player, dt);
   for (const s of game.squad) updateSquaddie(s, dt);
   updatePlans(dt);
@@ -5013,6 +5265,16 @@ const OBJECTIVES = {
   eliminate: {
     label() { const h = hvtUnit(); return "TARGET " + (!h ? "—" : h.alive ? "ALIVE" : "DOWN"); },
     done() { const h = hvtUnit(); return !!h && !h.alive; },
+    failed() { return null; },
+  },
+  // Plant charges on the things you came to destroy. Nothing says you have to
+  // kill anybody to do it — the mission is the charges and the way out.
+  demolish: {
+    label() {
+      const set = game.demo.filter(d => d.armed).length;
+      return "CHARGES " + set + "/" + game.demo.length;
+    },
+    done() { return game.demo.length > 0 && game.demo.every(d => d.armed); },
     failed() { return null; },
   },
   extract: {
@@ -5576,6 +5838,29 @@ requestAnimationFrame(frame);
     16/16 at HEAVY and SWARM, with missions getting shorter as they get more
     lethal. Best grades key on density as well as difficulty, so a SWARM clear
     cannot be overwritten by a LIGHT one.
+  v0.14 (2026-08-11): Two beach missions, and demolition as an objective type.
+    THE LANDING is 74x42 — nearly twice the area of anything before it — with
+    open sand, a seawall with three gaps, a trench line and three bunkers whose
+    firing slits face you, held by twenty-three guns (thirty-six at HEAVY, which
+    runs at 60fps). SEAWALL is the same ground with a different job: three
+    charges in three bunkers and back to the boat, with no neutralize objective
+    at all, so a garrison you never wake is a garrison you never fight — verified
+    completable with every defender still alive.
+    New objective, demolish: hold [E] on a target for 2.6s, walk off and the
+    progress bleeds back, and the extraction will not open until every charge is
+    set. New map glyph B, which validateMap now accepts.
+    WALL CHARGES OFF H, per Sam. You aim them with the cursor now instead of the
+    operator's facing, [E] sets one where you are pointing with a ghost showing
+    exactly which tile, and it blows on a 3.5s fuse rather than needing a second
+    keypress at the one moment it could be correct to press — the same reasoning
+    that deleted the GO key. And pointing the command wheel at a wall reads
+    BREACH THAT WALL: the BREACHER walks up, sets it, and the rest of the team
+    backs outside the wounding radius on their own. That is the first thing the
+    BREACHER role has ever actually been for.
+    AMMUNITION IS READABLE. It was one of six numbers in 13px type in the corner
+    panel; it is now a 40px readout bottom-right with the magazine as a pip strip,
+    turning red and saying LOW or EMPTY when it matters. The panel row it used to
+    occupy now holds the grenade bag, which had been colliding with the shoulder line.
 -->
 </body>
 </html>
