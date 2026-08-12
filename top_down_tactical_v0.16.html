@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.15.html
-  version: 0.15
+  file: top_down_tactical_v0.16.html
+  version: 0.16
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-12
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.15 (working title)</title>
+<title>Top-Down Tactical v0.16 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.15 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.16 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -180,6 +180,12 @@ const TUNE = {
   // you empty it. Recovery is faster standing still than jogging.
   stamRegenDelay: 0.6,              // wind only returns once you stop spending it
   stamRegenMove: 0.55, stamRegenStill: 1.15, stamExhaustLock: 1.5,
+  // Trigger discipline. The round leaves before the gun climbs, so a settled
+  // first shot is a cold-bore shot, and every shot after it in the same string
+  // kicks harder than the one before — a controlled pair or triple stays in the
+  // base cone while a held trigger is a spray. The gun also settles faster the
+  // hotter it is, so the string ends when you let off for a beat.
+  recoilRamp: 1.55, recoilSettle: 1.0,
   spreadSprint: deg(11),            // you cannot shoot properly at a dead run
   steadyMul: 0.6,                   // holding SPACE settles the sights
   squadRun: 208, squadWalk: 112,
@@ -202,7 +208,7 @@ const TUNE = {
   // player weapon (carbine)
   rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
            spreadBase: deg(0.54), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
-           recoil: deg(1.1), recoilMax: deg(7), recoilDecay: deg(14), range: 900 },
+           recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 900 },
   // enemy weapon
   akm:   { dmg: 21, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
            spreadBase: deg(1.44), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 800 },
@@ -1359,7 +1365,7 @@ function held(k) { return input.keys.has(k); }
 function makeShooter(x, y, side, hp, weapon) {
   return {
     x, y, r: TUNE.bodyRadius, face: 0, hp, maxHp: hp, alive: true, side,
-    weapon, ammo: weapon.mag, reloading: 0, cooldown: 0, recoil: 0,
+    weapon, ammo: weapon.mag, reloading: 0, cooldown: 0, recoil: 0, burst: 0,
     blind: 0, stagger: 0, moving: false, walking: false,
     handed: "right",          // "left" mirrors the sprite across the facing axis
     shoulder: "strong",       // "support" = rifle transitioned to the weak shoulder
@@ -1471,7 +1477,7 @@ function swapGun(p, idx) {
   const next = p.guns[p.gunIndex];
   p.weapon = next.w; p.ammo = next.ammo; p.reloading = next.reloading; p.ammoType = next.ammoType;
   p.cooldown = Math.max(p.cooldown, TUNE.gunSwapTime);
-  p.recoil = 0;
+  p.recoil = 0; p.burst = 0;                       // a fresh gun is a settled gun
   sfxAt("click", p.x, p.y);
   game.hint = next.name + " up";
 }
@@ -1741,7 +1747,12 @@ function shoutCompliance(p) {
 // ---------------------------------------------------------------- S7 weapons
 function updateShooterWeapon(s, dt) {
   s.cooldown = Math.max(0, s.cooldown - dt);
-  s.recoil = Math.max(0, s.recoil - (s.weapon.recoilDecay ?? deg(10)) * dt);
+  // A hot gun settles faster than a nearly-cold one, so a short pause buys back
+  // most of the cone and the string resets. That is what makes bursting pay.
+  const cap = s.weapon.recoilMax ?? deg(6);
+  const dec = (s.weapon.recoilDecay ?? deg(10)) * (1 + TUNE.recoilSettle * clamp(s.recoil / cap, 0, 1));
+  s.recoil = Math.max(0, s.recoil - dec * dt);
+  if (s.recoil <= 1e-4) s.burst = 0;                 // settled: next shot is a first shot
   if (s.reloading > 0) {
     s.reloading -= dt;
     if (s.reloading <= 0) { s.ammo = s.weapon.mag; s.reloading = 0; }
@@ -1759,8 +1770,14 @@ function tryFire(s, ang) {
   if (s.cooldown > 0 || s.reloading > 0 || !s.alive) return false;
   if (s.ammo <= 0) { tryReload(s); return false; }
   s.ammo--; s.cooldown = 60 / s.weapon.rpm;
-  s.recoil = Math.min(s.weapon.recoilMax ?? deg(6), s.recoil + (s.weapon.recoil ?? deg(1.4)));
   const spread = currentSpread(s);
+  // The gun climbs AFTER the round is gone. Shot one out of a settled weapon is
+  // the base cone; each shot in the string costs recoilRamp times the last, so
+  // a pair or a triple is precise and a held trigger is not.
+  const ramp = s.weapon.recoilRamp ?? TUNE.recoilRamp;
+  const step = (s.weapon.recoil ?? deg(1.4)) * Math.pow(ramp, s.burst || 0);
+  s.recoil = Math.min(s.weapon.recoilMax ?? deg(6), s.recoil + step);
+  s.burst = (s.burst || 0) + 1;
   const eye = eyePoint(s);   // rounds leave from the muzzle, which is off-centre
   const round = AMMO[s.ammoType || s.weapon.ammo || "fmj"] || AMMO.fmj;
   // glass deflects the first round through it; after that the hole is open
@@ -1873,7 +1890,7 @@ function suppressAlong(b, ex, ey) {
     const h = segCircle(b.x, b.y, ex, ey, e.x, e.y, TUNE.suppressRadius);
     if (!h) continue;
     const near = dist(h.x, h.y, e.x, e.y);
-    const add = TUNE.suppressPerRound * (1 - near / TUNE.suppressRadius);
+    const add = TUNE.suppressPerRound * (1 - near / TUNE.suppressRadius) * (e.rank ? e.rank.sup : 1);
     e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + add);
     e._suppressedBy = b.side;
   }
@@ -2007,7 +2024,7 @@ function applyHit(ent, b, hx, hy) {
   sfxAt("hit", hx, hy);
   noteHurt(ent, b.ang + Math.PI, res.hitArmor);   // back along the round's travel = the shooter
   if (ent.side === "enemy" && ent.state !== "combat" && ent.state !== "surrender" && ent.state !== "cuffed") alertEnemy(ent, hx, hy);
-  if (ent.hp <= 0) killEntity(ent, b.side);
+  if (ent.hp <= 0) killEntity(ent, b.side, b.owner);
   else if (ent.side === "player") game.camKick = Math.min(10, game.camKick + 5);
 }
 
@@ -2045,13 +2062,14 @@ function recordIncident(ent) {
   return inc;
 }
 
-function killEntity(ent, bySide) {
+function killEntity(ent, bySide, by) {
   if (!ent.alive) return;
   ent.alive = false;
   ent.deadAt = game.stats ? game.stats.time : 0;
   ent.deadSpin = rand(-0.5, 0.5);
   if (ent.side === "enemy") {
     if (ent.state === "surrender" || ent.state === "cuffed") { game.stats.surrenderedKilled++; ent.wasSurrendered = true; }
+    else creditXp(by, XP.kill);
     game.stats.kills++;
   }
   if (ent.side === "squad") {
@@ -2808,10 +2826,11 @@ function trySurrender(e, shouter) {
   return false;
 }
 
-function cuffEnemy(e) {
+function cuffEnemy(e, by) {
   if (e.state !== "surrender") return;
   e.state = "cuffed"; e.feint = false;
   game.stats.arrests++;
+  creditXp(by, XP.arrest);
   game.hint = "Suspect cuffed";
 }
 
@@ -2831,6 +2850,10 @@ function trySecureHostage(h) {
   h.r = 5;            // they get down and make themselves small
   h.prone = true;
   game.stats.hostagesSecured++;
+  // the man closest to the hostage gets the credit; you took the risk, but he
+  // was the one covering the room while you did it
+  const helper = nearestEntity(game.squad, h.x, h.y, 260, o => o.alive);
+  creditXp(helper, XP.hostage);
   sfxAt("surrender", h.x, h.y);
   game.hint = "Hostage secured";
 }
@@ -2904,6 +2927,72 @@ function processNoises() {
 // ---------------------------------------------------------------- S10 squad
 const SQUAD_NAMES = ["REYES", "OKAFOR", "DANE"];
 
+// ---- veterancy. The men get better at this, and the only way to lose that is
+// to get one killed. A dead operator is replaced by a boot, and every hour his
+// predecessor put in goes with him — so the reason to run it properly is not
+// the grade on the debrief screen, it is the team you take into the next one.
+const RANKS = [
+  { xp: 0,    name: "BOOT",     tag: "BT", react: 1.18, spread: 1.22, sup: 1.15 },
+  { xp: 120,  name: "OPERATOR", tag: "OP", react: 1.00, spread: 1.00, sup: 1.00 },
+  { xp: 320,  name: "SENIOR",   tag: "SR", react: 0.90, spread: 0.90, sup: 0.88 },
+  { xp: 640,  name: "TEAM LEAD",tag: "TL", react: 0.82, spread: 0.82, sup: 0.78 },
+  { xp: 1100, name: "MASTER",   tag: "MS", react: 0.75, spread: 0.75, sup: 0.68 },
+];
+const XP = { kill: 12, arrest: 25, hostage: 30, win: 40, survive: 10 };
+
+function rankFor(xp) {
+  let r = RANKS[0];
+  for (const t of RANKS) if (xp >= t.xp) r = t;
+  return r;
+}
+function nextRank(xp) { return RANKS.find(t => t.xp > xp) || null; }
+
+function loadVets() {
+  let v = {};
+  try { v = JSON.parse(localStorage.getItem("tdt_vets") || "{}"); } catch (e) { v = {}; }
+  for (const n of SQUAD_NAMES) if (!v[n]) v[n] = { xp: 0, missions: 0, kia: 0 };
+  return v;
+}
+function saveVets(v) {
+  try { localStorage.setItem("tdt_vets", JSON.stringify(v)); } catch (e) {}
+}
+
+// End of mission: the survivors bank what they earned, the dead lose all of it.
+// Returns one line per man for the debrief, because a reset you are not told
+// about is just a number quietly going down.
+function settleVeterancy(won) {
+  const v = loadVets();
+  const rows = [];
+  for (const s of game.squad) {
+    const rec = v[s.name] || (v[s.name] = { xp: 0, missions: 0, kia: 0 });
+    const before = rankFor(rec.xp);
+    if (!s.alive) {
+      const lost = rec.xp;
+      rec.xp = 0; rec.kia++; rec.missions++;
+      rows.push({ name: s.name, kia: true, lost, rank: RANKS[0],
+                  text: lost > 0
+                    ? s.name + " KIA — " + before.name + ", " + lost + " XP lost. A boot takes his slot."
+                    : s.name + " KIA — he never got a mission in. A boot takes his slot." });
+      continue;
+    }
+    const gain = (s.mxp || 0) + (won ? XP.win : XP.survive);
+    rec.xp += gain; rec.missions++;
+    const after = rankFor(rec.xp);
+    const nx = nextRank(rec.xp);
+    rows.push({ name: s.name, kia: false, gain, rank: after, promoted: after !== before,
+                text: s.name + " +" + gain + " XP — " + after.name +
+                      (after !== before ? " (PROMOTED)" : nx ? " (" + (nx.xp - rec.xp) + " to " + nx.name + ")" : " (max)") });
+  }
+  saveVets(v);
+  return rows;
+}
+
+// XP is credited to the man who did it, not to the team, so the operator who
+// actually works gets the rank.
+function creditXp(ent, amount) {
+  if (ent && ent.side === "squad" && ent.alive) ent.mxp = (ent.mxp || 0) + amount;
+}
+
 // ---- loadout: what the team carries through the door
 const ROLES = {
   rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
@@ -2930,7 +3019,8 @@ const PRIMARIES = {
              note: "belt-fed — you are the base of fire, and you are slow",
              w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 900,
                   spreadBase: deg(1.53), spreadMove: deg(13), spreadWalkMove: deg(6.5),
-                  recoil: deg(1.1), recoilMax: deg(8), recoilDecay: deg(7), sprintDrain: 1.55 },
+                  recoil: deg(0.75), recoilMax: deg(8), recoilDecay: deg(4.5), sprintDrain: 1.55,
+                  recoilRamp: 1.30 },   // long strings are the belt-fed's whole job
              speed: 0.86 },
   dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
              note: "one round at a time, from across the map",
@@ -2941,7 +3031,7 @@ const PRIMARIES = {
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
-                  spreadBase: deg(0.72), recoil: deg(0.8), penMul: 0.7 } },
+                  spreadBase: deg(0.72), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
 };
 
 // Everybody carries a sidearm. It is not a choice at the briefing — it is the
@@ -2950,7 +3040,7 @@ const PRIMARIES = {
 const SIDEARM = {
   name: "SIDEARM", ammo: "pistol",
   w: { ...TUNE.rifle, dmg: 22, rpm: 380, mag: 15, reload: 1.5, range: 480,
-       spreadBase: deg(0.99), spreadMove: deg(7), recoil: deg(1.6), recoilMax: deg(7),
+       spreadBase: deg(0.99), spreadMove: deg(7), recoil: deg(0.9), recoilMax: deg(7), recoilDecay: deg(6),
        penMul: 0.7, speed: 1150 },
 };
 
@@ -2977,6 +3067,10 @@ function makeSquaddie(sp, i) {
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
   s.role = role;
+  const rec = (game.vets && game.vets[s.name]) || { xp: 0, missions: 0, kia: 0 };
+  s.xp = rec.xp; s.mxp = 0;
+  s.rank = rankFor(rec.xp);
+  s.weapon = { ...s.weapon, spreadBase: (s.weapon.spreadBase ?? deg(0.9)) * s.rank.spread };
   s.ammoType = ROLES[role].w.ammo;
   s.handed = rollHandedness();
   s.order = { type: "follow" };
@@ -3632,7 +3726,7 @@ function updateSquaddie(s, dt) {
       }
     }
   }
-  if (threat && !s.engaged) s.reactT = randIn(TUNE.squadReact);
+  if (threat && !s.engaged) s.reactT = randIn(TUNE.squadReact) * (s.rank ? s.rank.react : 1);
   s.engaged = threat;
 
   // zip-cuff surrendered suspects in reach when not fighting
@@ -3640,7 +3734,7 @@ function updateSquaddie(s, dt) {
     s._sidestep = 0;
     if (s.stagger <= 0) {
       const cuffable = nearestEntity(game.enemies, s.x, s.y, 45, e => e.alive && e.state === "surrender");
-      if (cuffable) { cuffEnemy(cuffable); bark(s, "SUSPECT SECURED"); }
+      if (cuffable) { cuffEnemy(cuffable, s); bark(s, "SUSPECT SECURED"); }
     }
     // Top up out of contact. The reload used to sit inside the threat branch,
     // so a man who broke contact with three rounds stacked on the next door
@@ -4717,6 +4811,12 @@ function drawHud() {
     ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
     // #2/#3/#4 are the entry numbers the plays assign roles by. You are #1.
     ctx.fillText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name + (s.alive ? "" : " ✝"), 22, sy + 15);
+    // rank tag: what you stand to lose if this one goes down
+    if (s.rank) {
+      const w = ctx.measureText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name).width;
+      ctx.fillStyle = s.alive ? (s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent) : COLORS.danger;
+      ctx.fillText(" " + s.rank.tag, 22 + w, sy + 15);
+    }
     if (s.alive) {
       ctx.fillStyle = "#333"; ctx.fillRect(22, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(22, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
@@ -5154,6 +5254,7 @@ function initGame() {
   MAP_SRC = game.mission.src;
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
+  game.vets = loadVets();          // the men remember the last one
   game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
@@ -5391,6 +5492,16 @@ function endMission(won, reason) {
   if (st.surrenderedKilled) rows.push(`<div class="stat" style="color:#ff5555">Surrendered suspects killed: ${st.surrenderedKilled}</div>`);
   if (st.civsKilled) rows.push(`<div class="stat" style="color:#ff5555">Civilians dead: ${st.civsKilled} (by your team: ${st.civsKilledByUs})</div>`);
   rows.push(`<div class="stat">Squad lost: ${st.squadLost}/3</div>`);
+  // Veterancy, settled and shown. A man who lived banks what he earned; a man
+  // who did not takes every hour he ever put in with him.
+  const vet = settleVeterancy(won);
+  if (vet.length) {
+    rows.push(`<br><div class="stat" style="color:#e8b53a">THE TEAM</div>`);
+    for (const r of vet) {
+      const col = r.kia ? "#ff5555" : r.promoted ? "#3fc27e" : "#cfd6dd";
+      rows.push(`<div class="stat" style="color:${col}">${r.text}</div>`);
+    }
+  }
   rows.push(`<div class="stat">Shots fired: ${st.shotsFired} · Flashbangs: ${st.bangsUsed} · Breaches: ${st.breaches}</div>`);
   // Every bystander death, timestamped and attributed. A count tells you a
   // number went up; this tells you what happened and whether it was you.
@@ -5575,9 +5686,18 @@ function renderBriefing() {
   const map = MAPS[game.mapIndex] || MAPS[0];
   const s = surveyMap(map.src, game.diffIndex);
   drawFloorPlan(document.getElementById("planCanvas"), map.src, s);
+  const lines = briefingLines(map, s, game.diffIndex);
+  const v = loadVets();
+  const roster = SQUAD_NAMES.map(n => {
+    const rec = v[n] || { xp: 0, missions: 0, kia: 0 };
+    const r = rankFor(rec.xp), nx = nextRank(rec.xp);
+    return n + " " + r.name + " (" + rec.xp + " XP" +
+           (nx ? ", " + (nx.xp - rec.xp) + " to " + nx.name : ", max") + ")" +
+           (rec.kia ? " · " + rec.kia + " predecessor" + (rec.kia > 1 ? "s" : "") + " lost" : "");
+  }).join("<br>");
+  lines.push(["YOUR TEAM", roster + "<br><span style=\"color:#7f8b96\">Anyone who goes down loses every hour he has put in.</span>"]);
   document.getElementById("briefText").innerHTML =
-    briefingLines(map, s, game.diffIndex)
-      .map(([k, v]) => `<div class="row"><span class="k">${k}</span>${v}</div>`).join("");
+    lines.map(([k, v2]) => `<div class="row"><span class="k">${k}</span>${v2}</div>`).join("");
 }
 // Training missions render first — that is the order you should play them in —
 // while MAPS itself keeps its order so saved grades stay attached to the right
@@ -5881,6 +6001,30 @@ requestAnimationFrame(frame);
     and the hold-until-blown timings are untouched. Regression test sweeps every
     duty cycle a hand can produce at all three tiers and asserts both that the
     tank still empties and that tapping never beats holding.
+  v0.16 (2026-08-12): TRIGGER DISCIPLINE, per Sam. The gun now climbs AFTER the
+    round leaves, so shot one out of a settled weapon goes through the base cone,
+    and every shot after it in the same string kicks recoilRamp times harder than
+    the last. Measuring the old model first turned up why full-auto had been
+    free: the M4 added 1.1 deg per shot against 14 deg/s of decay, which at
+    640rpm fully settled between rounds — the cone never climbed at all. Retuned
+    to 0.62 deg per shot against 5.5 deg/s, and the eight-round string now reads
+    0.54 0.60 0.97 1.80 3.33 5.93 6.51 6.51 degrees. A controlled triple stays
+    inside 1 deg; the eighth round of a held trigger is 6.7x worse. The gun also
+    settles faster the hotter it is, so a triple recovers in 0.22s and a dump
+    costs 0.78s. Belt-fed gets a gentler ramp because long strings are its job;
+    the DMR now has the tightest first shot in the game at 0.32 deg. Bot deaths
+    went 9/16 to 12/16, which is the point — the bot holds the trigger.
+  v0.16: VETERANCY, per Sam. REYES, OKAFOR and DANE carry XP across missions in
+    localStorage and climb five ranks: BOOT, OPERATOR, SENIOR, TEAM LEAD, MASTER.
+    Rank is mechanical, not a label — reaction time x1.18 down to x0.75, base cone
+    x1.22 down to x0.75, suppression taken x1.15 down to x0.68. XP is credited to
+    the man who did the work (12 a kill, 25 an arrest, 30 a hostage), not split
+    across the team, and executing a suspect who has already surrendered pays
+    nothing. If he dies, every point of it is gone and a boot takes his slot. The
+    briefing now opens with the roster and what each man is worth, so the stake is
+    visible before you go in rather than after. Headless tests got an in-memory
+    localStorage so persistence is actually verified rather than swallowed by the
+    try/catch.
 -->
 </body>
 </html>

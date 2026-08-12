@@ -6,3 +6,13 @@ const elStub = () => ({ addEventListener(){}, classList: { add(){}, remove(){}, 
 global.document = { getElementById: () => elStub(), createElement: () => elStub(), querySelectorAll: () => [] };
 global.performance = { now: () => Date.now() };
 global.requestAnimationFrame = () => {};
+// localStorage: an in-memory one, so persistence is actually testable headless
+// (the real code try/catches around a missing one, which would hide a bug where
+// nothing is ever written)
+const _ls = new Map();
+global.localStorage = {
+  getItem: k => (_ls.has(k) ? _ls.get(k) : null),
+  setItem: (k, v) => { _ls.set(k, String(v)); },
+  removeItem: k => { _ls.delete(k); },
+  clear: () => _ls.clear(),
+};

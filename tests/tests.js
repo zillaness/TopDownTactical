@@ -406,6 +406,74 @@ console.log('grazing volley: ' + skipped + '/' + trials + ' skipped along the wa
 console.log('BALLISTICS TEST DONE');
 })();
 
+(function triggerDisciplineTests(){
+console.log('--- trigger discipline: the cone a string of shots is fired through ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const dg = r => (r * 180 / Math.PI).toFixed(2);
+
+// Fire N rounds back to back and record the cone each one actually left through.
+function string(primary, n) {
+  game.loadout.primary = primary; initGame();
+  const p = game.player;
+  p.moving = false; p.walking = false; p.steady = false; p.sprinting = false;
+  p.suppress = 0; p.turnBloom = 0; p.recoil = 0; p.burst = 0; p.ammo = 999;
+  const cones = [];
+  for (let i = 0; i < n; i++) {
+    cones.push(currentSpread(p));                 // what THIS round goes through
+    p.cooldown = 0; p.reloading = 0;
+    tryFire(p, p.face);
+    updateShooterWeapon(p, 60 / p.weapon.rpm);    // the gap the fire rate forces
+  }
+  return cones;
+}
+const carb = string('carbine', 8);
+console.log('  M4, eight rounds held down: ' + carb.map(dg).join('  '));
+console.log('    round 1 leaves at the base cone (' + dg(PRIMARIES.carbine.w.spreadBase) + '):',
+            Math.abs(carb[0] - PRIMARIES.carbine.w.spreadBase) < 1e-9
+              ? 'CORRECT (the gun climbs after the round is gone)' : 'WRONG');
+console.log('    it only ever opens up:',
+            carb.every((c, i) => i === 0 || c >= carb[i - 1] - 1e-9) ? 'CORRECT' : 'WRONG');
+console.log('    and each step is bigger than the last, so the string degrades:',
+            carb[2] - carb[1] > carb[1] - carb[0] && carb[3] - carb[2] > carb[2] - carb[1]
+              ? 'CORRECT' : 'WRONG');
+const triple = carb[2], dump = carb[7];
+console.log('    third round of a triple ' + dg(triple) + '° vs eighth of a dump ' + dg(dump) + '°: ' +
+            (dump / triple).toFixed(1) + 'x worse',
+            dump > triple * 2 ? 'CORRECT (bursting is rewarded)' : 'WRONG (no reason to let off)');
+
+// Letting off has to buy the cone back, or there is no burst rhythm to find.
+function settleTime(primary, shots) {
+  game.loadout.primary = primary; initGame();
+  const p = game.player;
+  p.moving = false; p.recoil = 0; p.burst = 0; p.ammo = 999;
+  for (let i = 0; i < shots; i++) { p.cooldown = 0; tryFire(p, p.face); updateShooterWeapon(p, 60 / p.weapon.rpm); }
+  const hot = p.recoil;
+  let t = 0;
+  while (p.burst !== 0 && t < 5) { updateShooterWeapon(p, 1 / 60); t += 1 / 60; }
+  return { hot, t };
+}
+const s3 = settleTime('carbine', 3), s8 = settleTime('carbine', 8);
+console.log('  M4 settle: ' + dg(s3.hot) + '° after a triple -> ' + s3.t.toFixed(2) + 's, ' +
+            dg(s8.hot) + '° after a dump -> ' + s8.t.toFixed(2) + 's');
+console.log('    a triple recovers inside half a second:', s3.t < 0.5 ? 'CORRECT' : 'WRONG');
+console.log('    a dump costs you more than a triple does:', s8.t > s3.t ? 'CORRECT' : 'WRONG');
+
+// The marksman rifle exists to hit one thing at range: its first shot must be
+// the tightest first shot in the game.
+const firsts = Object.keys(PRIMARIES).map(k => ({ k, c: string(k, 1)[0] }));
+firsts.forEach(f => console.log('  ' + PRIMARIES[f.k].name.padEnd(17) + 'first shot ' + dg(f.c) + '°'));
+const best = firsts.reduce((a, b) => a.c <= b.c ? a : b);
+console.log('    tightest first shot is the DMR:', best.k === 'dmr' ? 'CORRECT' : 'WRONG (' + best.k + ')');
+// and the belt-fed degrades more slowly per shot, because long strings are its job
+const sawStr = string('saw', 8);
+const sawRamp = (sawStr[3] - sawStr[2]) / Math.max(1e-9, sawStr[2] - sawStr[1]);
+const carbRamp = (carb[3] - carb[2]) / Math.max(1e-9, carb[2] - carb[1]);
+console.log('  per-shot growth: M4 x' + carbRamp.toFixed(2) + ', belt-fed x' + sawRamp.toFixed(2),
+            sawRamp < carbRamp ? 'CORRECT (the SAW is built to keep firing)' : 'WRONG');
+game.loadout.primary = 'carbine'; initGame();
+console.log('TRIGGER DISCIPLINE TEST DONE');
+})();
+
 (function aimSolutionTest(){
 console.log('--- firing solution ---');
 // Regression: rounds leave the offset muzzle, so the aim angle must be computed
@@ -1777,4 +1845,76 @@ const others = game.squad.filter(s => s !== br);
 const clear = others.every(s => dist(s.order.x, s.order.y, wc.x, wc.y) > TUNE.blastWound);
 console.log('  the rest wait outside the wounding radius: ' + clear, clear ? 'CORRECT' : 'WRONG');
 console.log('CHARGE TEST DONE');
+})();
+
+(function veterancyTests(){
+console.log('--- veterancy: the men get better, and dying costs you all of it ---');
+localStorage.clear();
+game.mapIndex = 0; game.diffIndex = 1; initGame(); game.state = 'play';
+
+// a fresh team is three boots
+let ranks = game.squad.map(s => s.rank.name);
+console.log('  fresh team: ' + ranks.join(', '),
+            ranks.every(r => r === 'BOOT') ? 'CORRECT' : 'WRONG');
+
+// XP is credited to the man who did the work, not split across the team
+const shooter = game.squad[0], bystander = game.squad[1];
+const victim = game.enemies.find(e => e.alive);
+killEntity(victim, 'squad', shooter);
+console.log('  a kill credits the shooter ' + (shooter.mxp || 0) + ' XP, the man beside him ' +
+            (bystander.mxp || 0), (shooter.mxp === XP.kill && !bystander.mxp) ? 'CORRECT' : 'WRONG');
+
+// killing a man who has his hands up is not marksmanship
+const surr = game.enemies.find(e => e.alive);
+surr.state = 'surrender';
+const before = shooter.mxp;
+killEntity(surr, 'squad', shooter);
+console.log('  executing a surrendered suspect pays ' + (shooter.mxp - before) + ' XP',
+            shooter.mxp === before ? 'CORRECT (nothing)' : 'WRONG');
+
+// banking: survivors keep it, and it persists
+game.squad.forEach(s => { s.alive = true; s.mxp = 100; });
+let rowsA = settleVeterancy(true);
+let saved = JSON.parse(localStorage.getItem('tdt_vets'));
+console.log('  after a win with +100 each: ' + SQUAD_NAMES.map(n => n + '=' + saved[n].xp).join(' '),
+            SQUAD_NAMES.every(n => saved[n].xp === 100 + XP.win) ? 'CORRECT' : 'WRONG');
+console.log('  and it survives a new mission: ' +
+            (initGame(), game.squad.map(s => s.name + ' ' + s.rank.name).join(', ')),
+            game.squad.every(s => s.rank.name === 'OPERATOR') ? 'CORRECT (promoted)' : 'WRONG');
+
+// rank is a real mechanical difference, not a label
+const boot = RANKS[0], master = RANKS[RANKS.length - 1];
+console.log('  BOOT vs MASTER — react x' + boot.react + '/' + master.react +
+            ', cone x' + boot.spread + '/' + master.spread + ', suppression x' + boot.sup + '/' + master.sup,
+            master.react < boot.react && master.spread < boot.spread && master.sup < boot.sup ? 'CORRECT' : 'WRONG');
+const mono = RANKS.every((r, i) => i === 0 || (r.xp > RANKS[i-1].xp && r.react <= RANKS[i-1].react &&
+                                               r.spread <= RANKS[i-1].spread && r.sup <= RANKS[i-1].sup));
+console.log('  the ladder only ever improves:', mono ? 'CORRECT' : 'WRONG');
+// and the tighter cone actually reaches the weapon
+localStorage.setItem('tdt_vets', JSON.stringify({ REYES: { xp: 2000, missions: 9, kia: 0 },
+                                                  OKAFOR: { xp: 0, missions: 0, kia: 0 },
+                                                  DANE: { xp: 0, missions: 0, kia: 0 } }));
+initGame();
+const vetOp = game.squad.find(s => s.name === 'REYES'), rookie = game.squad.find(s => s.name === 'OKAFOR');
+console.log('  REYES is ' + vetOp.rank.name + ' with a ' + (vetOp.weapon.spreadBase * 180 / Math.PI).toFixed(2) +
+            '° base cone; OKAFOR is ' + rookie.rank.name + ' at ' +
+            (rookie.weapon.spreadBase * 180 / Math.PI).toFixed(2) + '°',
+            vetOp.weapon.spreadBase < rookie.weapon.spreadBase ? 'CORRECT' : 'WRONG');
+
+// death wipes it — that is the whole stake
+game.squad.forEach(s => { s.mxp = 500; });
+vetOp.alive = false;
+const rowsB = settleVeterancy(true);
+saved = JSON.parse(localStorage.getItem('tdt_vets'));
+console.log('  REYES KIA: xp ' + saved.REYES.xp + ', kia count ' + saved.REYES.kia +
+            '; OKAFOR banked ' + saved.OKAFOR.xp,
+            saved.REYES.xp === 0 && saved.REYES.kia === 1 && saved.OKAFOR.xp > 0 ? 'CORRECT' : 'WRONG');
+const kiaRow = rowsB.find(r => r.name === 'REYES');
+console.log('  and the debrief says so out loud: "' + kiaRow.text + '"',
+            kiaRow.kia && /KIA/.test(kiaRow.text) && /lost/.test(kiaRow.text) ? 'CORRECT' : 'WRONG');
+initGame();
+console.log('  he comes back a boot: ' + game.squad.find(s => s.name === 'REYES').rank.name,
+            game.squad.find(s => s.name === 'REYES').rank.name === 'BOOT' ? 'CORRECT' : 'WRONG');
+localStorage.clear(); initGame();
+console.log('VETERANCY TEST DONE');
 })();
