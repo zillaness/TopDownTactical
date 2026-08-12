@@ -676,10 +676,15 @@ const spent = throughArmor(P, 30, 32);
 console.log('  once spent it stops working: ' + spent.dmg.toFixed(1) + ' of 30 gets through',
             spent.dmg === 30 && !spent.hitArmor ? 'CORRECT' : 'WRONG');
 
-// every tier must cost speed, or it is a free upgrade
+// Armour costs WIND, not top speed. Every tier must shorten the sprint, and
+// wearing nothing must mean no limit at all.
 const speeds = Object.entries(ARMOR).map(([k, v]) => v.speed);
-console.log('  speed multipliers ' + JSON.stringify(speeds),
-            speeds.every((v, i) => i === 0 || v < speeds[i - 1]) ? 'CORRECT (monotonic cost)' : 'WRONG');
+const tanks = Object.entries(ARMOR).map(([k, v]) => v.sprint);
+console.log('  top speed is unaffected by armour: ' + JSON.stringify(speeds),
+            speeds.every(v => v === 1) ? 'CORRECT' : 'WRONG');
+console.log('  seconds of sprint per tier: ' + JSON.stringify(tanks),
+            tanks[0] === null && tanks.slice(1).every((v, i) => i === 0 || v < tanks[i])
+              ? 'CORRECT (unarmoured is unlimited, and it shortens as it gets heavier)' : 'WRONG');
 
 // enemies are bare below ELITE
 const worn = {};
@@ -1469,4 +1474,74 @@ console.log('  18° off square: ' + (ob * 100).toFixed(0) + '%', ob > 0.8 ? 'COR
 console.log('  32° off square: ' + (hard * 100).toFixed(0) + '% — deliberately still work,',
             hard < 0.8 ? 'CORRECT (catching a frame stays realistic)' : 'note: fully assisted now');
 console.log('DOORWAY TEST DONE');
+})();
+
+(function sprintTests(){
+console.log('--- sprint, and the wind armour costs you ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+const P = game.player;
+
+// unarmoured: no tank at all
+wearArmor(P, 'none'); P.stam = undefined; P.moving = true;
+for (let i = 0; i < 60 * 30; i++) updateStamina(P, 1 / 60, true);
+console.log('  no armour, 30s of continuous sprint: stam=' + P.stam + ', still allowed: ' + P.stamOk,
+            P.stam === null && P.stamOk ? 'CORRECT (run all day)' : 'WRONG');
+
+// armoured: the tank empties, and roughly on schedule
+// read game.player fresh — initGame replaces the object, so a captured
+// reference silently measures the previous loadout
+function burn(kind) {
+  const pl = game.player;
+  wearArmor(pl, kind); pl.stam = undefined; pl.blown = false; pl.moving = true;
+  updateStamina(pl, 0, false);
+  let t = 0;
+  while (pl.stamOk && t < 60) { updateStamina(pl, 1 / 60, true); t += 1 / 60; }
+  return t;
+}
+const rows = ['soft', 'plate', 'heavy'].map(k => ({ k, t: burn(k), spec: ARMOR[k].sprint }));
+rows.forEach(r => console.log('  ' + ARMOR[r.k].name.padEnd(11) + 'sprinted ' + r.t.toFixed(1) +
+                              's (tank ' + r.spec + 's)'));
+console.log('  each tier is shorter than the last:',
+            rows.every((r, i) => i === 0 || r.t < rows[i - 1].t) ? 'CORRECT' : 'WRONG');
+console.log('  and each matches its tank:',
+            rows.every(r => Math.abs(r.t - r.spec) < 0.4) ? 'CORRECT' : 'WRONG');
+
+// blown means blown: you cannot stutter-tap it back
+wearArmor(P, 'heavy'); P.stam = 0; P.blown = true; P.moving = true;
+updateStamina(P, 1 / 60, true);
+console.log('  sprinting on an empty tank: ' + P.stamOk, !P.stamOk ? 'CORRECT (you are blown)' : 'WRONG');
+let recov = 0;
+while (P.blown && recov < 30) { updateStamina(P, 1 / 60, false); recov += 1 / 60; }
+console.log('  seconds of not-sprinting before you can go again: ' + recov.toFixed(1),
+            recov > 1 && recov < 8 ? 'CORRECT' : 'WRONG');
+
+// standing still recovers faster than jogging
+wearArmor(P, 'plate'); P.stam = 1; P.blown = false;
+P.moving = true;  let a = P.stam; updateStamina(P, 1, false); const jog = P.stam - a;
+P.stam = 1; P.moving = false; a = P.stam; updateStamina(P, 1, false); const still = P.stam - a;
+console.log('  recovery per second: jogging ' + jog.toFixed(2) + ', standing ' + still.toFixed(2),
+            still > jog ? 'CORRECT' : 'WRONG');
+
+// a belt-fed empties the tank faster than a carbine
+game.loadout.armor = 'plate';
+game.loadout.primary = 'carbine'; initGame(); const carb = burn('plate');
+game.loadout.primary = 'saw';     initGame(); const saw = burn('plate');
+game.loadout.primary = 'carbine'; initGame();
+console.log('  same plate, carbine ' + carb.toFixed(1) + 's vs belt-fed ' + saw.toFixed(1) + 's',
+            saw < carb ? 'CORRECT (the gun drains it too)' : 'WRONG');
+
+// the three gaits must be genuinely different, and sprint must be the worst shot
+const mk = (o) => Object.assign({ weapon: PRIMARIES.carbine.w, recoil: 0, moving: true,
+                                  walking: false, shoulder: 'strong', suppress: 0, turnBloom: 0 }, o);
+const deg2 = r => (r * 180 / Math.PI).toFixed(2);
+const steady = currentSpread(mk({ moving: false, steady: true }));
+const planted = currentSpread(mk({ moving: false }));
+const jogging = currentSpread(mk({}));
+const sprinting = currentSpread(mk({ sprinting: true }));
+console.log('  cone: steady ' + deg2(steady) + '° < planted ' + deg2(planted) +
+            '° < jogging ' + deg2(jogging) + '° < sprinting ' + deg2(sprinting) + '°',
+            steady < planted && planted < jogging && jogging < sprinting ? 'CORRECT' : 'WRONG');
+console.log('  sprint speed ' + TUNE.playerSprint + ' > run ' + TUNE.playerRun + ' > steady ' + TUNE.playerWalk,
+            TUNE.playerSprint > TUNE.playerRun && TUNE.playerRun > TUNE.playerWalk ? 'CORRECT' : 'WRONG');
+console.log('SPRINT TEST DONE');
 })();

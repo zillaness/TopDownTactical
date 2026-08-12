@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.11.html
-  version: 0.11
+  file: top_down_tactical_v0.12.html
+  version: 0.12
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-11
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.11 (working title)</title>
+<title>Top-Down Tactical v0.12 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,18 +54,19 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.11 prototype &mdash; working title &mdash; ten missions</h2>
+  <h2>v0.12 prototype &mdash; working title &mdash; ten missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
       <tr><td class="key">W A S D</td><td>move</td><td class="key">Mouse</td><td>aim &middot; LMB shoot</td></tr>
-      <tr><td class="key">Shift</td><td>walk (slow, quiet, tight aim)</td><td class="key">R</td><td>reload</td></tr>
+      <tr><td class="key">Shift</td><td>sprint &mdash; fast and loud, you cannot shoot from it, and armour limits how long</td><td class="key">Space</td><td>steady &mdash; slow, silent, tightest cone</td></tr>
+      <tr><td class="key">R</td><td>reload</td><td class="key">Tab</td><td>tactical pause (orders still work)</td></tr>
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">H</td><td>wall charge: plant on wall, [H] again to blow</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
-      <tr><td class="key">Space</td><td>tactical pause (orders still work)</td><td class="key">Esc</td><td>menu</td></tr>
+      <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad &mdash; all on the right mouse button</h3>
@@ -74,7 +75,7 @@
       <tr><td class="key">release</td><td>send them there &mdash; they open whatever is shut on the way</td><td class="key">flick &uarr;</td><td><b>TAKE IT</b> &mdash; bang it and flood the room</td></tr>
       <tr><td class="key">flick &rarr;</td><td><b>BOUND</b> &mdash; leapfrog up, one element always still</td><td class="key">flick &darr;</td><td><b>HOLD</b> &mdash; stop and cover, or cover that door</td></tr>
       <tr><td class="key">flick &larr;</td><td><b>ON ME</b> &mdash; form up and follow</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
-      <tr><td class="key">Tab (hold)</td><td>command time &mdash; world slows to 15%</td><td class="key">1 2 3 / 4</td><td>select by number, if you prefer keys</td></tr>
+      <tr><td class="key">1 2 3 / 4</td><td>select by number, if you prefer keys</td><td class="key">&nbsp;</td><td>the wheel slows the world on its own while it is open</td></tr>
     </table>
   </div>
   <div class="sect">Mission</div>
@@ -172,7 +173,12 @@ const TAU = Math.PI * 2;
 
 const TUNE = {
   // movement (px/s)
-  playerRun: 196, playerWalk: 104,
+  playerRun: 196, playerWalk: 104, playerSprint: 310,
+  // stamina, in seconds of sprint. Armour sets the tank; the gun sets how fast
+  // you empty it. Recovery is faster standing still than jogging.
+  stamRegenMove: 0.55, stamRegenStill: 1.15, stamExhaustLock: 1.5,
+  spreadSprint: deg(11),            // you cannot shoot properly at a dead run
+  steadyMul: 0.6,                   // holding SPACE settles the sights
   squadRun: 208, squadWalk: 112,
   enemyWalk: 70, enemyRun: 132,
   civilianRun: 96,
@@ -294,14 +300,16 @@ const AMMO = {
 // IV is the only thing that turns AP (46). Every tier costs move speed, so
 // picking one is a trade rather than a free upgrade.
 const ARMOR = {
-  none:  { name: "NO ARMOR",  hp: 0,   rating: 0,  speed: 1.00, cover: 0,
-           note: "fastest man in the stack, nothing between you and the round" },
-  soft:  { name: "IIIA SOFT", hp: 55,  rating: 14, speed: 0.97, cover: 0.80,
-           note: "turns pistol and shot — rifle goes straight through" },
-  plate: { name: "III PLATE", hp: 95,  rating: 33, speed: 0.90, cover: 0.78,
-           note: "turns 5.56 and 7.62 ball; slugs and AP still get in" },
-  heavy: { name: "IV HEAVY",  hp: 135, rating: 48, speed: 0.82, cover: 0.82,
-           note: "turns armour-piercing, and you will be the slowest man there" },
+  // Armour does not slow your walk, it wrecks your wind. `sprint` is seconds of
+  // sprint in the tank — null means as long as you like.
+  none:  { name: "NO ARMOR",  hp: 0,   rating: 0,  speed: 1.00, cover: 0,    sprint: null,
+           note: "run all day, nothing between you and the round" },
+  soft:  { name: "IIIA SOFT", hp: 55,  rating: 14, speed: 1.00, cover: 0.80, sprint: 9.0,
+           note: "turns pistol and shot; nine seconds of sprint" },
+  plate: { name: "III PLATE", hp: 95,  rating: 33, speed: 1.00, cover: 0.78, sprint: 5.5,
+           note: "turns rifle ball; five and a half seconds of sprint" },
+  heavy: { name: "IV HEAVY",  hp: 135, rating: 48, speed: 1.00, cover: 0.82, sprint: 3.2,
+           note: "turns armour-piercing; three seconds and you are blown" },
 };
 
 const COLORS = {
@@ -1265,6 +1273,10 @@ function wearArmor(ent, key) {
   return ent;
 }
 function armorSpeed(ent) { return (ARMOR[ent.armorType] || ARMOR.none).speed; }
+// seconds of sprint the plate carrier allows; null = unlimited
+function sprintTank(ent) { return (ARMOR[ent.armorType] || ARMOR.none).sprint; }
+// how fast this gun empties the tank
+function sprintDrain(ent) { return (ent.weapon && ent.weapon.sprintDrain) || 1; }
 // a belt-fed is heavy; carrying one should be felt in the legs, not just the HUD
 function gunSpeed(ent) { return (ent.weapon && ent.weapon.carrySpeed) || 1; }
 
@@ -1299,6 +1311,8 @@ function currentSpread(s) {
   // and so does whipping your muzzle onto a new contact: a snapped shot is a
   // worse shot than a pied one, which is what makes cornering slowly pay
   if (s.turnBloom) sp += Math.min(TUNE.turnBloomMax, s.turnBloom);
+  if (s.sprinting) sp += TUNE.spreadSprint;          // shooting at a dead run
+  if (s.steady) sp *= TUNE.steadyMul;                // settled on the sights
   if (s.moving) sp += s.walking ? (t.spreadWalkMove ?? t.spreadMove * 0.45) : t.spreadMove;
   if (s.shoulder === "support") sp *= TUNE.supportSideSpread;
   return sp;
@@ -1399,11 +1413,19 @@ function updatePlayer(p, dt) {
   // movement
   let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
   let dy = (held("s") ? 1 : 0) - (held("w") ? 1 : 0);
-  p.walking = held("shift");
+  // Three gaits on two modifiers: SPACE settles you down to a quiet, steady
+  // walk; SHIFT opens you up to a sprint you cannot shoot from and cannot hold
+  // forever. Nothing held is the honest middle.
+  p.steady = held(" ");
+  const wantSprint = held("shift") && !p.steady;
+  updateStamina(p, dt, wantSprint);
+  p.sprinting = wantSprint && p.stamOk;
+  p.walking = p.steady;
   p.moving = dx !== 0 || dy !== 0;
   if (p.moving && p.stagger <= 0) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const spd = (p.walking ? TUNE.playerWalk : TUNE.playerRun) * armorSpeed(p) * gunSpeed(p);
+    const gait = p.sprinting ? TUNE.playerSprint : p.walking ? TUNE.playerWalk : TUNE.playerRun;
+    const spd = gait * armorSpeed(p) * gunSpeed(p);
     // Threading a 32px doorway with a 20px body catches on the jamb constantly.
     // Getting hung up on a frame is realistic; being welded to it is not, so a
     // body squeezes when it is actually in a doorway and nowhere else.
@@ -1412,7 +1434,7 @@ function updatePlayer(p, dt) {
     const a = doorwayAssist(p, dx, dy);
     const res = moveCircle(p.x, p.y, rad, a.dx * spd * dt, a.dy * spd * dt, solidForMove);
     p.x = res.x; p.y = res.y;
-    if (!p.walking) emitFootstepNoise(p, dt);
+    if (!p.walking) emitFootstepNoise(p, dt, p.sprinting ? 1.55 : 1);
   }
 
   // Aim. The body turns like a person — every other actor in the file uses
@@ -1545,9 +1567,35 @@ function nearestEntity(list, x, y, maxD, filter) {
   return best;
 }
 
-function emitFootstepNoise(ent, dt) {
-  ent._stepAcc = (ent._stepAcc || 0) + dt;
-  if (ent._stepAcc > 0.38) { ent._stepAcc = 0; addNoise(ent.x, ent.y, TUNE.noiseRunStep, "steps", ent.side); }
+function emitFootstepNoise(ent, dt, loudMul) {
+  ent._stepAcc = (ent._stepAcc || 0) + dt * (loudMul && loudMul > 1 ? 1.4 : 1);
+  if (ent._stepAcc > 0.38) {
+    ent._stepAcc = 0;
+    addNoise(ent.x, ent.y, TUNE.noiseRunStep * (loudMul || 1), "steps", ent.side);
+  }
+}
+
+// Sprinting empties a tank the armour sets and the gun drains. No armour means
+// no tank at all — run as long as you like, and nothing between you and the
+// round. Once you are blown you have to get some back before you can go again,
+// so it cannot be stutter-tapped.
+function updateStamina(ent, dt, sprinting) {
+  const tank = sprintTank(ent);
+  if (tank === null || tank === undefined) {         // unarmoured: unlimited
+    ent.stamMax = null; ent.stam = null; ent.stamOk = true; ent.blown = false;
+    return;
+  }
+  ent.stamMax = tank;
+  if (ent.stam === null || ent.stam === undefined) ent.stam = tank;
+  if (sprinting && ent.stamOk !== false && ent.stam > 0 && ent.moving) {
+    ent.stam = Math.max(0, ent.stam - dt * sprintDrain(ent));
+    if (ent.stam <= 0) { ent.blown = true; sfxAt("click", ent.x, ent.y); }
+  } else {
+    const rate = ent.moving ? TUNE.stamRegenMove : TUNE.stamRegenStill;
+    ent.stam = Math.min(tank, ent.stam + dt * rate);
+    if (ent.blown && ent.stam >= Math.min(tank, TUNE.stamExhaustLock)) ent.blown = false;
+  }
+  ent.stamOk = !ent.blown && ent.stam > 0;
 }
 
 function shoutCompliance(p) {
@@ -2747,13 +2795,13 @@ const PRIMARIES = {
              note: "belt-fed — you are the base of fire, and you are slow",
              w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 900,
                   spreadBase: deg(1.53), spreadMove: deg(13), spreadWalkMove: deg(6.5),
-                  recoil: deg(1.1), recoilMax: deg(8), recoilDecay: deg(7) },
+                  recoil: deg(1.1), recoilMax: deg(8), recoilDecay: deg(7), sprintDrain: 1.55 },
              speed: 0.86 },
   dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
              note: "one round at a time, from across the map",
              w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
                   spreadBase: deg(0.32), spreadMove: deg(12), spreadWalkMove: deg(5),
-                  recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 },
+                  recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15, sprintDrain: 1.2 },
              speed: 0.95 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
@@ -3471,7 +3519,7 @@ function updateSquaddie(s, dt) {
     case "follow": {
       const st = wedgeStation(s, dt);
       const d = dist(s.x, s.y, st.x, st.y);
-      if (d > 26) squadMove(s, st.x, st.y, d > 190 ? TUNE.squadRun : TUNE.squadRun * 0.8, dt);
+      if (d > 26) squadMove(s, st.x, st.y, d > 190 ? TUNE.playerSprint : TUNE.squadRun * 0.8, dt);
       // On station, cover your sector. Three men all staring where you stare is
       // three men watching one arc and nobody watching the other three.
       else if (!threat) s.face = angLerp(s.face, st.sector, dt * 4);
@@ -3489,7 +3537,7 @@ function updateSquaddie(s, dt) {
           const leg = pickBoundLeg(s, B.x, B.y);
           s._legX = leg.x; s._legY = leg.y;
         }
-        const arrived = squadMove(s, s._legX, s._legY, TUNE.squadRun, dt);
+        const arrived = squadMove(s, s._legX, s._legY, TUNE.playerSprint, dt);   // a bound is a dash
         if (arrived || dist(s.x, s.y, s._legX, s._legY) < 16) s._bounded = true;
       } else {
         s._legX = undefined; s._legY = undefined; s._bounded = false;
@@ -4394,9 +4442,19 @@ function drawHud() {
     ctx.fillStyle = p.armor > p.armorMax * 0.3 ? "#8fa6bd" : COLORS.accent;
     ctx.fillRect(bx, by + 15, 150 * clamp(p.armor / p.armorMax, 0, 1), 6);
   }
+  // wind, under the plate — the thing the plate actually costs you
+  if (p.stamMax) {
+    const k = clamp(p.stam / p.stamMax, 0, 1);
+    ctx.fillStyle = "#22282e"; ctx.fillRect(bx, by + 24, 150, 4);
+    ctx.fillStyle = p.blown ? COLORS.danger : p.sprinting ? COLORS.accent : "#6f8fae";
+    ctx.fillRect(bx, by + 24, 150 * k, 4);
+  }
   ctx.font = "11px Consolas, monospace";
   ctx.fillStyle = p.armor > 0 ? COLORS.hudDim : COLORS.danger;
-  ctx.fillText(p.armorMax > 0 ? (ARMOR[p.armorType].name + (p.armor > 0 ? "" : " — GONE")) : "NO ARMOR", bx + 158, by + 21);
+  const wind = p.stamMax ? (p.blown ? "  BLOWN" : "  " + p.stam.toFixed(1) + "s sprint")
+                         : "  unlimited sprint";
+  ctx.fillText((p.armorMax > 0 ? (ARMOR[p.armorType].name + (p.armor > 0 ? "" : " — GONE")) : "NO ARMOR")
+               + wind, bx + 158, by + 21);
   ctx.font = "13px Consolas, monospace";
   ctx.fillStyle = COLORS.hud;
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
@@ -4481,7 +4539,7 @@ function drawHud() {
   if (game.paused) {
     ctx.fillStyle = "#000b"; ctx.fillRect(viewW / 2 - 220, viewH / 2 - 130, 440, 40);
     ctx.fillStyle = COLORS.accent; ctx.font = "16px Consolas, monospace";
-    ctx.fillText("TACTICAL PAUSE — orders active, [SPACE] to resume", viewW / 2, viewH / 2 - 104);
+    ctx.fillText("TACTICAL PAUSE — orders active, [TAB] to resume", viewW / 2, viewH / 2 - 104);
     ctx.font = "13px Consolas, monospace";
   } else if (game.slowmo && !game.wheel) {   // the wheel is its own signal
     ctx.fillStyle = "rgba(40,80,160,0.10)"; ctx.fillRect(0, 0, viewW, viewH);
@@ -5046,7 +5104,11 @@ function frame(now) {
   input.mouse.wy = (input.mouse.y - viewH / 2) / game.zoom + game.cam.y;
 
   if (game.state === "play") {
-    if (pressed(" ")) game.paused = !game.paused;
+    // Tactical pause moved off SPACE, which is now the steady gait. TAB used to
+    // be a separate "hold for command time" — the wheel gives you that
+    // automatically whenever you are actually commanding, so the hold was a
+    // binding doing a job something else already did.
+    if (pressed("tab")) game.paused = !game.paused;
     if (pressed("escape")) {
       game.state = "menu";
       document.getElementById("menu").classList.remove("hidden");
@@ -5055,9 +5117,9 @@ function frame(now) {
     }
     if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
-    // hold Tab, or hold the wheel open: command time. Choosing what the squad
-    // does is a decision, and decisions should not be a dexterity test.
-    game.slowmo = (held("tab") || !!game.wheel || !!game.nadeWheel) && !game.paused;
+    // Holding either wheel open is command time. Choosing what the squad does is
+    // a decision, and decisions should not be a dexterity test.
+    game.slowmo = (!!game.wheel || !!game.nadeWheel) && !game.paused;
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       // A thrown exception here must never take the render loop with it: the
@@ -5215,7 +5277,7 @@ Object.entries(PRIMARIES).forEach(([k, v]) =>
   mkBtn(primPickEl, k, v.name, v.note, () => { game.loadout.primary = k; refreshMenu(); }));
 Object.entries(ARMOR).forEach(([k, v]) =>
   mkBtn(armorPickEl, k, v.name,
-        (v.hp ? "rating " + v.rating + " · " + Math.round((1 - v.speed) * 100) + "% slower — " : "") + v.note,
+        (v.hp ? "rating " + v.rating + " · " + (v.sprint ? v.sprint + "s of sprint" : "unlimited sprint") + " — " : "") + v.note,
         () => { game.loadout.armor = k; refreshMenu(); }));
 Object.entries(UTILITY_KITS).forEach(([k, v]) =>
   mkBtn(kitPickEl, k, v.name, v.bangs + " bangs / " + v.charges + " charges", () => { game.loadout.kit = k; refreshMenu(); }));
@@ -5409,6 +5471,23 @@ requestAnimationFrame(frame);
     storefront with civilians face-down inside) and DOWNTOWN EXCHANGE (a running
     gunfight down a lane of cars, where sheet metal is concealment and only the
     engine block stops a round).
+  v0.12 (2026-08-11): Sprint, and armour that costs wind instead of speed. Three
+    gaits on two modifiers, per Sam: hold SPACE to steady — slow, silent, cone
+    multiplied by 0.6 — hold SHIFT to sprint at 310px/s, loud, with an 11-degree
+    penalty that makes shooting from it pointless, and nothing held is the honest
+    middle at 196. Measured in a browser over 1.5s of open ground: steady 4.9
+    tiles, run 9.3, sprint 14.7.
+    Armour no longer slows your walk at all; it sets how many seconds of sprint
+    are in the tank. No armour is unlimited — run all day, with nothing between
+    you and the round. IIIA gives nine seconds, III gives five and a half, IV
+    gives three and a bit, all verified to empty on schedule. The gun drains it
+    too: the same plate is 5.5s with a carbine and 3.5s with the belt-fed. Run it
+    dry and you are blown until you get a second and a half back, so it cannot be
+    stutter-tapped, and standing still recovers twice as fast as jogging.
+    Two bindings became one: tactical pause moved from SPACE to TAB, and the
+    separate hold-TAB-for-command-time is gone, because opening either wheel
+    already slows the world whenever you are actually commanding. The squad
+    sprints to close a gap and to cross a bound leg, so they keep up.
 -->
 </body>
 </html>
