@@ -1543,6 +1543,54 @@ console.log('  cone: steady ' + deg2(steady) + '° < planted ' + deg2(planted) +
             steady < planted && planted < jogging && jogging < sprinting ? 'CORRECT' : 'WRONG');
 console.log('  sprint speed ' + TUNE.playerSprint + ' > run ' + TUNE.playerRun + ' > steady ' + TUNE.playerWalk,
             TUNE.playerSprint > TUNE.playerRun && TUNE.playerRun > TUNE.playerWalk ? 'CORRECT' : 'WRONG');
+
+// --- the stutter-tap sweep.
+// A regen that pays out the instant the key is up makes the tank infinite at
+// any duty cycle under regen/(drain+regen) — you never blow, and you carry a
+// permanent fraction of the sprint bonus for free. Sweep every duty cycle a
+// hand can actually produce and demand two things of all of them: the tank
+// still empties, and no tap beats simply holding it down.
+function rideOut(kind, onFrames, offFrames, seconds) {
+  const pl = game.player;
+  wearArmor(pl, kind); pl.stam = undefined; pl.blown = false; pl.stamRest = 0;
+  pl.moving = true;
+  updateStamina(pl, 0, false);
+  const dt = 1 / 60, frames = Math.round(seconds / dt);
+  let dist = 0, blew = false, lowest = Infinity;
+  for (let f = 0; f < frames; f++) {
+    const want = onFrames === Infinity ? true : (f % (onFrames + offFrames)) < onFrames;
+    updateStamina(pl, dt, want);
+    const sprinting = want && pl.stamOk;
+    dist += (sprinting ? TUNE.playerSprint : TUNE.playerRun) * armorSpeed(pl) * gunSpeed(pl) * dt;
+    if (pl.blown) blew = true;
+    lowest = Math.min(lowest, pl.stam);
+  }
+  return { avg: dist / seconds, blew, lowest };
+}
+const DUTIES = [[1,1],[1,2],[1,3],[1,4],[1,5],[2,3],[2,4],[2,5],[3,5],[5,5],[6,10],[10,20],[15,45]];
+// 120s is longer than any real approach: a pattern that has not emptied a 9s
+// tank in two minutes of continuous tapping is paying for itself out of regen.
+for (const kind of ['soft', 'plate', 'heavy']) {
+  const hold = rideOut(kind, Infinity, 0, 120);
+  let best = null, neverBlew = [];
+  for (const [on, off] of DUTIES) {
+    const r = rideOut(kind, on, off, 120);
+    if (!r.blew) neverBlew.push(on + 'on/' + off + 'off (tank floor ' + r.lowest.toFixed(2) + ')');
+    if (!best || r.avg > best.avg) best = Object.assign({ on, off }, r);
+  }
+  console.log('  ' + ARMOR[kind].name.padEnd(11) + 'hold ' + hold.avg.toFixed(1) +
+              'px/s, best of ' + DUTIES.length + ' tap patterns ' + best.avg.toFixed(1) +
+              'px/s (' + best.on + 'on/' + best.off + 'off)');
+  console.log('    every duty cycle still blows the tank:',
+              neverBlew.length === 0 ? 'CORRECT' : 'WRONG — free forever at ' + neverBlew.join(', '));
+  console.log('    tapping does not beat holding:',
+              best.avg <= hold.avg + 0.5 ? 'CORRECT' : 'WRONG — tapping wins by ' +
+              (best.avg - hold.avg).toFixed(1) + 'px/s');
+}
+// and the unarmoured case is untouched by the delay: still no tank to empty
+const bare = rideOut('none', 2, 4, 120);
+console.log('  NO ARMOR   tapping: ' + bare.avg.toFixed(1) + 'px/s, blown: ' + bare.blew,
+            !bare.blew ? 'CORRECT (nothing to spend)' : 'WRONG');
 console.log('SPRINT TEST DONE');
 })();
 

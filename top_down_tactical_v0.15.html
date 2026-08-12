@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.14.html
-  version: 0.14
+  file: top_down_tactical_v0.15.html
+  version: 0.15
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-11
+  last_updated: 2026-08-12
   description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.14 (working title)</title>
+<title>Top-Down Tactical v0.15 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.14 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.15 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -178,6 +178,7 @@ const TUNE = {
   playerRun: 196, playerWalk: 104, playerSprint: 310,
   // stamina, in seconds of sprint. Armour sets the tank; the gun sets how fast
   // you empty it. Recovery is faster standing still than jogging.
+  stamRegenDelay: 0.6,              // wind only returns once you stop spending it
   stamRegenMove: 0.55, stamRegenStill: 1.15, stamExhaustLock: 1.5,
   spreadSprint: deg(11),            // you cannot shoot properly at a dead run
   steadyMul: 0.6,                   // holding SPACE settles the sights
@@ -1696,23 +1697,29 @@ function emitFootstepNoise(ent, dt, loudMul) {
 
 // Sprinting empties a tank the armour sets and the gun drains. No armour means
 // no tank at all — run as long as you like, and nothing between you and the
-// round. Once you are blown you have to get some back before you can go again,
-// so it cannot be stutter-tapped.
+// round. Wind does not come back the instant the key is up: you have to stop
+// spending it for stamRegenDelay first, which is what stops a stutter-tapper
+// from riding the sprint speed forever on a duty cycle the regen can pay for.
 function updateStamina(ent, dt, sprinting) {
   const tank = sprintTank(ent);
   if (tank === null || tank === undefined) {         // unarmoured: unlimited
     ent.stamMax = null; ent.stam = null; ent.stamOk = true; ent.blown = false;
+    ent.stamRest = 0;
     return;
   }
   ent.stamMax = tank;
   if (ent.stam === null || ent.stam === undefined) ent.stam = tank;
   if (sprinting && ent.stamOk !== false && ent.stam > 0 && ent.moving) {
+    ent.stamRest = 0;
     ent.stam = Math.max(0, ent.stam - dt * sprintDrain(ent));
     if (ent.stam <= 0) { ent.blown = true; sfxAt("click", ent.x, ent.y); }
   } else {
-    const rate = ent.moving ? TUNE.stamRegenMove : TUNE.stamRegenStill;
-    ent.stam = Math.min(tank, ent.stam + dt * rate);
-    if (ent.blown && ent.stam >= Math.min(tank, TUNE.stamExhaustLock)) ent.blown = false;
+    ent.stamRest = (ent.stamRest || 0) + dt;
+    if (ent.stamRest >= TUNE.stamRegenDelay) {
+      const rate = ent.moving ? TUNE.stamRegenMove : TUNE.stamRegenStill;
+      ent.stam = Math.min(tank, ent.stam + dt * rate);
+      if (ent.blown && ent.stam >= Math.min(tank, TUNE.stamExhaustLock)) ent.blown = false;
+    }
   }
   ent.stamOk = !ent.blown && ent.stam > 0;
 }
@@ -5861,6 +5868,18 @@ requestAnimationFrame(frame);
     panel; it is now a 40px readout bottom-right with the magazine as a pip strip,
     turning red and saying LOW or EMPTY when it matters. The panel row it used to
     occupy now holds the grenade bag, which had been colliding with the shoulder line.
+  v0.15 (2026-08-12): The sprint tank could be stutter-tapped, and the v0.12 note
+    claiming otherwise was wrong. Wind regenerated the instant the key came up and
+    the blown lockout only armed at exactly zero, so any duty cycle under
+    regen/(drain+regen) = 0.355 never emptied the tank at all. Tapping SHIFT at
+    ~10Hz held 234px/s against the 196px/s honest jog — a permanent 19% movement
+    bonus, identical at IIIA, III and IV, which meant IV HEAVY cost a tapper
+    nothing. Wind now takes stamRegenDelay = 0.6s of not spending it before any
+    comes back, which inverts the exploit: on IV HEAVY, holding sustains 233.6px/s
+    and the best of thirteen tap patterns manages 224.8px/s. The unarmoured case
+    and the hold-until-blown timings are untouched. Regression test sweeps every
+    duty cycle a hand can produce at all three tiers and asserts both that the
+    tank still empties and that tapping never beats holding.
 -->
 </body>
 </html>
