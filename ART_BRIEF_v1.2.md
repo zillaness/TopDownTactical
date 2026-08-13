@@ -1,6 +1,6 @@
 ---
-file: ART_BRIEF_v1.1.md (top-down-tactical)
-version: 1.1
+file: ART_BRIEF_v1.2.md (top-down-tactical)
+version: 1.2
 author: Sam Cao
 created: 2026-08-12
 last_updated: 2026-08-12
@@ -14,9 +14,12 @@ ai_update: Update last_updated and bump version in frontmatter. Rename file to m
 cannot see the repository. Nothing here depends on a file you do not have. Two
 images ship alongside it and are the other half of the brief:
 
-- `art/sprite_contact_sheet_v2.0.png` — all 27 current sprites, each shown at a
+- `art/sprite_contact_sheet_v3.0.png` — all 27 current sprites, each shown at a
   120px study next to the actual 40px in-game blit, on the real floor colour.
-- `art/gameplay_frame_v0.15.png` — an honest gameplay frame, fog and all.
+- `art/gameplay_frame_v0.17.png` — an honest gameplay frame, fog and all.
+
+The `_v2.0` / `_v0.15` pair is kept alongside them as the "before", from ahead of
+the v0.17 readability pass.
 
 You do not need any other document. §1.1 carries the game mechanics that bear on
 art decisions; nothing else in the project would change what you draw.
@@ -254,29 +257,35 @@ disappears in play. Look at `gameplay_frame_v0.15.png`.
 
 ## 6. What is actually wrong right now
 
-This is the honest read on the current set, not a wish list.
+**Updated after the v0.17 readability pass.** The first four items below were the
+original list; the ones marked FIXED were solved by that pass and are recorded so
+a second pass does not redo them.
 
-1. **Value, not hue, is the problem.** Body outlines are `#14181c` against a
-   `#1d232a` floor — roughly 3% apart in luminance. The silhouette has almost no
-   edge. Everything solves through the tint, and the tint is the only thing
-   carrying it.
-2. **40px is where it falls apart.** The studies read well; the blits are dark
-   smudges. Helmet shrouds, NVG mounts and rail detail are all under 2 screen px.
-3. **Role does not read.** `squad_rifleman`, `squad_breacher` and `squad_support`
-   share a silhouette and a tint, and differ only in a small weapon shape. At
-   40px they are the same man three times. The player commands by role; the
-   roles should be identifiable at a glance without reading the HUD panel.
-4. **Suspect variants do not read either.** `enemy_guard`, `enemy_patrol` and
-   `enemy_taker` are the same red silhouette. The taker is the one running an
-   execution clock — he is the most important body on the screen and looks like
-   the least important.
-5. **Doors do not read as doors.** `door_closed` is a grey bar; at 40px on a dark
-   floor it is indistinguishable from a wall segment. Doors are the single most
-   tactically loaded object in the game.
-6. **Nothing communicates state.** Alert, suppressed, reloading, blinded, and
-   surrendering all currently ride on HUD overlays rather than the body.
-7. **The overall frame is too dark and too uniform.** Interior and exterior floor
-   are 4% apart. There is no read of "inside this building" versus "the street."
+1. ~~Value contrast~~ **FIXED.** Body outlines sat 1.13x off the interior floor —
+   no edge at all. Every sprite is now wrapped at load in a dilate-and-flood rim
+   that sits at 4.59x. Corpses deliberately get a dimmer rim so they recede.
+2. ~~Role does not read~~ **MOSTLY FIXED.** Each sprite now carries one large
+   accent: the taker a clock face, the HVT and the surrendered man wide raised
+   arms, the breacher a shotgun block, the support a box mag, hostage_secured a
+   check. Still open: `enemy_guard` and `enemy_patrol` remain near-identical.
+3. ~~Doors do not read~~ **FIXED.** `door_closed` is now a framed slab with a
+   handle. `door_locked` still has no distinct sprite — it is a colour only.
+4. ~~The frame is too dark and uniform~~ **FIXED.** Interior against exterior
+   floor went 1.11x to 1.55x, wall edge against wall 1.41x to 2.08x, and the
+   luminance spread across the seven materials slightly more than doubled.
+
+Still open:
+
+5. **The rim is uniform, which is its own risk.** Every body now has the same
+   grey halo, so at 40px in a crowd there is a "grey blob with a coloured core"
+   sameness. A second pass could vary rim value by category — threat, protect,
+   neutralised — rather than by nothing.
+6. **Nothing communicates state.** Alerted, suppressed, reloading, blinded, and
+   rules-of-engagement all still ride on HUD overlays rather than the body. So
+   does rank (see §1.1 item 7).
+7. **The accents all sit behind the operator** (authored at x 10–25 in a sprite
+   that faces +X). That keeps them clear of the weapon, but it means the cue
+   trails the body when a man is moving, which is worth a second look.
 
 ## 7. What a graphical pass should deliver
 
@@ -329,4 +338,5 @@ file, no network, still true.
 
 ## CHANGELOG
 - v1.0 (2026-08-12): Written for a hand-off to a model with no repo access, against build v0.15.
+- v1.2 (2026-08-13): Synced to v0.17 after the first outside pass landed. Reference images regenerated; §6 rewritten against what is now true.
 - v1.1 (2026-08-12): Added §1.1, the eight game facts that change art decisions, so no second design document is needed. Doors promoted to a required deliverable; rank added as an open visual gap. Synced to v0.16.

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.16.html
-  version: 0.16
+  file: top_down_tactical_v0.17.html
+  version: 0.17
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-12
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.16 (working title)</title>
+<title>Top-Down Tactical v0.17 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.16 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.17 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -169,6 +169,64 @@ const SPRITES = {
 };
 // --- END SPRITES ---
 
+// ---- readability pass (v0.17). The authored geometry in the block above is
+// untouched; this wraps each sprite in a value-separated rim and adds one large
+// role cue that survives the 40px blit and the fog layer. It runs once, at load,
+// before anything is rasterised, so it costs nothing per frame — and it keeps
+// the 64x64 / centre-pivot / east-facing / #TEAMCOLOR contract intact, which is
+// what lets the SPRITES block above still be swapped wholesale.
+//
+// Measured against the old palette: a body outline sat 1.13x off the interior
+// floor, which is no edge at all. The rim sits at 4.59x.
+const SPRITE_ART_ACCENTS = {
+  player: `<path d="M17 29L12 32L17 35" fill="none" stroke="#eaf5ff" stroke-width="3" stroke-linecap="round"/>`,
+  squad_rifleman: `<path d="M18 27V37" stroke="#d8fff0" stroke-width="3"/><path d="M15 32H21" stroke="#d8fff0" stroke-width="2"/>`,
+  squad_breacher: `<rect x="43" y="29" width="16" height="7" rx="2" fill="#c99a58" stroke="#eef3f5" stroke-width="1.5"/><path d="M48 37L55 40" stroke="#c99a58" stroke-width="3"/>`,
+  squad_support: `<rect x="31" y="40" width="12" height="9" rx="2" fill="#9b7a46" stroke="#eef3f5" stroke-width="1.5"/><path d="M48 39L55 45M48 39L55 33" stroke="#b8c2ca" stroke-width="2"/>`,
+  squad_shield: `<path d="M37 16Q53 20 56 32Q53 44 37 48Z" fill="#536473" stroke="#eef3f5" stroke-width="2.5"/><rect x="42" y="26" width="8" height="12" rx="2" fill="#93cfe4"/>`,
+  enemy_guard: `<path d="M17 25L13 29V35L17 39" fill="#6e7881" stroke="#d7dde2" stroke-width="2"/>`,
+  enemy_patrol: `<rect x="15" y="23" width="9" height="18" rx="3" fill="#6f5942" stroke="#d7dde2" stroke-width="2"/><path d="M16 29H23M16 35H23" stroke="#c8a66d" stroke-width="1.5"/>`,
+  enemy_elite: `<path d="M19 20L27 17L31 23L25 28L18 26ZM19 44L27 47L31 41L25 36L18 38Z" fill="#8f4f82" stroke="#f0cce8" stroke-width="2"/>`,
+  enemy_taker: `<circle cx="18" cy="32" r="8" fill="#21191a" stroke="#ffb347" stroke-width="3"/><path d="M18 27V32L22 35" fill="none" stroke="#ffdf9b" stroke-width="2.5" stroke-linecap="round"/>`,
+  enemy_hvt: `<path d="M18 24L11 18M18 40L11 46" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/><circle cx="10" cy="17" r="3" fill="#ffffff"/><circle cx="10" cy="47" r="3" fill="#ffffff"/>`,
+  surrendered: `<path d="M24 23L15 14M24 41L15 50" stroke="#ffe3a1" stroke-width="4" stroke-linecap="round"/><circle cx="13" cy="12" r="3" fill="#ffe3a1"/><circle cx="13" cy="52" r="3" fill="#ffe3a1"/>`,
+  cuffed: `<path d="M26 28L18 32L26 36" fill="none" stroke="#d5d9dc" stroke-width="3"/><circle cx="18" cy="32" r="4" fill="none" stroke="#d5d9dc" stroke-width="2"/>`,
+  hostage: `<path d="M18 25Q10 32 18 39" fill="none" stroke="#fff4a3" stroke-width="4"/><path d="M13 29L20 35M20 29L13 35" stroke="#fff4a3" stroke-width="2"/>`,
+  hostage_secured: `<path d="M16 37L23 43L34 24" fill="none" stroke="#baffd5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  civilian: `<path d="M19 24L12 18M19 40L12 46" stroke="#f2dcff" stroke-width="3" stroke-linecap="round"/>`,
+  corpse: `<path d="M20 24L44 40M44 24L20 40" stroke="#6b757d" stroke-width="2.5" stroke-linecap="round" opacity=".45"/>`,
+  player_nvg: `<path d="M17 29L12 32L17 35" fill="none" stroke="#eaf5ff" stroke-width="3"/><circle cx="45" cy="29" r="2.5" fill="#8affc1"/><circle cx="45" cy="35" r="2.5" fill="#8affc1"/>`,
+  squad_rifleman_nvg: `<path d="M18 27V37" stroke="#d8fff0" stroke-width="3"/><circle cx="45" cy="29" r="2.5" fill="#8affc1"/><circle cx="45" cy="35" r="2.5" fill="#8affc1"/>`,
+  squad_breacher_nvg: `<rect x="43" y="29" width="16" height="7" rx="2" fill="#c99a58" stroke="#eef3f5" stroke-width="1.5"/><circle cx="45" cy="27" r="2.5" fill="#8affc1"/>`,
+  squad_support_nvg: `<rect x="31" y="40" width="12" height="9" rx="2" fill="#9b7a46" stroke="#eef3f5" stroke-width="1.5"/><circle cx="46" cy="28" r="2.5" fill="#8affc1"/>`,
+  enemy_elite_nvg: `<path d="M19 20L28 17L31 24L22 28ZM19 44L28 47L31 40L22 36Z" fill="#8f4f82" stroke="#f0cce8" stroke-width="2"/><circle cx="46" cy="29" r="2.5" fill="#78ff9c"/><circle cx="46" cy="35" r="2.5" fill="#78ff9c"/>`,
+  door_closed: `<rect x="7" y="25" width="50" height="14" rx="2" fill="none" stroke="#d8b06c" stroke-width="3"/><path d="M14 28V36M21 28V36" stroke="#7f6034" stroke-width="2"/><circle cx="52" cy="32" r="2.5" fill="#fff1bd"/>`,
+  door_open: `<path d="M14 27L22 31L35 33" fill="none" stroke="#d8b06c" stroke-width="3"/><path d="M4 25H18M46 25H60" stroke="#a77d45" stroke-width="3"/>`,
+  door_breached: `<path d="M8 23L18 28L13 33L23 40M56 23L46 28L51 33L41 40" fill="none" stroke="#c18b52" stroke-width="3"/><circle cx="32" cy="32" r="7" fill="none" stroke="#d5a15d" stroke-width="2" stroke-dasharray="3 3"/>`,
+  prop_flashbang: `<path d="M20 20L15 15M44 20L49 15M20 48L15 53M44 48L49 53" stroke="#fff5c4" stroke-width="3" stroke-linecap="round"/>`,
+  prop_wallcharge: `<rect x="18" y="23" width="28" height="27" rx="4" fill="none" stroke="#e0b55e" stroke-width="3"/><path d="M28 30L37 37M37 30L28 37" stroke="#ff6b5f" stroke-width="2.5"/>`,
+  prop_mirror: `<circle cx="46" cy="18" r="10" fill="none" stroke="#d8f4ff" stroke-width="3"/><path d="M42 14L49 21" stroke="#ffffff" stroke-width="2"/>`,
+};
+
+// A dead man should recede, not announce himself — he is the one thing on
+// screen that cannot hurt you.
+const NO_RIM = new Set(["corpse"]);
+
+function applySpriteArtPass(svg, key) {
+  const openEnd = svg.indexOf(">") + 1;
+  const rimCol = NO_RIM.has(key) ? "#5c666e" : "#9aa6af";
+  const rimOp = NO_RIM.has(key) ? ".5" : ".82";
+  const rim = `<defs><filter id="readabilityRim" x="-30%" y="-30%" width="160%" height="160%">` +
+    `<feMorphology in="SourceAlpha" operator="dilate" radius="1.35" result="spread"/>` +
+    `<feFlood flood-color="${rimCol}" flood-opacity="${rimOp}" result="rimColor"/>` +
+    `<feComposite in="rimColor" in2="spread" operator="in" result="rim"/>` +
+    `<feMerge><feMergeNode in="rim"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>` +
+    `<g filter="url(#readabilityRim)">`;
+  return svg.slice(0, openEnd) + rim + svg.slice(openEnd, -6) +
+         (SPRITE_ART_ACCENTS[key] || "") + `</g></svg>`;
+}
+for (const key of Object.keys(SPRITES)) SPRITES[key] = applySpriteArtPass(SPRITES[key], key);
+
 // ---------------------------------------------------------------- S1 constants
 const TILE = 32;                 // px per tile
 const TAU = Math.PI * 2;
@@ -281,13 +339,13 @@ function deg(d) { return d * Math.PI / 180; }
 // it is concealment, not cover — shoot through it if you have eyes some other way.
 const MATERIALS = {
   air:        { resist: 0,    opaque: false, spall: 0,  defl: 0,       dmgKeep: 1,    col: null },
-  concrete:   { name: "concrete", resist: 999,  opaque: true,  spall: 5,  defl: 0,       dmgKeep: 0,    col: "#39434d" },
-  brick:      { name: "brick", resist: 30,   opaque: true,  spall: 11, defl: deg(9),  dmgKeep: 0.45, col: "#6b4a3f" },
-  wood:       { name: "a wooden partition", resist: 13,   opaque: true,  spall: 6,  defl: deg(6),  dmgKeep: 0.65, col: "#6b5535" },
-  drywall:    { name: "drywall", resist: 5,    opaque: true,  spall: 3,  defl: deg(3.5),dmgKeep: 0.85, col: "#4a5058" },
-  glass:      { name: "glass", resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#7fc8e8" },
-  sheetmetal: { name: "sheet metal", resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#5a6570" },
-  engine:     { name: "an engine block", resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#2f3841" },
+  concrete:   { name: "concrete", resist: 999,  opaque: true,  spall: 5,  defl: 0,       dmgKeep: 0,    col: "#46545f" },
+  brick:      { name: "brick", resist: 30,   opaque: true,  spall: 11, defl: deg(9),  dmgKeep: 0.45, col: "#845345" },
+  wood:       { name: "a wooden partition", resist: 13,   opaque: true,  spall: 6,  defl: deg(6),  dmgKeep: 0.65, col: "#80623a" },
+  drywall:    { name: "drywall", resist: 5,    opaque: true,  spall: 3,  defl: deg(3.5),dmgKeep: 0.85, col: "#6d777f" },
+  glass:      { name: "glass", resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#8ed9f2" },
+  sheetmetal: { name: "sheet metal", resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#788792" },
+  engine:     { name: "an engine block", resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#34414b" },
 };
 
 // ---- ammunition: penetration is caliber x projectile, and the two trade off
@@ -324,12 +382,12 @@ const ARMOR = {
 };
 
 const COLORS = {
-  floorIn: "#1d232a", floorOut: "#151a16", wall: "#39434d", wallEdge: "#4d5964",
-  doorClosed: "#8a6a3b", doorOpen: "#5c4a2e", doorBreached: "#3a2f22", doorLocked: "#8a3b3b",
+  floorIn: "#303b46", floorOut: "#111a17", wall: "#46545f", wallEdge: "#768692",
+  doorClosed: "#a1783e", doorOpen: "#735633", doorBreached: "#503b28", doorLocked: "#a14343",
   player: "#4da3ff", squad: "#3fc27e", enemy: "#e05252", surrendered: "#e0a852", cuffed: "#8a8a8a",
   hostage: "#e8d44d", civilian: "#c9a3e0", corpse: "#5a3030",
-  tracer: "#ffd27a", muzzle: "#fff2c0", blood: "#7a1f1f",
-  fog: "rgba(5,7,9,0.80)", memory: "rgba(10,14,18,0.55)",
+  tracer: "#ffd987", muzzle: "#fff7d6", blood: "#941f24",
+  fog: "rgba(4,7,10,0.74)", memory: "rgba(9,14,19,0.48)",
   hud: "#cfd6dd", hudDim: "#7f8b96", accent: "#e8b53a", danger: "#ff5555", ok: "#3fc27e",
 };
 
@@ -4811,15 +4869,15 @@ function drawHud() {
     ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
     // #2/#3/#4 are the entry numbers the plays assign roles by. You are #1.
     ctx.fillText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name + (s.alive ? "" : " ✝"), 22, sy + 15);
-    // rank tag: what you stand to lose if this one goes down
-    if (s.rank) {
-      const w = ctx.measureText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name).width;
-      ctx.fillStyle = s.alive ? (s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent) : COLORS.danger;
-      ctx.fillText(" " + s.rank.tag, 22 + w, sy + 15);
-    }
     if (s.alive) {
       ctx.fillStyle = "#333"; ctx.fillRect(22, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(22, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
+      // Rank rides on the ROE line rather than after the name: appended to the
+      // name it ran straight into the order column and drew "REYES BTENGAGING".
+      if (s.rank) {
+        ctx.fillStyle = s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent;
+        ctx.fillText(s.rank.tag, 176, sy + 30);
+      }
       ctx.fillStyle = COLORS.hudDim;
       ctx.fillText(orderLabel(s), 140, sy + 15);
       ctx.fillStyle = s.roe === "free" ? COLORS.danger : s.roe === "hold" ? COLORS.hud : COLORS.accent;
@@ -6025,6 +6083,32 @@ requestAnimationFrame(frame);
     visible before you go in rather than after. Headless tests got an in-memory
     localStorage so persistence is actually verified rather than swallowed by the
     try/catch.
+  v0.17 (2026-08-13): READABILITY PASS, ported from an outside art pass rather
+    than adopted from it. The delivered file was v0.13 plus art, audio and a
+    gamepad layer, so taking it whole would have reverted THE LANDING, SEAWALL,
+    the demolition objective, wall charges on the cursor, the readable ammo HUD,
+    the sprint fix, trigger discipline and veterancy. The art itself was good and
+    is now on the current build.
+    Every sprite is wrapped at load in a dilate-and-flood rim, and each gets one
+    large role cue: the hostage-taker a clock face, the HVT and the surrendered
+    man wide raised arms, the breacher a shotgun block, the support a box mag,
+    hostage_secured a check. Measured against the old values, a body outline sat
+    1.13x off the interior floor, which is no edge at all; the rim sits at 4.59x.
+    New palette on the same measurement: interior against exterior floor 1.11x ->
+    1.55x, wall edge against wall 1.41x -> 2.08x, and the two closest materials
+    1.04x -> 1.13x, with the luminance spread across the seven materials slightly
+    more than doubled. Wall colour is ballistic information, so that separation is
+    a mechanic, not a mood.
+    Two defects in the delivered art fixed rather than shipped: door_open ran a
+    stroke to y=3 and drew a streak across the tile, and corpse carried a bright
+    #a9b1b8 X at 80% that made a dead man the most prominent thing in the room.
+    Corpses now also skip the rim — the one thing on screen that cannot hurt you
+    should recede.
+    NOT taken: the gamepad and rumble layer and the audio gate, which are real
+    work but are not an art pass and belong on a branch of the current build.
+    Also fixed my own v0.16 regression — the rank tag was drawn after the name and
+    ran into the order column, printing "REYES BTENGAGING". It rides on the ROE
+    line now.
 -->
 </body>
 </html>
