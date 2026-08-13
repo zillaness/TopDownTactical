@@ -1918,3 +1918,77 @@ console.log('  he comes back a boot: ' + game.squad.find(s => s.name === 'REYES'
 localStorage.clear(); initGame();
 console.log('VETERANCY TEST DONE');
 })();
+
+(function gamepadTests(){
+console.log('--- gamepad: the pad writes into the same input the keyboard does ---');
+game.mapIndex = 0; initGame(); game.state = 'play';
+
+// deadzone: sticks rest dirty, and the response must be continuous past the floor
+const rest = padStick(0.15, 0.10), edge = padStick(0.23, 0), full = padStick(1, 0);
+console.log('  resting stick (0.15,0.10) -> magnitude ' + rest.m.toFixed(3),
+            rest.m === 0 ? 'CORRECT (ignored)' : 'WRONG (drift reaches the game)');
+console.log('  just past the floor -> ' + edge.m.toFixed(3) + ', full deflection -> ' + full.m.toFixed(3),
+            edge.m > 0 && edge.m < 0.1 && Math.abs(full.m - 1) < 1e-9 ? 'CORRECT (no jump at the edge)' : 'WRONG');
+const diag = padStick(1, 1);
+console.log('  diagonal is normalised, not 1.41x fast: ' + Math.hypot(diag.x, diag.y).toFixed(3),
+            Math.abs(Math.hypot(diag.x, diag.y) - 1) < 1e-9 ? 'CORRECT' : 'WRONG');
+
+// rumble severity is derived from camKick, so it must span the whole range
+const kinds = [1, 3, 6, 12].map(rumbleKindFor);
+console.log('  camKick rise 1/3/6/12 -> ' + kinds.join(', '),
+            new Set(kinds).size === 4 ? 'CORRECT (four distinct textures)' : 'WRONG');
+console.log('  every kind has a pattern:',
+            kinds.every(k => RUMBLE[k] && RUMBLE[k].ms > 0) ? 'CORRECT' : 'WRONG');
+const asc = kinds.every((k, i) => i === 0 || RUMBLE[k].strong >= RUMBLE[kinds[i-1]].strong);
+console.log('  and a bigger shake never rumbles less:', asc ? 'CORRECT' : 'WRONG');
+
+// the standard mapping must cover every verb the keyboard has
+const verbs = ['a','b','x','y','lb','rb','lt','rt','back','start','l3','r3','up','down','left','right'];
+console.log('  buttons mapped: ' + verbs.length + ', all distinct indices: ' +
+            new Set(verbs.map(v => PAD[v])).size,
+            new Set(verbs.map(v => PAD[v])).size === verbs.length ? 'CORRECT' : 'WRONG');
+
+// a d-pad press must call the SAME play a mouse flick calls
+input.padDir = 'up';
+game.wheel = { sx: 0, sy: 0, wx: game.player.x + 40, wy: game.player.y, dir: null };
+const padPick = wheelDirection();
+input.padDir = null;
+input.mouse.x = 0; input.mouse.y = -80;      // a flick straight up
+const mousePick = wheelDirection();
+game.wheel = null;
+console.log('  d-pad up -> "' + padPick + '", mouse flick up -> "' + mousePick + '"',
+            padPick === 'up' && mousePick === 'up' ? 'CORRECT (one code path)' : 'WRONG');
+console.log('  and the pad direction wins over a stale cursor offset:',
+            padPick === 'up' ? 'CORRECT' : 'WRONG');
+
+// padOrder must actually issue an order, not just open a wheel
+const squad = game.squad.filter(s => s.alive);
+squad.forEach(s => s.order = { type: 'follow' });
+input.mouse.x = 400; input.mouse.y = 300;
+input.mouse.wx = game.player.x + 120; input.mouse.wy = game.player.y;
+padOrder(null);                               // "go there"
+issueOrders();
+input.justPressed.clear(); input.justReleased.clear(); input.padDir = null;
+const moved = squad.filter(s => s.order.type !== 'follow').length;
+console.log('  A ("go there") retasked ' + moved + '/' + squad.length + ' operators',
+            moved === squad.length ? 'CORRECT' : 'WRONG');
+console.log('  and the wheel closed behind it:', game.wheel === null ? 'CORRECT' : 'WRONG');
+
+// selection cycling has to terminate back at "whole team"
+game.selected.clear();
+const seen = [];
+for (let i = 0; i < game.squad.length + 1; i++) { padCycleSelection(); seen.push(game.selected.size); }
+console.log('  cycling selection ' + (game.squad.length + 1) + 'x -> sizes ' + seen.join(','),
+            seen[seen.length - 1] === 0 ? 'CORRECT (wraps back to whole team)' : 'WRONG');
+
+// with no pad present nothing may leak into the keyboard state
+input.keys.clear();
+pad.connected = false; pad.index = null;
+pollGamepad(1 / 60);
+console.log('  no controller attached: ' + input.keys.size + ' synthetic keys held, connected=' + pad.connected,
+            input.keys.size === 0 && !pad.connected ? 'CORRECT' : 'WRONG');
+console.log('  and rumbling into no controller is a no-op:',
+            (padRumble('blast', 1), true) ? 'CORRECT' : 'WRONG');
+game.selected.clear();
+console.log('GAMEPAD TEST DONE');
+})();

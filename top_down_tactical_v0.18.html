@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.17.html
-  version: 0.17
+  file: top_down_tactical_v0.18.html
+  version: 0.18
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-12
+  last_updated: 2026-08-13
   description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.17 (working title)</title>
+<title>Top-Down Tactical v0.18 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.17 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.18 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -68,6 +68,20 @@
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
+    </table>
+    <h3 style="margin-top:16px">Controller &mdash; plug one in, it just takes over</h3>
+    <p style="color:#7f8b96;margin:4px 0 8px">The playbook has four entries because it was always meant to be a d-pad. On a
+    pad the direction <i>is</i> the press &mdash; no flick to fumble.</p>
+    <table>
+      <tr><td class="key">Left stick</td><td>move</td><td class="key">Right stick</td><td>aim</td></tr>
+      <tr><td class="key">RT</td><td>fire</td><td class="key">LT</td><td>steady</td></tr>
+      <tr><td class="key">L3</td><td>sprint</td><td class="key">R3</td><td>switch shoulder</td></tr>
+      <tr><td class="key">D-pad</td><td>the playbook &mdash; &uarr; TAKE IT &rarr; BOUND &darr; HOLD &larr; ON ME</td><td class="key">A</td><td>send them there</td></tr>
+      <tr><td class="key">LB</td><td>hold for the bag, d-pad picks, release throws</td><td class="key">RB</td><td>swap primary &harr; sidearm</td></tr>
+      <tr><td class="key">X</td><td>open door / arrest / secure / set a charge</td><td class="key">Y</td><td>reload</td></tr>
+      <tr><td class="key">B</td><td>shout "hands up!"</td><td class="key">Back</td><td>snake cam</td></tr>
+      <tr><td class="key">Start</td><td>tactical pause &mdash; and starts the mission from here</td><td class="key">LT + L3</td><td>cycle which operator you are commanding</td></tr>
+      <tr><td class="key">Rumble</td><td colspan="3">rides on the camera shake, so anything that moves the screen moves the pad &mdash; your own shots lightly, a breaching charge properly</td></tr>
     </table>
     <h3 style="margin-top:16px">Your squad &mdash; all on the right mouse button</h3>
     <table>
@@ -1380,6 +1394,7 @@ function visibleToPlayerSide(ent) {
 const input = {
   keys: new Set(), mouse: { x: 0, y: 0, wx: 0, wy: 0, down: false, rdown: false, rx: 0, ry: 0 },
   justPressed: new Set(), justReleased: new Set(),
+  padDir: null,                    // set by the d-pad; overrides the flick
 };
 window.addEventListener("keydown", e => {
   if (e.repeat) return;
@@ -1415,6 +1430,201 @@ window.addEventListener("blur", () => {
   input.mouse.rdown = false; input.justReleased.add("rmb"); input.justReleased.add("mmb");
 });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+// ---------------------------------------------------------------- S5b gamepad
+// The control scheme was already built for this. The command wheel has exactly
+// four directions because Sam wanted it to be a d-pad, and the whole squad layer
+// is one button — so the pad is a mapping job, not a second control scheme.
+//
+// Everything here writes into the SAME `input` object the keyboard and mouse
+// write into. Nothing downstream knows a pad exists, which is what stops the
+// two schemes from drifting apart.
+const PAD = {
+  // standard mapping indices
+  a: 0, b: 1, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7,
+  back: 8, start: 9, l3: 10, r3: 11,
+  up: 12, down: 13, left: 14, right: 15,
+};
+const PAD_DEADZONE = 0.22;        // sticks rest dirty; this is a generous floor
+const PAD_AIM_RADIUS = 240;       // where the virtual cursor sits at full deflection
+
+const pad = {
+  index: null, connected: false,
+  down: [], was: [],
+  aim: null,                      // last aim angle, so the cursor does not snap back
+  usedRecently: 0,                // >0 = pad is driving, hide the mouse cursor
+};
+
+function padStick(ax, ay) {
+  const m = Math.hypot(ax, ay);
+  if (m <= PAD_DEADZONE) return { x: 0, y: 0, m: 0 };
+  const s = clamp((Math.min(1, m) - PAD_DEADZONE) / (1 - PAD_DEADZONE), 0, 1);
+  return { x: ax / m * s, y: ay / m * s, m: s };
+}
+function padHeld(k) { return !!pad.down[PAD[k]]; }
+function padPressed(k) { return !!pad.down[PAD[k]] && !pad.was[PAD[k]]; }
+function padReleased(k) { return !pad.down[PAD[k]] && !!pad.was[PAD[k]]; }
+
+function firstGamepad() {
+  if (typeof navigator === "undefined" || !navigator.getGamepads) return null;
+  const list = navigator.getGamepads();
+  if (pad.index !== null && list[pad.index]) return list[pad.index];
+  for (const g of list) if (g && g.connected) { pad.index = g.index; return g; }
+  return null;
+}
+
+// Rumble rides on game.camKick, which is already the one channel for "the player
+// felt that". Hooking the magnitude rather than a list of events means every
+// future thing that shakes the camera shakes the pad too, for free.
+const RUMBLE = {
+  shot:   { ms: 55,  weak: 0.20, strong: 0.35 },
+  hit:    { ms: 90,  weak: 0.35, strong: 0.55 },
+  heavy:  { ms: 150, weak: 0.55, strong: 0.80 },
+  blast:  { ms: 320, weak: 0.80, strong: 1.00 },
+  ui:     { ms: 30,  weak: 0.12, strong: 0.06 },
+};
+function rumbleKindFor(rise) {
+  return rise < 2 ? "shot" : rise < 5 ? "hit" : rise < 8 ? "heavy" : "blast";
+}
+function padRumble(kind, scale = 1) {
+  if (!pad.connected || pad.index === null) return;
+  const g = firstGamepad();
+  const act = g && (g.vibrationActuator || (g.hapticActuators && g.hapticActuators[0]));
+  if (!act || !act.playEffect) return;
+  const r = RUMBLE[kind] || RUMBLE.ui, s = clamp(scale, 0, 1);
+  try {
+    act.playEffect("dual-rumble", {
+      startDelay: 0,
+      duration: Math.round(r.ms * (0.6 + s * 0.4)),
+      weakMagnitude: clamp(r.weak * s, 0, 1),
+      strongMagnitude: clamp(r.strong * s, 0, 1),
+    });
+  } catch (e) { /* an actuator that refuses is not a reason to drop a frame */ }
+}
+
+// One-shot synthetic key, so a pad button reaches exactly the code a key does.
+function padTap(k) { input.justPressed.add(k); }
+function padHold(k, on) { if (on) input.keys.add(k); else input.keys.delete(k); }
+
+function pollGamepad(dt) {
+  const g = firstGamepad();
+  if (!g) {
+    if (pad.connected) { pad.connected = false; padHold("w", 0); padHold("a", 0); padHold("s", 0); padHold("d", 0); padHold("shift", 0); padHold(" ", 0); input.mouse.down = false; }
+    return;
+  }
+  pad.connected = true;
+  pad.was = pad.down;
+  pad.down = g.buttons.map(b => !!(b && (b.pressed || b.value > 0.5)));
+
+  const mv = padStick(g.axes[0] || 0, g.axes[1] || 0);
+  const aim = padStick(g.axes[2] || 0, g.axes[3] || 0);
+  const anyInput = mv.m > 0 || aim.m > 0 || pad.down.some(Boolean);
+  pad.usedRecently = anyInput ? 1.5 : Math.max(0, pad.usedRecently - dt);
+  if (!pad.usedRecently) return;        // let the mouse have the cursor back
+
+  // ---- menus: enough to start a mission without reaching for the mouse
+  if (game.state !== "play") {
+    if (padPressed("start") || padPressed("a")) {
+      const btn = document.getElementById(game.state === "debrief" ? "btnAgain" : "btnStart");
+      if (btn && btn.click) { btn.click(); padRumble("ui"); }
+    }
+    if (padPressed("up") || padPressed("down")) {
+      const btns = [...document.querySelectorAll("#mapPick .mapbtn")];
+      if (btns.length) {
+        const cur = btns.findIndex(b => +b.dataset.idx === game.mapIndex);
+        const nx = ((cur + (padPressed("down") ? 1 : -1)) % btns.length + btns.length) % btns.length;
+        btns[nx].click(); padRumble("ui");
+      }
+    }
+    return;
+  }
+
+  // ---- movement: left stick drives the same four keys WASD does
+  padHold("d", mv.x > 0.25); padHold("a", mv.x < -0.25);
+  padHold("s", mv.y > 0.25); padHold("w", mv.y < -0.25);
+  padHold("shift", padHeld("l3"));          // sprint
+  padHold(" ", padHeld("lt"));              // steady
+
+  // ---- aim: a virtual cursor hung off the player at the right stick's angle.
+  // Doing it this way means eyePoint/aimAngle and every cone in the game work
+  // untouched — the pad is just another way to move a cursor.
+  if (aim.m > 0) pad.aim = Math.atan2(aim.y, aim.x);
+  if (pad.aim !== null) {
+    const p = game.player;
+    const px = (p.x - game.cam.x) * game.zoom + viewW / 2;
+    const py = (p.y - game.cam.y) * game.zoom + viewH / 2;
+    const r = PAD_AIM_RADIUS * (aim.m > 0 ? (0.45 + aim.m * 0.55) : 0.8) * game.zoom;
+    input.mouse.x = px + Math.cos(pad.aim) * r;
+    input.mouse.y = py + Math.sin(pad.aim) * r;
+  }
+
+  // ---- trigger
+  input.mouse.down = padHeld("rt");
+  if (padPressed("rt")) input.justPressed.add("lmb");
+
+  // ---- one-shot verbs
+  if (padPressed("x")) padTap("e");         // interact: doors, hostages, cuffs, charges
+  if (padPressed("y")) padTap("r");         // reload
+  if (padPressed("b")) padTap("c");         // shout compliance
+  if (padPressed("rb")) padTap("scrollup"); // cycle weapon
+  if (padPressed("r3")) padTap("n");        // swap shoulder
+  if (padPressed("back")) padTap("q");      // snake cam
+  if (padPressed("start")) padTap("tab");   // tactical pause
+
+  // ---- the bag: hold LB, pick with the d-pad, release to throw. Same
+  // press/pick/release shape as the mouse, so it runs the identical code.
+  if (padPressed("lb")) { input.justPressed.add("mmb"); pad.bagDir = null; }
+  if (padHeld("lb")) {
+    for (const d of ["up", "down", "left", "right"]) if (padPressed(d)) pad.bagDir = d;
+    input.padDir = pad.bagDir;      // sticky for the life of the wheel, not one frame
+  }
+  if (padReleased("lb")) { input.justReleased.add("mmb"); input.padDir = pad.bagDir; }
+
+  // ---- the plays. On a mouse this is press, flick, release; on a pad the
+  // direction IS the press, which is strictly better — no flick to fumble.
+  // A is "go there", the plain release with no direction.
+  else if (game.state === "play") {
+    for (const d of ["up", "down", "left", "right"]) {
+      if (padPressed(d)) { padOrder(d); break; }
+    }
+    if (padPressed("a")) padOrder(null);
+    if (padPressed("l3") && padHeld("lt")) padCycleSelection();
+  }
+}
+
+// Open and close the wheel inside one frame, so issueOrders() runs its own
+// existing press-then-release path rather than a second copy of it.
+function padOrder(dir) {
+  input.mouse.rx = input.mouse.x; input.mouse.ry = input.mouse.y;
+  input.padDir = dir;
+  input.justPressed.add("rmb");
+  input.justReleased.add("rmb");
+}
+
+// Selection without a cursor to point at a man: step through the team.
+function padCycleSelection() {
+  const n = game.squad.length;
+  if (!n) return;
+  const cur = game.selected.size === 1 ? [...game.selected][0] : -1;
+  game.selected.clear();
+  if (cur + 1 < n) game.selected.add(cur + 1);
+  game.hint = game.selected.size
+    ? "#" + [...game.selected].map(j => opNumber(game.squad[j])).join("") + " selected"
+    : "whole team";
+  padRumble("ui");
+}
+
+window.addEventListener("gamepadconnected", e => {
+  pad.index = e.gamepad.index; pad.connected = true;
+  game.hint = "Controller connected — " + (e.gamepad.id || "").split("(")[0].trim();
+  padRumble("ui");
+});
+window.addEventListener("gamepaddisconnected", () => {
+  pad.connected = false; pad.index = null;
+  padHold("w", 0); padHold("a", 0); padHold("s", 0); padHold("d", 0);
+  padHold("shift", 0); padHold(" ", 0); input.mouse.down = false;
+});
+
 function pressed(k) { return input.justPressed.has(k); }
 function released(k) { return input.justReleased.has(k); }
 function held(k) { return input.keys.has(k); }
@@ -1639,7 +1849,8 @@ function updatePlayer(p, dt) {
   if (game.nadeWheel) {
     const nw = game.nadeWheel;
     const dx = input.mouse.x - nw.sx, dy = input.mouse.y - nw.sy;
-    nw.dir = Math.hypot(dx, dy) < TUNE.wheelDeadzone ? null
+    nw.dir = input.padDir ? input.padDir
+           : Math.hypot(dx, dy) < TUNE.wheelDeadzone ? null
            : (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
     if (released("mmb")) {
       const picked = nw.dir ? (THROW_ORDER.find(k => THROWABLES[k].dir === nw.dir) || p.nadeKind) : p.nadeKind;
@@ -3591,6 +3802,7 @@ function orderGoThere(team, x, y) {
 
 function wheelDirection() {
   const w = game.wheel; if (!w) return null;
+  if (input.padDir) return input.padDir;          // a d-pad press IS the direction
   const dx = input.mouse.x - w.sx, dy = input.mouse.y - w.sy;
   if (Math.hypot(dx, dy) < TUNE.wheelDeadzone) return null;
   return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
@@ -5603,6 +5815,7 @@ let lastT = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  pollGamepad(dt);                 // writes into `input` before anything reads it
   // mouse world coords (needs current camera)
   input.mouse.wx = (input.mouse.x - viewW / 2) / game.zoom + game.cam.x;
   input.mouse.wy = (input.mouse.y - viewH / 2) / game.zoom + game.cam.y;
@@ -5669,7 +5882,16 @@ function frame(now) {
     game.camKick = 0; game.cam.shakeX = 0; game.cam.shakeY = 0;
     render();
   }
+  // Rumble follows camKick. That is already the single channel for "the player
+  // felt that" — hooking the magnitude instead of a list of events means every
+  // future thing that shakes the camera shakes the pad too, without a new call.
+  if (pad.connected) {
+    const rise = game.camKick - (pad.prevKick || 0);
+    if (rise > 0.5) padRumble(rumbleKindFor(rise), clamp(0.7 + rise / 20, 0.7, 1));
+    pad.prevKick = game.camKick;
+  }
   input.justPressed.clear(); input.justReleased.clear();
+  input.padDir = null;
   requestAnimationFrame(frame);
 }
 
@@ -6109,6 +6331,30 @@ requestAnimationFrame(frame);
     Also fixed my own v0.16 regression — the rank tag was drawn after the name and
     ran into the order column, printing "REYES BTENGAGING". It rides on the ROE
     line now.
+  v0.18 (2026-08-13): CONTROLLER AND RUMBLE, per Sam. The scheme was already
+    built for this — the playbook has exactly four entries because Sam wanted it
+    to be a d-pad — so this is a mapping job, not a second control scheme. The pad
+    writes into the same `input` object the keyboard and mouse write into, which
+    is what stops the two from drifting apart, and both wheels run their existing
+    press/pick/release path rather than a second copy of it.
+    Left stick moves, right stick hangs a virtual cursor off the player at
+    PAD_AIM_RADIUS so eyePoint, aimAngle and every cone in the game work
+    untouched. RT fire, LT steady, L3 sprint, R3 shoulder, X interact, Y reload,
+    B shout, RB swap gun, Back snake cam, Start pause. D-pad calls the plays
+    directly, which is strictly better than the mouse version — the direction IS
+    the press, with no flick to fumble. A is "go there". LB holds the bag and the
+    d-pad picks the grenade.
+    Rumble rides on game.camKick rather than a list of events. That is already
+    the one channel for "the player felt that", so anything that shakes the
+    camera shakes the pad, including anything added later, with no new call site.
+    Four textures keyed off the size of the rise: shot, hit, heavy, blast.
+    Two bugs caught in a real browser against a synthetic pad, because the
+    headless harness cannot poll a device: the bag pick evaporated one frame
+    after the d-pad press (input.padDir is cleared every frame, but the wheel only
+    consumes its direction on release, so every pad-thrown grenade was the
+    default), and the first rumble tuning put a gunshot at 0.0875 strong, which is
+    below the threshold of feeling anything.
+    Unplugging mid-sprint no longer strands a held key.
 -->
 </body>
 </html>
