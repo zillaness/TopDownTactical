@@ -78,7 +78,33 @@ night built points at that one mission.
 4. ☑ v0.40 — roster: recruit pool signs at 150 XP on a saved-and-won rescue, wounded recover 2 missions, sideline heals 1/mission, deployment auto-fills from READY in roster order
 5. ☑ v0.41 — FLOOR TWO: src2 + S stairs swap snapshots, per-floor entities/bullets/noise/fog, followers take the stairs with you, THE WALKUP proof mission, BETA chips
 6. ☑ v0.44 — the review fix batch (see handoff below)
-   ▶ NEXT: Sam's playtest — nothing in flight
+7. ☑ v0.45 — Sam's first playtest, first two reports, both real:
+   - FROZEN SQUAD CONES (severe, shipped since v0.20). The cone stagger
+     refreshed `i === game._coneTick` with the tick cycling 0,1,2 — correct
+     for a three-man squad, silently wrong for every larger one. In the
+     nine-man rifle squad, indices 3..7 never matched, so five of eight
+     squaddies had a vision cone computed once at spawn and frozen there all
+     mission. Since a man outside every live cone is painted over by the fog,
+     they were invisible whenever they moved. Now `i % 3 === tick`, extracted
+     into refreshSquadCones() so the regression test guards the shipped code
+     rather than a copy of it. Measured: worst cone lag 0px three frames after
+     a 150px move, at both squad sizes; nobody stands outside his own cone.
+   - BLEED CLOCK INVISIBLE. The mechanic was fine end to end (verified in
+     Chromium: downs, ticks, 3s of [E] stabilizes, stable holds 10s, untreated
+     runs out and kills). The countdown just lived in the roster panel in the
+     top-left corner. Now on the body: draining bar + seconds, white pulse
+     under 8s, HOLD [E] when in reach.
+   ▶ NEXT: Sam's playtest continues — nothing in flight
+
+### Open design question raised by the playtest (Sam's call, NOT coded)
+A downed man is a valid bullet target for everyone, and any second hit while
+he is down kills him outright — confirmed and now covered by a test. So a
+casualty who goes down mid-firefight is very likely finished by a stray round
+before anyone can reach him, which reads as "friendly fire kills instantly."
+Realistic, and brutal. Options if it plays badly: (a) leave it; (b) a hit on a
+downed man costs bleed seconds instead of killing, except explosions; (c) make
+downed men non-targets for friendly rounds only. Needs Sam's judgement on
+whether the current version is fear or frustration.
 
 ### Handoff — night 3, second extension (close of night)
 The adversarial review workflow ran over v0.43 (34 raw findings) — and for

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.44.html
-  version: 0.44
+  file: top_down_tactical_v0.45.html
+  version: 0.45
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-14
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.44 (working title)</title>
+<title>Top-Down Tactical v0.45 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.44 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.45 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -1850,6 +1850,31 @@ function computeVisCone(x, y, maxDist, face, arc, rays) {
   }
   pts.push({ x, y, d: 0 });
   return pts;
+}
+
+// The squad reports what it can see, and you SEE what it sees: each living man
+// casts a cone that punches the fog. Recomputed on a stagger so the extra cones
+// cost about one player polygon.
+//
+// The stagger refreshes a THIRD of the squad per frame — every index where
+// `i % 3` matches the tick. It used to be `i === tick`, which was written when
+// a squad was three men and broke silently the moment it wasn't: with the
+// nine-man rifle squad, indices 3..8 matched the tick NEVER, so six of your
+// nine men had a cone computed once at spawn and then frozen there for the rest
+// of the mission. They lit the start line forever, and went dark themselves the
+// moment they walked off it — a man outside every live cone is painted over by
+// the fog, which is why half the squad turned invisible when it moved.
+// `i % 3` is correct at any squad size: every man is current within three
+// frames, and a three-man team costs exactly what it always did.
+function refreshSquadCones() {
+  game._coneTick = ((game._coneTick || 0) + 1) % 3;
+  game.squadPolys = game.squadPolys || [];
+  game.squad.forEach((sq, i) => {
+    if (!sq.alive) { game.squadPolys[i] = null; return; }
+    if (i % 3 === game._coneTick || !game.squadPolys[i]) {
+      game.squadPolys[i] = computeVisCone(sq.x, sq.y, TUNE.squadViewDist, sq.face, deg(160), 44);
+    }
+  });
 }
 
 function computeVisPolygon(x, y, maxDist) {
@@ -6615,13 +6640,53 @@ function drawBody(e, dead) {
         ctx.moveTo(e.x, e.y - 6 * k); ctx.lineTo(e.x, e.y + 6 * k);
         ctx.stroke();
       }
+      // The clock belongs ON HIM. It was only ever in the roster panel in the
+      // top-left corner — small, dim, and nowhere near where you are actually
+      // looking, which is at the man on the ground. It stacks ABOVE the body,
+      // clear of the casualty cross: a draining bar, and the seconds left.
+      const top = e.y - e.r - 12 * k;
+      ctx.textAlign = "center";
+      if (e.stabilized) {
+        ctx.font = "bold " + (9 * k).toFixed(1) + "px Consolas, monospace";
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(e.x - 22 * k, top - 8 * k, 44 * k, 11 * k);
+        ctx.fillStyle = COLORS.ok;
+        ctx.fillText("STABLE", e.x, top);
+      } else {
+        const secs = Math.ceil(e.bleedT);
+        const urgent = secs <= 8;
+        const frac = clamp(e.bleedT / (e.bleedMax || TUNE.bleedOut), 0, 1);
+        // the bar: what is left of him, draining right to left
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(e.x - 15 * k, top + 2 * k, 30 * k, 4 * k);
+        ctx.fillStyle = COLORS.danger;
+        ctx.fillRect(e.x - 15 * k, top + 2 * k, 30 * k * frac, 4 * k);
+        // the number, on its own plate above the bar; under eight seconds it
+        // pulses white — the same clock, louder
+        ctx.font = "bold " + ((urgent ? 14 : 12) * k).toFixed(1) + "px Consolas, monospace";
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(e.x - 15 * k, top - 12 * k, 30 * k, 13 * k);
+        ctx.fillStyle = urgent && (game.stats.time % 0.6) < 0.3 ? "#fff" : COLORS.danger;
+        ctx.fillText(secs + "s", e.x, top - 2 * k);
+        // the prompt only when you are close enough for it to be an offer
+        if (game.player.alive && dist(game.player.x, game.player.y, e.x, e.y) < TUNE.tqReach * 1.6) {
+          ctx.font = "bold " + (9 * k).toFixed(1) + "px Consolas, monospace";
+          ctx.fillStyle = "rgba(0,0,0,0.75)";
+          ctx.fillRect(e.x - 30 * k, e.y + e.r + 4 * k, 60 * k, 11 * k);
+          ctx.fillStyle = COLORS.accent;
+          ctx.fillText("HOLD [E]", e.x, e.y + e.r + 12 * k);
+        }
+      }
+      ctx.textAlign = "left";
     }
     if (!dead && e.blind > 0) {
       ctx.fillStyle = "rgba(255,255,200,0.5)";
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU); ctx.fill();
     }
-    if (!dead && (e.side === "player" || e.side === "squad")) {
+    if (!dead && !e.downed && (e.side === "player" || e.side === "squad")) {
       const k = 1 / game.zoom;   // keep the pip a constant size on screen
+      // a downed man's hp is zero by definition — an empty pip says nothing the
+      // bleed bar above him isn't already saying louder
       ctx.fillStyle = "#000a"; ctx.fillRect(e.x - 12 * k, e.y - e.r - 9 * k, 24 * k, 4 * k);
       ctx.fillStyle = e.hp > 40 ? COLORS.ok : COLORS.danger;
       ctx.fillRect(e.x - 12 * k, e.y - e.r - 9 * k, 24 * k * clamp(e.hp / e.maxHp, 0, 1), 4 * k);
@@ -7961,16 +8026,7 @@ function frame(now) {
       const eye = eyePoint(game.player);   // you see from the muzzle, not your belly button
       game.eye = eye;
       game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
-      // The squad reports what it can see, and now you can SEE what it sees.
-      // Recomputed on a stagger so three extra cones cost about one player poly.
-      game._coneTick = ((game._coneTick || 0) + 1) % 3;
-      game.squadPolys = game.squadPolys || [];
-      game.squad.forEach((sq, i) => {
-        if (!sq.alive) { game.squadPolys[i] = null; return; }
-        if (i === game._coneTick || !game.squadPolys[i]) {
-          game.squadPolys[i] = computeVisCone(sq.x, sq.y, TUNE.squadViewDist, sq.face, deg(160), 44);
-        }
-      });
+      refreshSquadCones();
       game.snakePoly = (game.snake && game.snake.t > 0)
         ? computeVisCone(game.snake.x, game.snake.y, TUNE.snakeRange, game.snake.face, TUNE.snakeArc, 40)
         : null;
@@ -8854,6 +8910,27 @@ requestAnimationFrame(frame);
     the M320 indirect (he does now, at last-known positions he cannot see, when
     the blast is clear of friends); bleed-out bars were normalized wrong for
     tourniquets; and stray recruits no longer sign on with empty nametapes.
+  v0.45 (2026-08-14): THE VANISHING SQUAD, and a clock you can actually see —
+    both straight off Sam's first playtest. He reported that he could not see
+    all his squad's vision cones and that some of his men went invisible when
+    they moved. One bug, and a bad one: the cone stagger refreshed the single
+    man whose index equalled a tick cycling 0,1,2 — written when a squad was
+    three men. With the nine-man rifle squad, indices 3 and up matched that
+    tick NEVER, so those men had a vision cone computed once at spawn and
+    frozen there for the whole mission. They lit the start line forever, and
+    since a man outside every live cone is painted over by the fog, they went
+    dark themselves the moment they walked off it. Five of eight squaddies,
+    invisible, in every nine-man mission since v0.20. The stagger now refreshes
+    every index where i%3 matches the tick, which is correct at any squad size
+    and costs a three-man team exactly what it always did; it lives in
+    refreshSquadCones() so the test can guard the real thing. And the bleed
+    clock: the mechanic worked all along, but the countdown existed only in the
+    roster panel in the top-left corner, nowhere near where you are looking,
+    which is at the man on the ground. It is on the body now — a draining bar
+    and the seconds left, stacked above him, pulsing white under eight seconds,
+    with HOLD [E] under him once you are close enough for it to be an offer.
+    Recorded while confirming: a downed man stays a valid bullet target for
+    everyone, and a second hit while he is down is final.
 -->
 </body>
 </html>

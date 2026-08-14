@@ -2528,6 +2528,115 @@ game.loadout.squad = 'standard'; game.formation = 'wedge'; initGame();
 console.log('FORMATION TEST DONE');
 })();
 
+(function squadConeTests(){
+console.log('--- every man casts a cone that follows him, at any squad size ---');
+// Sam, playtesting v0.44: "when the squad is together I don't seem to see all
+// of their vision cones... some of my squad is literally invisible to me when
+// they move." The stagger was `i === game._coneTick` with the tick cycling
+// 0,1,2 — written for a three-man squad. With the nine-man rifle squad indices
+// 3..8 never matched, so their cones were computed once at spawn and frozen.
+// A man outside every live cone is painted over by the fog: he vanishes.
+for (const tmpl of ['standard', 'rifle9']) {
+  game.loadout.squad = tmpl;
+  game.mapIndex = 0; initGame(); game.state = 'play';
+  const n = game.squad.length;
+  game.squadPolys = []; game._coneTick = 0;
+
+  // count how many times each index gets a genuinely fresh cone over 30 frames
+  const before = game.squad.map(s => ({ x: s.x, y: s.y }));
+  const seenFresh = new Array(n).fill(0);
+  for (let f = 0; f < 30; f++) {
+    const prev = game.squadPolys.slice();
+    refreshSquadCones();
+    for (let i = 0; i < n; i++) if (game.squadPolys[i] !== prev[i]) seenFresh[i]++;
+  }
+  const never = seenFresh.map((c, i) => c === 0 ? i : -1).filter(i => i >= 0);
+  console.log('  ' + tmpl + ' (' + n + ' men): refreshes per man over 30 frames = ' + seenFresh.join(','),
+              never.length === 0 ? 'CORRECT (nobody is skipped)'
+                                 : 'WRONG — indices never refreshed: ' + never.join(','));
+
+  // every man must be current within 3 frames of moving
+  game.squad.forEach(s => { s.x += 150; });
+  for (let f = 0; f < 3; f++) refreshSquadCones();
+  const lag = game.squad.map((s, i) => {
+    const apex = game.squadPolys[i] && game.squadPolys[i][0];
+    return apex ? Math.round(Math.hypot(apex.x - s.x, apex.y - s.y)) : 99999;
+  });
+  const worst = Math.max(...lag);
+  console.log('  ' + tmpl + ': worst cone lag 3 frames after a 150px move = ' + worst + 'px',
+              worst < 2 ? 'CORRECT (every cone caught up)' : 'WRONG — a cone is stranded');
+
+  // and the man's own position must be inside his own cone, or the fog eats him
+  const orphans = game.squad.filter((s, i) => {
+    const poly = game.squadPolys[i];
+    if (!poly || poly.length < 3) return true;
+    return Math.hypot(poly[0].x - s.x, poly[0].y - s.y) > 2;
+  }).map(s => s.name);
+  console.log('  ' + tmpl + ': men standing outside their own cone: ' + (orphans.join(',') || 'none'),
+              orphans.length === 0 ? 'CORRECT (nobody gets fogged out)' : 'WRONG');
+  void before;
+}
+game.loadout.squad = 'standard'; game.mapIndex = 0; initGame();
+console.log('SQUAD CONE TEST DONE');
+})();
+
+(function casualtyClockTests(){
+console.log('--- the bleed clock exists, ticks, and a tourniquet stops it ---');
+// Sam: "unsure if the first aid and tourniquet mechanic works yet / i don't see
+// a timer as they bleed out." The mechanic worked; the clock was only ever in
+// the roster panel in the corner. These lock the SIM half down; the on-body
+// readout is a render concern and is checked in the browser probe.
+game.mapIndex = 0; initGame(); game.state = 'play';
+const v = game.squad.find(s => s.alive);
+killEntity(v, 'enemy', null);
+console.log('  first zero downs him rather than killing him: downed=' + v.downed + ' alive=' + v.alive +
+            ' clock=' + v.bleedT + 's',
+            v.downed && v.alive && v.bleedT === TUNE.bleedOut ? 'CORRECT' : 'WRONG');
+console.log('  bleedMax is stored so the bar can normalize: ' + v.bleedMax,
+            v.bleedMax === TUNE.bleedOut ? 'CORRECT' : 'WRONG');
+
+const t0 = v.bleedT;
+for (let i = 0; i < 120; i++) update(1/60);
+console.log('  the clock runs: ' + t0.toFixed(1) + 's -> ' + v.bleedT.toFixed(1) + 's',
+            v.bleedT < t0 - 1.5 && v.alive ? 'CORRECT' : 'WRONG');
+
+// stand on him and hold [E] for tqTime
+game.player.x = v.x; game.player.y = v.y;
+input.keys.add('e');
+for (let i = 0; i < Math.ceil(TUNE.tqTime * 60) + 20; i++) updatePlayer(game.player, 1/60);
+input.keys.delete('e');
+console.log('  ' + TUNE.tqTime + 's of [E] stabilizes him: stabilized=' + v.stabilized,
+            v.stabilized ? 'CORRECT' : 'WRONG');
+
+const b0 = v.bleedT;
+for (let i = 0; i < 600; i++) update(1/60);
+console.log('  a stabilized man stops bleeding: ' + b0.toFixed(1) + 's -> ' + v.bleedT.toFixed(1) + 's after 10s',
+            Math.abs(v.bleedT - b0) < 0.01 && v.alive ? 'CORRECT' : 'WRONG');
+
+// the clock must actually be able to kill
+game.mapIndex = 0; initGame(); game.state = 'play';
+const w = game.squad.find(s => s.alive);
+killEntity(w, 'enemy', null);
+w.bleedT = 0.5;
+for (let i = 0; i < 60; i++) update(1/60);
+console.log('  an untreated clock runs out and kills him: alive=' + w.alive,
+            !w.alive ? 'CORRECT' : 'WRONG');
+
+// friendly fire: the first hit downs, a second hit on a DOWNED man is final
+game.mapIndex = 0; initGame(); game.state = 'play';
+const x = game.squad.find(s => s.alive);
+killEntity(x, 'enemy', null);
+const targetable = !!firstEntityOnSegment(
+  { x: x.x - 60, y: x.y, side: 'player', owner: game.player, floorOverride: x.floor || 0 },
+  x.x + 60, x.y);
+console.log('  a downed man is still a bullet target for everyone: ' + targetable,
+            targetable ? 'CORRECT (documented — realistic, and brutal)' : 'CHANGED');
+applyHit(x, { dmg: 5, pen: 0, ang: 0, side: 'player', owner: game.player, ox: x.x - 60, oy: x.y }, x.x, x.y);
+console.log('  and a second hit while down is final: alive=' + x.alive,
+            !x.alive ? 'CORRECT' : 'WRONG');
+console.log('CASUALTY CLOCK TEST DONE');
+})();
+
 (function longWalkTests(){
 console.log('--- the long walk: infil, snatch, exfil ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
