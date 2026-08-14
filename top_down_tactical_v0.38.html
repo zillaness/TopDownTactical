@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.37.html
-  version: 0.37
+  file: top_down_tactical_v0.38.html
+  version: 0.38
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.37 (working title)</title>
+<title>Top-Down Tactical v0.38 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.37 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.38 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -4665,9 +4665,10 @@ const PLAYS = [
             "Use it to lock a cleared room before you push on"],
     run(team) {
       const base = game.player.face;
+      const n = Math.max(1, team.length);
       team.forEach((s, i) => {
         removeFromPlans(s);
-        s.order = { type: "hold", face: base + (TAU / 3) * i };
+        s.order = { type: "hold", face: base + (TAU / n) * i, sector: TAU / n };
         s.path = null;
       });
       game.pie = null; game.bound = null;
@@ -4812,11 +4813,12 @@ function orderBaseOfFire(team, x, y) {
 }
 
 function orderAnchorAt(team, x, y) {
+  const n = Math.max(1, team.length);
   team.forEach((s, i) => {
     removeFromPlans(s);
-    const a = (TAU / 3) * i;
+    const a = (TAU / n) * i;
     const pt = nearestPassable(x + Math.cos(a) * 34, y + Math.sin(a) * 34);
-    s.order = { type: "move", x: pt.x, y: pt.y, face: a, quiet: true };
+    s.order = { type: "move", x: pt.x, y: pt.y, face: a, quiet: true, sector: TAU / n };
     s.path = null;
   });
   game.pie = null; game.bound = null;
@@ -5633,6 +5635,8 @@ function render() {
     ctx.beginPath(); ctx.arc(f.x, f.y, 7 * k, 0, TAU); ctx.stroke();
   }
 
+  drawSectors();
+
   // the fire mission: the mark, and the seconds nobody can take back
   if (game.fireMission) {
     const fm = game.fireMission, k = 1 / game.zoom;
@@ -5934,6 +5938,51 @@ function deadSettle(e) {
   if (!e.deadAt && e.deadAt !== 0) return { k: 1, scale: 0.85, spin: 0 };
   const k = clamp(((game.stats ? game.stats.time : 0) - e.deadAt) / 0.35, 0, 1);
   return { k, scale: 1 - 0.15 * k, spin: (e.deadSpin || 0) * k };
+}
+
+// Every order implies a piece of ground someone is responsible for. This is
+// that responsibility made visible: hold the wheel open (or pause) and the
+// team's interlocking sectors of fire draw themselves — Sam's ask, and also
+// just FM 3-21.8's definition of a formation.
+function sectorOf(s) {
+  if (!s.alive || s.downed) return null;
+  const o = s.order || {};
+  if (s.turret) return { ang: s.turret.face0, arc: TUNE.turretArc, col: "232,181,58" };
+  if (o.type === "suppress") return { ang: angleTo(s.x, s.y, o.x, o.y), arc: deg(26), col: "255,85,85" };
+  if (o.type === "hold" && o.face !== undefined) return { ang: o.face, arc: o.sector || deg(90), col: "63,194,126" };
+  if (o.type === "move" && o.face !== undefined && o.sector) return { ang: o.face, arc: o.sector, col: "63,194,126" };
+  if (o.type === "bound" && game.bound && o.element !== game.bound.moving)
+    return { ang: angleTo(s.x, s.y, game.bound.x, game.bound.y), arc: deg(50), col: "63,194,126" };
+  if (o.type === "peel" && game.peel && o.element !== game.peel.moving)
+    return { ang: angleTo(s.x, s.y, game.peel.tx, game.peel.ty), arc: deg(40), col: "255,85,85" };
+  if (o.type === "follow") {
+    const w = formationSlot(s.slot, game.squad.length);
+    return { ang: game.player.face + w.sector, arc: deg(70), col: "63,194,126" };
+  }
+  return null;
+}
+
+function drawSectors() {
+  if (!game.wheel && !game.paused) return;
+  const R = 120;
+  for (const s of game.squad) {
+    const sec = sectorOf(s);
+    if (!sec) continue;
+    const g2 = ctx.createRadialGradient(s.x, s.y, 10, s.x, s.y, R);
+    g2.addColorStop(0, "rgba(" + sec.col + ",0.13)");
+    g2.addColorStop(1, "rgba(" + sec.col + ",0)");
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y);
+    ctx.arc(s.x, s.y, R, sec.ang - sec.arc / 2, sec.ang + sec.arc / 2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(" + sec.col + ",0.35)"; ctx.lineWidth = 1 / game.zoom;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x + Math.cos(sec.ang - sec.arc / 2) * R, s.y + Math.sin(sec.ang - sec.arc / 2) * R);
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x + Math.cos(sec.ang + sec.arc / 2) * R, s.y + Math.sin(sec.ang + sec.arc / 2) * R);
+    ctx.stroke();
+  }
 }
 
 function drawTurret(t) {
@@ -8058,6 +8107,17 @@ requestAnimationFrame(frame);
     CLAMPS: press the barrel into brick and the round starts at the brick, on
     your side — a barrel cannot poke through masonry and fire from the far
     side. The AAR's line-of-fire now starts at the true muzzle.
+  v0.38 (2026-08-14): SECTORS OF FIRE, per Sam: "movement patterns and
+    formations should come with auto assigned sectors of fire and coverage."
+    They partly did — the wedge, column and line have carried sector fields
+    since v0.28, and ANCHOR split the circle — but the split was hardcoded to
+    three men (a rifle squad got a 120-degree slice each and 240 degrees of
+    nothing), and none of it was VISIBLE. Now: ANCHOR and hold-there split the
+    circle by actual team size (eight men watch 45 degrees each), every order
+    records the width it owns, and holding the command wheel open (or pausing)
+    draws the team's interlocking sectors — green for watching, red for
+    suppressing and peel-cover, amber for a manned gun's arc, formation sectors
+    riding the point man's facing. A downed man draws nothing, honestly.
 -->
 </body>
 </html>

@@ -2956,3 +2956,34 @@ console.log('  12px from a wall, aiming into it: muzzle reaches ' + mzWall.len.t
 game.loadout.can = false; initGame();
 console.log('MUZZLE SPLIT TEST DONE');
 })();
+
+(function sectorTests(){
+console.log('--- sectors of fire: responsibility made visible ---');
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'rifle9'; initGame(); game.state = 'play';
+
+// ANCHOR splits the circle by ACTUAL team size, not by three
+const team = game.squad.filter(s => s.alive);
+PLAYS.find(p => p.key === '4').run(team);
+const faces = team.map(s => s.order.face);
+const widths = new Set(team.map(s => s.order.sector.toFixed(4)));
+let minGap = TAU;
+for (let i = 0; i < faces.length; i++) for (let j = i + 1; j < faces.length; j++)
+  minGap = Math.min(minGap, Math.abs(angDiff(faces[i], faces[j])));
+console.log('  ANCHOR with 8 men: sector width ' + (TAU / 8 * 180 / Math.PI).toFixed(0) +
+            '° each, smallest gap between faces ' + (minGap * 180 / Math.PI).toFixed(0) + '°',
+            widths.size === 1 && Math.abs([...widths][0] - TAU / 8) < 1e-3 && minGap > deg(40)
+              ? 'CORRECT (360 split eight ways, nothing unwatched)' : 'WRONG');
+
+// every order type yields a drawable sector or an honest null
+const kinds = {};
+team[0].order = { type: 'hold', face: 1, sector: 1 }; kinds.hold = !!sectorOf(team[0]);
+team[0].order = { type: 'suppress', x: team[0].x + 100, y: team[0].y }; kinds.suppress = !!sectorOf(team[0]);
+team[0].order = { type: 'follow' }; kinds.follow = !!sectorOf(team[0]);
+team[0].downed = true; kinds.downedNull = sectorOf(team[0]) === null; team[0].downed = false;
+console.log('  sectors: hold=' + kinds.hold + ' suppress=' + kinds.suppress + ' follow=' +
+            kinds.follow + ' downed->null=' + kinds.downedNull,
+            kinds.hold && kinds.suppress && kinds.follow && kinds.downedNull ? 'CORRECT' : 'WRONG');
+game.loadout.squad = 'standard'; initGame();
+console.log('SECTOR TEST DONE');
+})();

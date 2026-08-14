@@ -69,8 +69,8 @@ night built points at that one mission.
 
 ### Queue (risk-ordered, all BETA unless stated)
 1. ☑ v0.37 — muzzle split: per-gun barrel lengths, +7px for the can, wall-clamped, flash and AAR line on the true muzzle; eyePoint untouched
-   ▶ NEXT: v0.38 sectors
-2. ☐ v0.38 — auto sectors of fire: formations and group-HOLD assign interlocking sectors, drawn while commanding
+2. ☑ v0.38 — sectors: ANCHOR splits by team size (was hardcoded 3), every order records its width, wheel-open/pause draws the interlock (green watch, red suppress, amber gun arc)
+   ▶ NEXT: v0.39 chained wheel
 3. ☐ v0.39 — contextual chained wheel: root varies by what is under the cursor; movement -> gait -> arrival-posture chains
 4. ☐ v0.40 — operator roster: recruits from rescues, recovery time for the wounded, deployment from READY operators
 5. ☐ v0.41 — FLOOR TWO (Sam's design: stairs swap to an upper-floor map) + BETA chips in the picker
