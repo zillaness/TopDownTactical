@@ -65,6 +65,18 @@ item recorded: separate muzzle point from eyePoint. Suggested next session:
 Sam plays THE LANDING with RIFLE SQUAD (9) + suppressors — every system this
 night built points at that one mission.
 
+## Burndown night 3 extension — 2026-08-14 (Sam: 56% left; night 3 cost ~3%)
+
+### Extension queue (ranked)
+1. ☐ v0.34 — THE PEEL: BD2 Break Contact from research §7 — a fighting
+   withdrawal, one element suppressing while the other runs past it
+2. ☐ v0.35 — emplaced guns: M glyph, mount/dismount, arc-clamped M2; paired
+   with enemy QRF counterattack on THE PILLBOX ("you took it, now hold it")
+3. ☐ v0.36 — BROKEN ARROW: you are the QRF — wounded men on bleed clocks deep
+   in a hostile map, reach them, tie them off, get them home
+4. ☐ adversarial review workflow over all three burndown nights, findings
+   verified per-finding, confirmed bugs fixed before Sam's playtest
+
 ## Burndown night 3 — 2026-08-14 (Sam: 59% Fable left — was 62% before night 2, so the whole of night 2 cost ~3%)
 
 Sam's directive: build the ranked-not-built items tonight. BUILD, not ship —
