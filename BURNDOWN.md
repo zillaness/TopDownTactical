@@ -65,6 +65,22 @@ item recorded: separate muzzle point from eyePoint. Suggested next session:
 Sam plays THE LANDING with RIFLE SQUAD (9) + suppressors — every system this
 night built points at that one mission.
 
+## Burndown night 3 — 2026-08-14 (Sam: 59% Fable left — was 62% before night 2, so the whole of night 2 cost ~3%)
+
+Sam's directive: build the ranked-not-built items tonight. BUILD, not ship —
+flagged FIELD TEST in the changelog, tuned enough to playtest tomorrow, not
+polished. Committed and pushed anyway (checkpoint discipline is the skill).
+
+### Night queue (ranked)
+1. ☐ v0.30 — the drones: ISR (exterior intel, no wallhack) + kamikaze FPV
+2. ☐ v0.31 — enemy security cameras + disabling them
+3. ☐ v0.32 — fire support: mortar fire missions on outdoor maps
+4. ☐ v0.33 — two more house layouts for the STANDOFF rotation
+- deferred tonight, with reasons: 9-line medevac (its own ledger note says
+  after Sam playtests v0.23), two-story (a full engine session), mounted +
+  turrets (deserves better than a night slot), muzzle-point split (small,
+  but touches every LOS test — not at 3am)
+
 ## Burndown night 2 — 2026-08-13/14 (Sam: 60% Fable left, reset 8:00am)
 
 ### Handoff — night 2
