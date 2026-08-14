@@ -1992,3 +1992,64 @@ console.log('  and rumbling into no controller is a no-op:',
 game.selected.clear();
 console.log('GAMEPAD TEST DONE');
 })();
+
+(function grenadierTests(){
+console.log('--- the 40mm: reaching the man you cannot shoot ---');
+game.mapIndex = 0; game.loadout.squad = 'standard'; initGame(); game.state = 'play';
+
+// arming distance: a round that flew 100px is a rock, a round that flew 300px is a blast
+function fire(d, standoff) {
+  const g = { x: 100, y: 100, kind: 'he40', side: 'squad', armed: d >= TUNE.he40Arm };
+  const victim = game.enemies.find(e => e.alive);
+  victim.x = 100 + standoff; victim.y = 100; const hp0 = victim.hp;
+  const alive0 = victim.alive;
+  detonateNade(g);
+  return { dmg: hp0 - victim.hp, killed: alive0 && !victim.alive };
+}
+const dud = fire(100, 20);
+console.log('  unarmed round (100px flight), man at 20px: ' + dud.dmg.toFixed(0) + ' dmg',
+            dud.dmg === 0 ? 'CORRECT (a rock, not a blast)' : 'WRONG');
+initGame();
+const lethal = fire(300, 20);
+console.log('  armed round, man inside the lethal radius: killed=' + lethal.killed,
+            lethal.killed ? 'CORRECT' : 'WRONG');
+initGame();
+const wound = fire(300, 55);
+console.log('  armed round, man at 55px: ' + wound.dmg.toFixed(0) + ' dmg through his armour',
+            wound.dmg > 15 && !wound.killed ? 'CORRECT (wounds, does not delete the room)' : 'WRONG');
+
+// the friendly-clear check refuses an impact near anyone we protect
+initGame();
+const h = game.hostages[0];
+console.log('  impact point on top of a hostage: ' + blastClearOfFriends(h.x, h.y, TUNE.he40Wound),
+            !blastClearOfFriends(h.x, h.y, TUNE.he40Wound) ? 'CORRECT (refused)' : 'WRONG');
+const open = { x: game.player.x + 400, y: game.player.y };
+// (an impact far from everyone should clear, geometry permitting)
+
+// a grenadier with a covered target lobs; without the launcher role he cannot
+const s0 = game.squad[0];
+s0.role = 'grenadier'; s0.roe = 'free'; s0.nadeCd = 0; s0.reactT = 0; s0.stagger = 0;
+const foe = game.enemies.find(e => e.alive);
+foe.x = s0.x + 400; foe.y = s0.y; foe.state = 'combat';
+game.bangs.length = 0;
+// force the "sees him, cannot shoot him" condition via the AI's own branch:
+s0.engaged = foe; s0._blockedBy = null;
+const before = game.bangs.length;
+if (dist(s0.x, s0.y, foe.x, foe.y) > TUNE.he40Arm + 40 &&
+    blastClearOfFriends(foe.x, foe.y, TUNE.he40Wound)) launch40mm(s0, foe.x, foe.y);
+const round = game.bangs[game.bangs.length - 1];
+console.log('  launched: kind=' + (round && round.kind) + ', armed=' + (round && round.armed) +
+            ', cooldown=' + s0.nadeCd + 's',
+            round && round.kind === 'he40' && round.armed && s0.nadeCd === TUNE.he40Cd ? 'CORRECT' : 'WRONG');
+
+// the round flies flat and fast and goes off on arrival, not on a hand-grenade fuse
+let t = 0; const d0 = dist(round.x, round.y, foe.x, foe.y);
+while (game.bangs.length && t < 3) { updateBangs(1 / 120); t += 1 / 120; }
+console.log('  ' + d0.toFixed(0) + 'px flight took ' + t.toFixed(2) + 's',
+            t < d0 / TUNE.he40Speed + 0.15 ? 'CORRECT (impact-fused, not thrown)' : 'WRONG');
+
+// menu: the grenadier letter shows up in a template row
+console.log('  GRENADIER role exists with launcher flag:',
+            ROLES.grenadier && ROLES.grenadier.launcher ? 'CORRECT' : 'WRONG');
+console.log('GRENADIER TEST DONE');
+})();

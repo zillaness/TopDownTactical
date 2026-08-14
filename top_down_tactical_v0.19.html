@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.18.html
-  version: 0.18
+  file: top_down_tactical_v0.19.html
+  version: 0.19
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.18 (working title)</title>
+<title>Top-Down Tactical v0.19 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.18 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.19 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -315,6 +315,12 @@ const TUNE = {
 
   // hand throwables
   fragLethal: 34, fragWound: 96, fragDmg: 98, noiseFrag: 700,
+  // 40mm HE off the grenadier's underbarrel. Smaller charge than a hand frag,
+  // but it arrives flat and fast where a throw cannot reach. Real 40mm arms by
+  // spin after ~14-28m, which is the he40Arm distance here — inside that it is
+  // a very fast rock, which is also why the AI will not fire it into a CQB gap.
+  he40Speed: 640, he40Lethal: 26, he40Wound: 84, he40Dmg: 88, he40Arm: 170,
+  he40Cd: 8, noiseHe40: 640,
   concRadius: 210, concDmg: 34, concStagger: 1.7, concWallFactor: 0.55,
   smokeRadius: 108, smokeLife: 17, smokeGrow: 1.4,
 
@@ -2518,6 +2524,7 @@ function updateBangs(dt) {
 }
 
 function detonateNade(g) {
+  if (g.kind === "he40") return detonateHE40(g);
   if (g.kind === "frag") return detonateFrag(g);
   if (g.kind === "conc") return detonateConcussion(g);
   if (g.kind === "smoke") return popSmoke(g);
@@ -2550,6 +2557,66 @@ function detonateFrag(g) {
 // it does not need clean line of sight, it attenuates through structure the
 // same way sound does, so it will reach around a corner and through a doorway
 // that a flashbang cannot see past.
+// The 40mm: a frag charge scaled down and delivered flat. An unarmed round —
+// one that flew less than he40Arm — is a thud and a dent, not a blast, which is
+// both what the real fuze does and what keeps a point-blank launcher from being
+// a self-frag or an exploit.
+function detonateHE40(g) {
+  if (!g.armed) {
+    game.fx.push({ kind: "spark", x: g.x, y: g.y, t: 0.14, max: 0.14 });
+    addNoise(g.x, g.y, 140, "thud", g.side);
+    sfxAt("thud", g.x, g.y);
+    return;
+  }
+  game.fx.push({ kind: "explosion", x: g.x, y: g.y, t: 0.45, max: 0.45 });
+  game.decals.push({ x: g.x + rand(-5, 5), y: g.y + rand(-5, 5), r: rand(4, 8) });
+  addNoise(g.x, g.y, TUNE.noiseHe40, "breach", g.side);
+  sfxAt("breach", g.x, g.y);
+  game.camKick = Math.min(14, game.camKick + 6);
+  applyBlast(g.x, g.y, g.side, TUNE.he40Lethal, TUNE.he40Wound, TUNE.he40Dmg);
+  for (const e of [game.player, ...game.squad, ...game.enemies]) {
+    if (!e || !e.alive) continue;
+    if (dist(g.x, g.y, e.x, e.y) > TUNE.he40Wound * 1.5) continue;
+    if (!lineOfSight(g.x, g.y, e.x, e.y, opaque)) continue;
+    e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + 1.4);
+    if (e.side === "enemy") alertEnemy(e, g.x, g.y);
+  }
+}
+
+// Would this impact point catch someone we are not allowed to catch? Checked
+// before every AI launch — a grenadier who has to be told not to frag the
+// hostage is not a grenadier anyone would stack with.
+function blastClearOfFriends(x, y, r) {
+  for (const e of [game.player, ...game.squad, ...game.hostages, ...game.civilians]) {
+    if (!e || !e.alive) continue;
+    if (dist(x, y, e.x, e.y) < r * 1.25 && lineOfSight(x, y, e.x, e.y, opaque)) return false;
+  }
+  // a surrendered or cuffed suspect is also off the table
+  for (const e of game.enemies) {
+    if (e.alive && (e.state === "surrender" || e.state === "cuffed") &&
+        dist(x, y, e.x, e.y) < r * 1.25 && lineOfSight(x, y, e.x, e.y, opaque)) return false;
+  }
+  return true;
+}
+
+function launch40mm(shooter, tx, ty) {
+  const ang = angleTo(shooter.x, shooter.y, tx, ty);
+  const d = dist(shooter.x, shooter.y, tx, ty);
+  const clear = raycast(shooter.x, shooter.y, ang, shooter.r + 8, solidForMove);
+  const off = clear.hit ? Math.max(1, clear.d - 2) : shooter.r + 8;
+  game.bangs.push({
+    x: shooter.x + Math.cos(ang) * off, y: shooter.y + Math.sin(ang) * off,
+    vx: Math.cos(ang) * TUNE.he40Speed, vy: Math.sin(ang) * TUNE.he40Speed,
+    fuse: d / TUNE.he40Speed + 0.02, travelLeft: d, side: shooter.side,
+    kind: "he40", armed: d >= TUNE.he40Arm,
+  });
+  shooter.nadeCd = TUNE.he40Cd;
+  addNoise(shooter.x, shooter.y, 260, "shot", shooter.side);
+  sfxAt("thud", shooter.x, shooter.y);
+  game.fx.push({ kind: "muzzle", x: shooter.x + Math.cos(ang) * (shooter.r + 6),
+                 y: shooter.y + Math.sin(ang) * (shooter.r + 6), ang, t: 0.08, max: 0.08 });
+}
+
 function detonateConcussion(g) {
   game.fx.push({ kind: "explosion", x: g.x, y: g.y, t: 0.4, max: 0.4 });
   addNoise(g.x, g.y, TUNE.noiseBangBlast, "bang", g.side);
@@ -3271,6 +3338,8 @@ const ROLES = {
   support:  { name: "SUPPORT",  sprite: "squad_support",
               w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 950, mag: 100, reload: 5.0,
                    spreadBase: deg(1.53), carrySpeed: 0.86 } },
+  grenadier:{ name: "GRENADIER", sprite: "squad_breacher",
+              w: { ammo: "fmj",  rpm: 420, dmg: 34, range: 900 }, launcher: true },
   marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1100, mag: 20, reload: 2.9,
                    spreadBase: deg(0.32), penMul: 1.15, carrySpeed: 0.95 } },
@@ -3974,6 +4043,7 @@ function syncPlanMembers(p) {
 
 // ---- per-frame squaddie behavior
 function updateSquaddie(s, dt) {
+  s.nadeCd = Math.max(0, (s.nadeCd || 0) - dt);
   if (!s.alive) return;
   s.blind = Math.max(0, s.blind - dt);
   s.stagger = Math.max(0, s.stagger - dt);
@@ -4023,6 +4093,20 @@ function updateSquaddie(s, dt) {
     if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0) {
       tryFire(s, aimAngle(s, threat.x, threat.y));
       s._sidestep = 0;
+    }
+    // The grenadier's whole job: a threat he can see or knows about but cannot
+    // shoot — behind cover, through a slit — gets a 40mm instead of nothing.
+    // Never inside arming distance, and never with a friendly near the impact.
+    else if (ROLES[s.role] && ROLES[s.role].launcher && (s.nadeCd || 0) <= 0
+             && mayFire && !canShoot && !s._blockedBy && s.reactT <= 0 && s.stagger <= 0) {
+      const td2 = dist(s.x, s.y, threat.x, threat.y);
+      if (td2 > TUNE.he40Arm + 40 && td2 < 780
+          && blastClearOfFriends(threat.x, threat.y, TUNE.he40Wound)) {
+        launch40mm(s, threat.x, threat.y);
+        bark(s, "GRENADE OUT!");
+      } else {
+        s.nadeCd = 1.2;          // re-check soon, do not spin the check every frame
+      }
     }
     // Willing but blocked by a friendly: step off the line instead of standing
     // there mute. The wedge stops the pile-up; this clears the leftovers.
@@ -6355,6 +6439,16 @@ requestAnimationFrame(frame);
     default), and the first rumble tuning put a gunshot at 0.0875 strong, which is
     below the threshold of feeling anything.
     Unplugging mid-sprint no longer strands a held key.
+  v0.19 (2026-08-13): THE 40MM, first unit of the fireteam burndown. A new
+    GRENADIER squad role carries an M4 with an underbarrel launcher. His moment
+    is the one every other role wastes: a threat he can see or knows about but
+    cannot shoot — behind cover, through a firing slit — gets a 40mm on an 8s
+    cooldown instead of nothing. The round flies flat at 640px/s and detonates
+    on arrival, arms only after 170px of flight (inside that it is a rock, which
+    is what the real fuze does and what keeps point-blank use from being a self-
+    frag), and he will not fire with the player, the squad, a hostage, a
+    civilian, or a surrendered suspect near the impact point. Smaller charge
+    than a hand frag: kills inside 26px, wounds to 84.
 -->
 </body>
 </html>

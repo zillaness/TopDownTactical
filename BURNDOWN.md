@@ -48,7 +48,8 @@ This would allow for longer engagements" + the 9-man rifle squad TO&E
 (SL + two 4-man fireteams: TL, GRN with 40mm, AR with SAW, RFLM).
 
 ### Night queue (ranked)
-1. ☐ v0.19 — 40mm underbarrel (M320) + GRENADIER squad role
+1. ☑ v0.19 — 40mm underbarrel (M320) + GRENADIER squad role — impact-fused at 640px/s, arms at 170px, refuses impacts near protected people, 8s cooldown
+   ▶ NEXT: v0.20 rifle squad
 2. ☐ v0.20 — RIFLE SQUAD (9): two fireteams, formation, bound-by-team, HUD
 3. ☐ v0.21 — CS gas grenade + RIOT kit (the "other grenade types" ask)
 4. ☐ v0.22 — suppressors (tabled at v0.9 by Sam's call; the fight is losable now)
