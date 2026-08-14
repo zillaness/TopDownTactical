@@ -55,6 +55,16 @@ This would allow for longer engagements" + the 9-man rifle squad TO&E
    - ☐ FOLLOW-UP (new item): separate muzzle point from eyePoint, so a longer gun can break a corner before your eye does — the one piece of the recorded suppressor design not built, because lengthening eyePoint would currently HELP you see around corners
    ▶ NIGHT COMPLETE — queue empty, all four units shipped
 
+### Handoff — night of 2026-08-13
+All four queued units shipped and pushed: v0.19 40mm grenadier, v0.20 rifle
+squad, v0.21 CS gas + the one-element-bound fix, v0.22 suppressors. Tree clean,
+branch pushed through v0.22. Two real bugs found by the night's own tests: a
+BOUND whose covering element died left one man strolling uncovered (fixed), and
+a test that called updatePlayer(dt) measured nothing (fixed). New follow-up
+item recorded: separate muzzle point from eyePoint. Suggested next session:
+Sam plays THE LANDING with RIFLE SQUAD (9) + suppressors — every system this
+night built points at that one mission.
+
 ## Backlog (ranked, highest value-per-token first)
 
 1. ☑ Genre & doctrine research doc (`tactical_research_v1.0.md`)
