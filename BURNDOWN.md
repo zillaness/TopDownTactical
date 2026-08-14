@@ -67,6 +67,16 @@ night built points at that one mission.
 
 ## Burndown night 2 — 2026-08-13/14 (Sam: 60% Fable left, reset 8:00am)
 
+### Handoff — night 2
+Five for five, all pushed through the v0.29 fix commit: buddy aid + drag
+(v0.26), minimap (v0.27), formations + research §7 (v0.28), THE LONG WALK +
+art prompt file (v0.29). One late catch: the briefing survey did not know
+trees are walls — caught by the drift test one commit after the map landed,
+fixed and double-verified. Tree is now in the shared WALL_GLYPHS. Ammo call
+recorded as a recommendation, awaiting Sam. Suggested next session: play THE
+LONG WALK with RIFLE SQUAD (9), suppressed, COLUMN through the woods — it
+exercises every system from both burndown nights in one mission.
+
 ### Night queue (ranked)
 1. ☑ v0.26 — buddy aid + casualty drag: right-click assigns a medic who cannot shoot mid-treatment; [E] still=treat, [E] moving=drag at 55%, no sprint, no trigger
 2. ☑ v0.27 — minimap: explored geometry in material colours, team, downed crosses, current + remembered contacts, objectives, viewport rect; [M] toggles
