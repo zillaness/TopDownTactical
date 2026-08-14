@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.27.html
-  version: 0.27
+  file: top_down_tactical_v0.28.html
+  version: 0.28
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.27 (working title)</title>
+<title>Top-Down Tactical v0.28 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.27 prototype &mdash; working title &mdash; fifteen missions</h2>
+  <h2>v0.28 prototype &mdash; working title &mdash; fifteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -66,7 +66,7 @@
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
-      <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">V</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
@@ -2095,6 +2095,18 @@ function updatePlayer(p, dt) {
     throwSelected(p, p.nadeKind, input.mouse.wx, input.mouse.wy);
   }
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
+  // formation is a gameplay verb, so it lives with the others (and headless
+  // tests can reach it — frame() never runs without a real RAF)
+  if (pressed("v")) {
+    const fi = (FORMATIONS.indexOf(game.formation || "wedge") + 1) % FORMATIONS.length;
+    game.formation = FORMATIONS[fi];
+    game.hint = "FORMATION: " + game.formation.toUpperCase() +
+      (game.formation === "column" ? " — narrow and fast, one gun forward"
+       : game.formation === "line" ? " — every gun forward, nothing behind"
+       : " — balanced, all-round");
+    const lead = game.squad.find(sq => sq.alive && !sq.downed);
+    if (lead) bark(lead, game.formation.toUpperCase() + "!");
+  }
   if (pressed("q")) snakeCam(p);
 }
 
@@ -3814,11 +3826,32 @@ const WEDGE9 = [
   { bear: deg(-110), d: 140, sector: deg(-150) },  // B RFLM — deep left
 ];
 
+// Three formations, from FM 3-21.8 via tactical_research §7 — the shape
+// survives, doctrine's 10m spacing is compressed to what a screen can hold.
+// WEDGE: balanced, all-round, the default. COLUMN: a snake behind you — narrow
+// and fast, trail sectors face the flanks, so a head-on contact is one gun
+// until it unfolds (the file's masked fire, modeled honestly). LINE: everyone
+// abreast with every sector FORWARD — the assault shape, maximum guns on the
+// front and nothing watching your back.
+const FORMATIONS = ["wedge", "column", "line"];
+function formationSlot(i, n) {
+  const kind = game.formation || "wedge";
+  if (kind === "column") {
+    return { bear: deg(180) + deg(i % 2 ? 7 : -7), d: 38 * (i + 1),
+             sector: deg(i % 2 ? 95 : -95) };
+  }
+  if (kind === "line") {
+    const side = i % 2 ? 1 : -1, rank = Math.floor(i / 2) + 1;
+    return { bear: deg(90) * side + deg(0), d: 42 * rank, sector: 0 };
+  }
+  const F = n > 3 ? WEDGE9 : WEDGE;
+  return F[i % F.length];
+}
+
 // The station bearing eases rather than snapping, or whipping the mouse would
 // send three men sprinting a lap around you.
 function wedgeStation(s, dt) {
-  const F = game.squad.length > 3 ? WEDGE9 : WEDGE;
-  const p = game.player, w = F[s.slot % F.length];
+  const p = game.player, w = formationSlot(s.slot, game.squad.length);
   const want = p.face + w.bear;
   if (s._wedgeAng === undefined) s._wedgeAng = want;
   else s._wedgeAng = angLerp(s._wedgeAng, want, clamp((dt || 0) * 2.2, 0, 1));
@@ -5676,6 +5709,8 @@ function drawHud() {
   // bag, which was colliding with the shoulder line.
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
+  ctx.fillStyle = game.formation !== "wedge" ? COLORS.accent : COLORS.hudDim;
+  ctx.fillText((game.formation || "wedge").toUpperCase() + "  [V]", bx + 158, by + 40);
   ctx.font = "11px Consolas, monospace";
   let gx = bx;
   for (const k of THROW_ORDER) {
@@ -6147,7 +6182,7 @@ const game = {
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
   wheel: null, nadeWheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
-  cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0, minimap: true,
+  cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0, minimap: true, formation: "wedge",
   visPoly: null,
   stats: null,
   playerDeadT: 0, endReason: "",
@@ -7171,6 +7206,21 @@ requestAnimationFrame(frame);
     lost, objectives and the extraction, and the camera's viewport rectangle so
     the map answers "where am I looking". Navigation aid, not a wallhack: the
     geometry layer is cached and rebuilt twice a second, markers are live.
+  v0.28 (2026-08-14): FORMATIONS, researched then built. tactical_research is
+    now v1.1 with a §7 on FM 3-21.8 formations, movement techniques and battle
+    drills, ending in the fun-versus-tactics calls Sam asked for: doctrine's 10m
+    spacing compresses to screen scale, seven doctrine formations ship as three
+    that are genuinely different answers under fire, and the transition is
+    instant on a key because control feel wins that trade. [V] cycles: WEDGE
+    (balanced, all-round, nobody in your bore — the default), COLUMN (a snake
+    behind you, narrow and fast, trail sectors on the flanks, so a head-on
+    contact really is one gun until it unfolds — the file's masked fire,
+    modeled honestly), LINE (everyone abreast, every sector forward — the
+    assault shape, maximum guns on the front and nothing watching behind).
+    Works for the 3-man team and the 9-man rifle squad off the same slot math;
+    stations still snap to standable ground; the squad barks the change and the
+    point-man panel shows it. BOUND is unchanged — doctrine agrees: bounding is
+    a movement TECHNIQUE, not a formation, and they compose.
 -->
 </body>
 </html>

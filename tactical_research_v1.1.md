@@ -1,9 +1,9 @@
 ---
-file: tactical_research_v1.0.md
-version: 1.0
+file: tactical_research_v1.1.md
+version: 1.1
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-07
+last_updated: 2026-08-14
 description: Genre and doctrine research for the top-down-tactical project — Door Kickers 2, direct-control top-down shooters, real CQB/breaching doctrine, SWAT/hostage-rescue games, R6 Siege operator design, and direct-control+squad-command hybrids — with a synthesis of what this game takes, defers, and rejects.
 ai_update: Update last_updated and version. Rename file to match. Append changelog at bottom.
 ---
@@ -1103,5 +1103,80 @@ Sources:
 
 ---
 
+## 7. Movement formations and small-unit tactics (added v1.1, for the formation system)
+
+Sources: US Army FM 3-21.8 / ATP 3-21.8 (Infantry Platoon and Squad), Ranger
+Handbook (SH 21-76), and the doctrine chapters already cited in §3. Written to
+answer Sam's ask directly: what are the formations, what is each FOR, and what
+should the game keep or bend in the name of fun.
+
+### 7.1 Fire team formations (4 men)
+
+**Wedge** — the default, and doctrine is emphatic about that. Team leader at
+the point, men echeloned back on both sides ~10m apart. Fires and flexes in
+every direction; each man's sector interlocks with the next. Breaks down in
+dense vegetation or narrow streets, where it collapses to a file on its own.
+*Game read: our current formation. Balanced; nobody downrange of the leader.*
+
+**File** — single trail behind the leader. For restricted terrain, dense
+woods, limited visibility, speed on a known route. Its cost is the textbook's
+bluntest sentence: the file masks nearly all of its own fire to the front —
+only the point man can shoot at what appears ahead.
+*Game read: narrow and fast, and if contact comes head-on you have one gun.*
+
+**Line** — everyone abreast, facing the objective. Maximum firepower forward,
+used for the assault itself and not much else: it is wide, slow to control,
+and has almost no flank or rear security.
+*Game read: the formation you switch to for the last 100 meters.*
+
+### 7.2 Squad formations (two fire teams + SL)
+
+- **Squad column** (teams in column, each in wedge): the workhorse. Depth,
+  strong flank fire, good control; weaker fire to the direct front.
+- **Squad line** (teams abreast): assault posture, maximum front fire, hard
+  to control, used for short pushes.
+- **Squad file**: the fire-team file scaled up — restricted terrain only.
+- **Squad vee**: both teams forward, SL behind — strong front for a meeting
+  engagement, hardest to control; rarely the right answer and the game skips it.
+
+### 7.3 Movement techniques (orthogonal to formation)
+
+Doctrine separates the SHAPE from the PACE, and the game already models the
+pace column: **traveling** (contact unlikely — close up, move fast: our follow
+order), **traveling overwatch** (contact possible — trail element hangs back),
+**bounding overwatch** (contact expected — one element moves only while the
+other is set: our BOUND play, verbatim). Formation and technique compose:
+squad column + bounding overwatch is the canonical approach march.
+
+### 7.4 Battle drills worth stealing later
+
+- BD1 React to Contact — return fire, seek cover, report; the base of fire
+  forms and the maneuver element works the flank. (Our squad AI approximates
+  the first half; the deliberate flank is future work.)
+- BD2 Break Contact — the peel: one element suppresses while the other moves
+  AWAY, alternating. This is BOUND run in reverse and would make retreat
+  (v0.23) a fighting maneuver instead of a menu button. Best candidate.
+- BD6 Enter Building / Clear Room — points of domination, sectors crossing at
+  the door: shipped in the entry plays since v0.5.
+
+### 7.5 Fun versus tactics — the calls the game makes
+
+1. Doctrine's spacing (10m per man) is a screen and a half at our zoom. We
+   compress to 34-45px steps: the SHAPE survives, the scale bends.
+2. Doctrine has seven formations; the game ships three (wedge / column /
+   line) because each is a genuinely different answer under fire, and the
+   other four are refinements a mouse can't feel. Vee and echelon fold into
+   wedge; the two files fold into column.
+3. The real cost of a file — masked fire — is modeled honestly: trail sectors
+   face the flanks, so a head-on contact really is one gun until the snake
+   unfolds. The real gift of a line — every sector forward — is equally real,
+   which makes it the pre-breach and assault formation it is in doctrine.
+4. Formation is squad-wide and instant on a key. Doctrine would stagger the
+   transition; the game trades that for control feel, the same trade the
+   command wheel already made.
+
+---
+
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial release — six-chapter parallel research sweep plus synthesis.
+- v1.1 (2026-08-14): Added §7 — movement formations, techniques, battle drills (FM 3-21.8 / Ranger Handbook), and the fun-versus-tactics calls for the in-game formation system.

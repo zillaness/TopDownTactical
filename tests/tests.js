@@ -2469,3 +2469,54 @@ console.log('  then stood still ' + held3.toFixed(1) + 's: stabilized=' + cas3.s
 localStorage.clear(); initGame();
 console.log('BUDDY AID TEST DONE');
 })();
+
+(function formationTests(){
+console.log('--- formations: wedge, column, line (FM 3-21.8, compressed) ---');
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'rifle9'; initGame(); game.state = 'play';
+const P = game.player; P.face = 0;
+
+function stations() {
+  return game.squad.map(s => { s._wedgeAng = undefined; const st = wedgeStation(s, 10); 
+    return { bear: angDiff(0, angleTo(P.x, P.y, st.x, st.y)), d: dist(P.x, P.y, st.x, st.y), sector: st.sector }; });
+}
+game.formation = 'wedge';
+const W = stations();
+console.log('  WEDGE: ' + W.filter(w => Math.abs(w.bear) < deg(35)).length + ' stations in the bore',
+            W.filter(w => Math.abs(w.bear) < deg(35)).length === 0 ? 'CORRECT (balanced, nobody downrange)' : 'WRONG');
+
+game.formation = 'column';
+// test the CONTRACT (slot geometry), not the terrain snap — walls legitimately
+// deflect a 300px tail on an indoor map, and that is nearestPassable working
+const slots = game.squad.map((s, i) => formationSlot(i, game.squad.length));
+const behind = slots.filter(sl => Math.abs(Math.abs(sl.bear) - Math.PI) < deg(15)).length;
+const spread = Math.max(...slots.map(sl => sl.d)) - Math.min(...slots.map(sl => sl.d));
+console.log('  COLUMN: ' + behind + '/8 slots trail behind, depth ' + spread.toFixed(0) + 'px',
+            behind === 8 && spread > 200 ? 'CORRECT (a snake — narrow and deep)' : 'WRONG');
+const C = stations();
+const standable = C.every(c => c.d > 5);
+console.log('  and every snapped station is standable ground:', standable ? 'CORRECT' : 'WRONG');
+const flankSectors = slots.every(c => Math.abs(Math.abs(angDiff(0, c.sector)) - deg(95)) < deg(2));
+console.log('  COLUMN sectors face the flanks (masked fire modeled):',
+            flankSectors ? 'CORRECT (head-on contact is one gun)' : 'WRONG');
+
+game.formation = 'line';
+const L = stations();
+const abreast = L.filter(l => Math.abs(Math.abs(l.bear) - deg(90)) < deg(20)).length;
+console.log('  LINE: ' + abreast + '/8 stations abreast, all sectors forward: ' +
+            L.every(l => Math.abs(angDiff(0, l.sector)) < deg(5)),
+            abreast === 8 && L.every(l => Math.abs(angDiff(0, l.sector)) < deg(5))
+              ? 'CORRECT (assault shape — every gun on the front)' : 'WRONG');
+
+// V cycles and wraps
+game.formation = 'wedge';
+input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+const f1 = game.formation;
+input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+const f2 = game.formation;
+input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+console.log('  [V]: wedge -> ' + f1 + ' -> ' + f2 + ' -> ' + game.formation,
+            f1 === 'column' && f2 === 'line' && game.formation === 'wedge' ? 'CORRECT (cycles)' : 'WRONG');
+game.loadout.squad = 'standard'; game.formation = 'wedge'; initGame();
+console.log('FORMATION TEST DONE');
+})();

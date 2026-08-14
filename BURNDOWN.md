@@ -70,8 +70,8 @@ night built points at that one mission.
 ### Night queue (ranked)
 1. ☑ v0.26 — buddy aid + casualty drag: right-click assigns a medic who cannot shoot mid-treatment; [E] still=treat, [E] moving=drag at 55%, no sprint, no trigger
 2. ☑ v0.27 — minimap: explored geometry in material colours, team, downed crosses, current + remembered contacts, objectives, viewport rect; [M] toggles
-   ▶ NEXT: v0.28 formations
-3. ☐ v0.28 — formations: research (FM 3-21.8) + wedge/column/line in game
+3. ☑ v0.28 — formations: research §7 in tactical_research_v1.1, [V] cycles wedge/column/line with honest costs (column masks its own fire, line has no rear)
+   ▶ NEXT: v0.29 infil/exfil map + art prompt
 4. ☐ v0.29 — large infil/exfil map
 5. ☐ Codex environment-art prompt (deliverable: prompt file, no code)
 - ℹ ammo: recommendation only, Sam undecided — no code without his call
