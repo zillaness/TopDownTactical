@@ -40,6 +40,19 @@ can both drive this file.
 - U9 ☐ Suspect feint-surrender + re-arm
 - U10 ☐ Menu/debrief polish, difficulty as score threshold
 
+## Burndown night — 2026-08-13 (no live meter; Phase 0 still pending)
+
+Sam's mandate, verbatim: "implement anything tabled. Like other grenade types.
+Also let's the option to be organized like a us military square with fireteams.
+This would allow for longer engagements" + the 9-man rifle squad TO&E
+(SL + two 4-man fireteams: TL, GRN with 40mm, AR with SAW, RFLM).
+
+### Night queue (ranked)
+1. ☐ v0.19 — 40mm underbarrel (M320) + GRENADIER squad role
+2. ☐ v0.20 — RIFLE SQUAD (9): two fireteams, formation, bound-by-team, HUD
+3. ☐ v0.21 — CS gas grenade + RIOT kit (the "other grenade types" ask)
+4. ☐ v0.22 — suppressors (tabled at v0.9 by Sam's call; the fight is losable now)
+
 ## Backlog (ranked, highest value-per-token first)
 
 1. ☑ Genre & doctrine research doc (`tactical_research_v1.0.md`)
