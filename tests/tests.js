@@ -2866,3 +2866,42 @@ console.log('  wave destroyed: neutralize done=' + OBJECTIVES.neutralize.done(),
 game.mapIndex = 0; initGame();
 console.log('TURRET+QRF TEST DONE');
 })();
+
+(function brokenArrowTests(){
+console.log('--- BROKEN ARROW: you are the QRF ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
+
+const wounded = game.squad.filter(s2 => s2.qrfCasualty);
+console.log('  deployed ' + game.squad.length + ' (3 up + ' + wounded.length + ' already down), clocks: ' +
+            wounded.map(s2 => s2.bleedT + 's').join(', '),
+            wounded.length === 2 && wounded.every(s2 => s2.downed && !s2.stabilized && s2.bleedT === TUNE.brokenBleed)
+              ? 'CORRECT (the mission is the men)' : 'WRONG');
+console.log('  they are on the books: ' + wounded.map(s2 => s2.name).join(', '),
+            wounded.every(s2 => SQUAD_NAMES.includes(s2.name)) ? 'CORRECT (bench names, real XP stakes)' : 'WRONG');
+console.log('  objective reads: "' + OBJECTIVES.stabilize.label() + '", done=' + OBJECTIVES.stabilize.done(),
+            /WOUNDED 0\/2/.test(OBJECTIVES.stabilize.label()) && !OBJECTIVES.stabilize.done() ? 'CORRECT' : 'WRONG');
+
+// distance is the enemy: they are a real trip away
+const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
+const wt = tileAt(wounded[0].x, wounded[0].y);
+const path = astar(st0.tx, st0.ty, wt.tx, wt.ty, passForPath, pathCostSquad);
+console.log('  crash site is ' + (path ? path.length : 0) + ' tiles out on a ' + TUNE.brokenBleed + 's clock',
+            path && path.length > 12 ? 'CORRECT' : 'WRONG');
+
+// tie both off: objective completes, extract gates open
+wounded.forEach(s2 => s2.stabilized = true);
+console.log('  both tied off: stabilize done=' + OBJECTIVES.stabilize.done() +
+            ', extract still pending=' + !OBJECTIVES.extract.done(),
+            OBJECTIVES.stabilize.done() && !OBJECTIVES.extract.done() ? 'CORRECT (now walk home)' : 'WRONG');
+
+// lose one and the mission is lost with him
+wounded[0].stabilized = false; wounded[0].bleedT = 0.01;
+updateSquaddie(wounded[0], 0.1);
+const fail = missionFailure();
+console.log('  he bleeds out: "' + (fail || '').slice(0, 50) + '..."',
+            fail && /bled out|mission/.test(fail) ? 'CORRECT (the mission fails with him)' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('BROKEN ARROW TEST DONE');
+})();

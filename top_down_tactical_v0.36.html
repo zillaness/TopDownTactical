@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.35.html
-  version: 0.35
+  file: top_down_tactical_v0.36.html
+  version: 0.36
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.35 (working title)</title>
+<title>Top-Down Tactical v0.36 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.35 prototype &mdash; working title &mdash; nineteen missions</h2>
+  <h2>v0.36 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -492,6 +492,10 @@ const TUNE = {
          range: 1200, spreadBase: 0.023, spreadMove: 0.023, recoil: 0.009,
          recoilMax: 0.09, recoilDecay: 0.10, penMul: 2.2, ammo: "fmj" },
   turretArc: deg(110), turretReach: 44,
+  // FIELD TEST — BROKEN ARROW. Men already down when you arrive get a longer
+  // clock than a fresh casualty: shock has set in, the bleeding is slower, and
+  // the mission is the distance between you and them.
+  brokenBleed: 75,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -1466,6 +1470,46 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
+{ name: "BROKEN ARROW", advice: "A convoy was ambushed on that road and two of ours are down in the wreckage, bleeding on a clock you can hear. You are the QRF. Fight up the road or through the buildings, tie them off, and bring everyone home — the mission fails the moment one of them dies.",
+  brief: "You are the QRF — two men down in an ambushed convoy, reach them and bring them home",
+  type: "QUICK REACTION FORCE", objectives: ["stabilize", "extract"], src: [
+"##############################################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,###########W####,,,,,#",
+"#,,,,,##########W####,,,t,,,,,,,,,,,,,,,#..............#,,,,,#",
+"#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#..............#,,,,,#",
+"#,,,,,#..........p..#,,,,,,,,,,,,,,,,,,,W...E..........#,,,,,#",
+"#,,,,,W...g.........#,,,,,,,,,,,,,,,,,,,#.........g....#,,,,,#",
+"#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#..............#,,,,,#",
+"#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#..............#,,,,,#",
+"#,,,,,#######D#######,,,,,g,,,,,,,,,,,,,#######D########,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,p,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,@%,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,w,,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
+"#,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,ttt,#",
+"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,%@,,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
+"#,,,,,######D######,,,,,,,,,,,,,,,,,,,,,,,######D#######,,,,,#",
+"#,,,,,#...........#,,,,,,,,,,w,,,,,,,,,,,,#............#,,,,,#",
+"#,,,,,#........g..#,,,,,,,,,,@%,,,,,,,,,,,#............#,,,,,#",
+"#,,,,,#...........#,,,,,,,,,,,,,,,,,,,,,,,#...g........#,,,,,#",
+"#,,,,,#..g........W,,,,,,,,,,,,,,,,g,,,,,,#............#,,,,,#",
+"#,,,,,#...........#,,,,,,p,,,,,,,,,,,,,,,,W............#,,,,,#",
+"#,,,,,#...........#,,,,,,,,,,,,,,,,,,,,,,,#.........p..#,,,,,#",
+"#,,,,,#...........#,,,,,,,,,,,,,,,,,,,,,,,#............#,,,,,#",
+"#,,,,,#############,,,,,,,,,,,,,,,,,,,,,,,#............#,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##############,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,ttt,,,,,s,,,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,t,,,,,,P,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,s,,,s,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,XXX,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##############################################################",
+] },
 ];
 let MAP_SRC = MAPS[0].src;
 // hard-fail on malformed map data rather than rendering garbage
@@ -1477,7 +1521,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@t,.kMQBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@t,.kMQwBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -1514,7 +1558,7 @@ function parseLevel() {
   level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = []; level.turrets = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
-  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [] };
+  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [], wounded: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.room = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -1561,6 +1605,7 @@ function parseLevel() {
       level.turrets.push({ x: cx, y: cy, tx: x, ty: y, face0: face, manned: null });
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
+    if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
     if (ch === "k") {
       // mounted on the adjacent wall, watching the other way
       const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
@@ -6833,6 +6878,14 @@ function initGame() {
       : nearestPassable(sp.x + Math.cos(i * 2.4) * 30 * ring, sp.y + Math.sin(i * 2.4) * 30 * ring));
   }
   game.squad = sqPts.map((sp, i) => makeSquaddie(sp, i));
+  // BROKEN ARROW: the men you came for are squaddies who were down before you
+  // arrived — on the books, on a long clock, and on the far side of the map
+  level.spawns.wounded.forEach((sp, wi) => {
+    const s2 = makeSquaddie(sp, game.squad.length);
+    s2.downed = true; s2.stabilized = false; s2.bleedT = TUNE.brokenBleed;
+    s2.hp = 0; s2.r = 7; s2.order = { type: "down" }; s2.qrfCasualty = true;
+    game.squad.push(s2);
+  });
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
   game.demo = level.spawns.demo.map(sp => ({ x: sp.x, y: sp.y, armed: false, t: 0 }));
@@ -6954,6 +7007,23 @@ const OBJECTIVES = {
     // a completed mission — it is for reloading
     done() { return threatsLeft() === 0 && !(game.qrfState && game.qrfState.phase !== "landed"); },
     failed() { return null; },
+  },
+  // BROKEN ARROW: the objective IS the men. Tie off every one of them; lose
+  // one and the mission is lost with him.
+  stabilize: {
+    label() {
+      const w = game.squad.filter(s2 => s2.qrfCasualty);
+      const ok2 = w.filter(s2 => s2.alive && s2.stabilized).length;
+      return "WOUNDED " + ok2 + "/" + w.length + " STABLE";
+    },
+    done() {
+      const w = game.squad.filter(s2 => s2.qrfCasualty);
+      return w.length > 0 && w.every(s2 => s2.alive && s2.stabilized);
+    },
+    failed() {
+      const lost = game.squad.find(s2 => s2.qrfCasualty && !s2.alive);
+      return lost ? lost.name + " bled out before you reached him. He was the mission." : null;
+    },
   },
   capture: {
     label() {
@@ -7944,6 +8014,17 @@ requestAnimationFrame(frame);
     six fresh guns arrive alerted, converging on you. The neutralize objective
     refuses to complete during the quiet minute in between: that minute is for
     reloading, turning the gun around, and choosing your arc.
+  v0.36 (2026-08-14): FIELD TEST — BROKEN ARROW, the other half of Sam's QRF
+    ask: this time YOU are the reaction force. A convoy was ambushed mid-map;
+    two of ours — bench names, real XP on the books — are already down in the
+    wreckage on a 75-second clock (longer than a fresh casualty: shock has set
+    in, and the mission is the distance). New objective type STABILIZE: tie
+    off every wounded man, and the mission fails the moment one of them dies,
+    by name. Then extract, carrying the choice v0.23 built: retreating without
+    tying them off kills them. Fight up the road or through the buildings on
+    either side — nine guns hold the block, converging on the crash site. New
+    glyph w places pre-downed friendlies on any map, so more of these can be
+    authored cheaply.
 -->
 </body>
 </html>
