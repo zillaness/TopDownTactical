@@ -2987,3 +2987,70 @@ console.log('  sectors: hold=' + kinds.hold + ' suppress=' + kinds.suppress + ' 
 game.loadout.squad = 'standard'; initGame();
 console.log('SECTOR TEST DONE');
 })();
+
+(function chainedWheelTests(){
+console.log('--- the chained wheel: right is movement, then how, then what ---');
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'standard'; initGame(); game.state = 'play';
+const P = game.player;
+
+function openWheelAt(wx, wy) {
+  input.mouse.wx = wx; input.mouse.wy = wy;
+  input.mouse.x = 400; input.mouse.y = 300;
+  input.mouse.rx = 400; input.mouse.ry = 300;
+  input.justPressed.add('rmb'); issueOrders(); input.justPressed.clear();
+}
+function flick(dir) {
+  const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  input.mouse.x = game.wheel.sx + OFF[dir][0] * (TUNE.wheelCommit + 10);
+  input.mouse.y = game.wheel.sy + OFF[dir][1] * (TUNE.wheelCommit + 10);
+  issueOrders();
+}
+function release() { input.justReleased.add('rmb'); issueOrders(); input.justReleased.clear(); }
+
+// the exact chain from Sam's message: right (move) -> up (bump) -> right (overwatch)
+const dest = nearestPassable(P.x + 200, P.y);
+openWheelAt(dest.x, dest.y);
+console.log('  opened on empty ground: menu=' + game.wheel.menu, game.wheel.menu === 'root' ? 'CORRECT' : 'WRONG');
+flick('right');
+console.log('  flick right: menu=' + game.wheel.menu + ' (re-anchored)', game.wheel.menu === 'gait' ? 'CORRECT (movement ring)' : 'WRONG');
+flick('up');
+console.log('  flick up: menu=' + game.wheel.menu + ', locked gait=' + (game.wheel.chain && game.wheel.chain.gait),
+            game.wheel.menu === 'posture' && game.wheel.chain.gait === 'bump' ? 'CORRECT (bump locked)' : 'WRONG');
+input.mouse.x = game.wheel.sx + TUNE.wheelDeadzone + 8; input.mouse.y = game.wheel.sy;  // point at OVERWATCH, under commit
+issueOrders();
+release();
+const orders = game.squad.map(s2 => s2.order);
+console.log('  release on overwatch: orders=' + JSON.stringify(orders.map(o => o.type + '/' + (o.posture || '-') + '/' + (o.fast ? 'fast' : 'slow'))),
+            orders.every(o => o.type === 'move' && o.posture === 'overwatch' && o.fast) ? 'CORRECT (bump then overwatch)' : 'WRONG');
+
+// arrival applies the posture
+const m0 = game.squad[0];
+m0.x = m0.order.x; m0.y = m0.order.y;
+updateSquaddie(m0, 1 / 60);
+console.log('  on arrival: ' + m0.order.type + ' sector ' + ((m0.order.sector || 0) * 180 / Math.PI).toFixed(0) + '°',
+            m0.order.type === 'hold' && m0.order.sector > 1 ? 'CORRECT (overwatching onward)' : 'WRONG');
+
+// operator ring: hold on a man, flick up = self aid; tap = select
+initGame(); game.state = 'play';
+const op = game.squad[0];
+op.hp = 50;
+openWheelAt(op.x, op.y);
+console.log('  opened ON an operator: menu=' + game.wheel.menu + ' target=' + game.wheel.op.name,
+            game.wheel.menu === 'operator' && game.wheel.op === op ? 'CORRECT (contextual)' : 'WRONG');
+game.wheel.tapT = 1.0;                                  // held, not tapped
+flick('up'); release();
+console.log('  flick up (FIRST AID): order=' + op.order.type,
+            op.order.type === 'selfaid' ? 'CORRECT' : 'WRONG');
+let t3 = 0; const hp0 = op.hp;
+while (op.order.type === 'selfaid' && t3 < 8) { updateSquaddie(op, 1 / 30); t3 += 1 / 30; }
+console.log('  ' + t3.toFixed(1) + 's later: hp ' + hp0 + ' -> ' + op.hp,
+            op.hp === hp0 + TUNE.selfAidHeal && t3 >= TUNE.selfAidTime ? 'CORRECT (a third of him back)' : 'WRONG');
+// tap still selects
+openWheelAt(game.squad[1].x, game.squad[1].y);
+game.wheel.tapT = 0.05; release();
+console.log('  a quick tap on a man still selects: ' + game.selected.has(1),
+            game.selected.has(1) ? 'CORRECT (muscle memory kept)' : 'WRONG');
+game.selected.clear(); initGame();
+console.log('CHAINED WHEEL TEST DONE');
+})();

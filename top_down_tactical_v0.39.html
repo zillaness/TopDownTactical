@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.38.html
-  version: 0.38
+  file: top_down_tactical_v0.39.html
+  version: 0.39
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.38 (working title)</title>
+<title>Top-Down Tactical v0.39 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.38 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.39 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -504,6 +504,11 @@ const TUNE = {
   gunLen: { default: 14, "MP5 SMG": 10, "SHOTGUN": 13, "SQUAD AUTOMATIC": 16,
             "MARKSMAN RIFLE": 18, "SIDEARM": 7, "EMPLACED M2": 24 },
   gunLenCan: 7,
+  // The chained wheel: flick past wheelCommit and the slot LOCKS — the wheel
+  // re-anchors under the cursor and the next ring opens. Release anywhere to
+  // run what you have; every ring has a sane default.
+  wheelCommit: 52,
+  selfAidTime: 4.0, selfAidHeal: 30,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -4437,19 +4442,43 @@ function issueOrders() {
       return;
     }
     if (man) {
-      const i = game.squad.indexOf(man);
-      if (game.selected.has(i)) game.selected.delete(i); else game.selected.add(i);
-      game.hint = game.selected.size
-        ? "#" + [...game.selected].map(j => opNumber(game.squad[j])).sort().join(" #") + " selected — right-click where to go"
-        : "whole team";
-      game.wheel = null;
+      // a TAP still toggles selection; HOLDING opens this man's own ring
+      // (first aid / move him / security / on me) — contextual, per Sam
+      game.wheel = { sx: input.mouse.rx, sy: input.mouse.ry,
+                     wx: input.mouse.wx, wy: input.mouse.wy, dir: null,
+                     menu: "operator", op: man, tapT: 0 };
     } else {
       game.wheel = { sx: input.mouse.rx, sy: input.mouse.ry,
-                     wx: input.mouse.wx, wy: input.mouse.wy, dir: null };
+                     wx: input.mouse.wx, wy: input.mouse.wy, dir: null,
+                     menu: "root", chain: {} };
     }
   }
   if (game.wheel) {
-    game.wheel.dir = wheelDirection();
+    const w = game.wheel;
+    w.dir = wheelDirection();
+    if (w.tapT !== undefined) w.tapT += 1 / 60;
+    // locking a slot: flick past wheelCommit and the choice sticks — the wheel
+    // re-anchors under the cursor and the next ring opens
+    if (w.dir && !released("rmb")) {
+      const dx = input.mouse.x - w.sx, dy = input.mouse.y - w.sy;
+      const far = Math.hypot(dx, dy) > TUNE.wheelCommit || input.padDir;
+      if (far) {
+        const items = wheelMenuItems(w);
+        const item = items.find(it => it.dir === w.dir);
+        if (item && item.next) {
+          if (w.menu === "root" || w.menu === "operator") w.chain = w.chain || {};
+          if (w.menu === "gait") w.chain.gait = item.name.toLowerCase();
+          w.menu = item.next;
+          w.sx = input.mouse.x; w.sy = input.mouse.y; w.dir = null;
+          input.padDir = null;
+        } else if (w.menu === "root" && w.dir === "right") {
+          // root's right slot IS the movement branch
+          w.menu = "gait"; w.chain = w.chain || {};
+          w.sx = input.mouse.x; w.sy = input.mouse.y; w.dir = null;
+          input.padDir = null;
+        }
+      }
+    }
     if (released("rmb")) {
       // no selection means the whole team — you should not have to select to command
       const team = selectedSquaddies();
@@ -4458,7 +4487,48 @@ function issueOrders() {
       const dir = game.wheel.dir;
       game.wheel = null;
       if (!cmd.length) { game.hint = "No one left to command"; return; }
-      const item = dir && WHEEL.find(w => w.dir === dir);
+      const menuName = w.menu || "root";
+      const chain = w.chain || {};
+      const opTarget = w.op || null;
+      const tapT = w.tapT || 0;
+      // operator ring: a quick TAP is still just select-toggle
+      if (menuName === "operator") {
+        if (!dir && tapT < 0.22) {
+          const i2 = game.squad.indexOf(opTarget);
+          if (game.selected.has(i2)) game.selected.delete(i2); else game.selected.add(i2);
+          game.hint = game.selected.size
+            ? "#" + [...game.selected].map(j => opNumber(game.squad[j])).sort().join(" #") + " selected — right-click where to go"
+            : "whole team";
+          return;
+        }
+        const item2 = dir && WHEEL_OPERATOR.find(it => it.dir === dir);
+        if (item2 && !item2.next) {
+          game.hint = runOperatorWheel(item2, opTarget, ctx);
+          game.lastPlay = { name: item2.name, t: 2.2 };
+          return;
+        }
+        return;   // held with no flick over a man: do nothing rather than surprise
+      }
+      if (menuName === "gait") {
+        const item2 = dir && WHEEL_GAIT.find(it => it.dir === dir);
+        const gaitCmd = opTarget ? [opTarget] : cmd;
+        if (item2 && item2.exec) { game.hint = item2.exec(gaitCmd, ctx); game.lastPlay = { name: item2.name, t: 2.2 }; game.lastOrderMark = { x: ctx.x, y: ctx.y, t: 2.2 }; return; }
+        const gait = item2 ? item2.name.toLowerCase() : "bump";
+        game.hint = orderMoveChain(gaitCmd, ctx.x, ctx.y, gait, "overwatch");
+        game.lastPlay = { name: gait.toUpperCase(), t: 2.2 };
+        game.lastOrderMark = { x: ctx.x, y: ctx.y, t: 2.2 };
+        return;
+      }
+      if (menuName === "posture") {
+        const item2 = dir && WHEEL_POSTURE.find(it => it.dir === dir);
+        const posture = item2 ? item2.posture : "overwatch";
+        const gaitCmd = opTarget ? [opTarget] : cmd;
+        game.hint = orderMoveChain(gaitCmd, ctx.x, ctx.y, chain.gait || "bump", posture);
+        game.lastPlay = { name: (chain.gait || "bump").toUpperCase() + " + " + posture.toUpperCase(), t: 2.2 };
+        game.lastOrderMark = { x: ctx.x, y: ctx.y, t: 2.2 };
+        return;
+      }
+      const item = dir && WHEEL.find(w3 => w3.dir === dir);
       const trtUnder = !dir && nearestEntity(level.turrets, ctx.x, ctx.y, 30, t2 => !t2.manned);
       if (trtUnder) {
         const gunner = cmd.reduce((a2, b2) => dist(a2.x, a2.y, trtUnder.x, trtUnder.y) < dist(b2.x, b2.y, trtUnder.x, trtUnder.y) ? a2 : b2);
@@ -4735,6 +4805,86 @@ const WHEEL = [
     run(team) { return runPlay("3", team, {}); },
     label() { return "FORM ON ME"; } },
 ];
+
+// ---- BETA: the chained wheel. Sam's spec, nearly verbatim: "right is
+// movement, then up is bumping instead of bounding, and then right again on
+// the third menu is hold overwatch at their destination." Flick far enough
+// and the slot locks; the wheel re-anchors and the next ring opens. Release
+// at ANY depth runs what you have — every ring defaults sanely.
+const WHEEL_GAIT = [
+  { dir: "up",    name: "BUMP",  next: "posture", label: () => "BUMP — fast and loud" },
+  { dir: "right", name: "BOUND", exec: (team, ctx) => runPlay("6", team, { point: { x: ctx.x, y: ctx.y } }),
+    label: () => "BOUND — leapfrog" },
+  { dir: "down",  name: "SNEAK", next: "posture", label: () => "SNEAK — slow and quiet" },
+  { dir: "left",  name: "PEEL",  exec: (team, ctx) => runPlay("5", team, { point: { x: ctx.x, y: ctx.y } }),
+    label: () => "PEEL — fall back shooting" },
+];
+const WHEEL_POSTURE = [
+  { dir: "right", name: "OVERWATCH", posture: "overwatch", label: () => "then OVERWATCH onward" },
+  { dir: "down",  name: "SECURITY",  posture: "security",  label: () => "then 360 SECURITY" },
+  { dir: "up",    name: "BREACH",    posture: "breach",    label: (ctx) => nearestDoor(ctx.x, ctx.y, 90) ? "then BREACH the door there" : "then OVERWATCH (no door there)" },
+  { dir: "left",  name: "QUIET",     posture: "quiet",     label: () => "then hold, weapons tight" },
+];
+// right-clicking ON an able operator opens HIS ring instead of selecting
+const WHEEL_OPERATOR = [
+  { dir: "up",   name: "FIRST AID", label: (ctx) => ctx.op && ctx.op.hp < ctx.op.maxHp ? "FIRST AID — self-bandage" : "FIRST AID — (he is fine)" },
+  { dir: "right", name: "MOVE", next: "gait", label: () => "MOVE HIM…" },
+  { dir: "down", name: "SECURITY", label: () => "HOLD & PULL SECURITY" },
+  { dir: "left", name: "ON ME", label: () => "FALL IN ON ME" },
+];
+
+function wheelMenuItems(w) {
+  return w.menu === "gait" ? WHEEL_GAIT
+       : w.menu === "posture" ? WHEEL_POSTURE
+       : w.menu === "operator" ? WHEEL_OPERATOR
+       : WHEEL;
+}
+
+// The chain's final act: a move with a gait and an arrival posture.
+function orderMoveChain(team, x, y, gait, posture) {
+  if (posture === "breach") {
+    const d = nearestDoor(x, y, 90);
+    if (d && d.state !== "breached") return runPlay("1", team, { door: d, point: { x, y } });
+    posture = "overwatch";
+  }
+  const face = angleTo(team[0] ? team[0].x : x, team[0] ? team[0].y : y, x, y);
+  const n = Math.max(1, team.length);
+  team.forEach((s, i) => {
+    removeFromPlans(s);
+    const off = i === 0 ? { x: 0, y: 0 } : { x: Math.cos(i * 2.4) * 28, y: Math.sin(i * 2.4) * 28 };
+    const pt = nearestPassable(x + off.x, y + off.y);
+    s.order = { type: "move", x: pt.x, y: pt.y, face,
+                quiet: gait === "sneak", fast: gait === "bump",
+                posture, pi: i, n };
+    s.path = null;
+  });
+  game.pie = null; game.bound = null;
+  bark(team[0], gait === "sneak" ? "SNEAKING UP" : "BUMPING UP!");
+  return (gait === "sneak" ? "SNEAK" : "BUMP") + " — then " + (posture || "hold");
+}
+
+function runOperatorWheel(item, op, ctx) {
+  if (!op || !op.alive || op.downed) return "";
+  removeFromPlans(op);
+  if (item.name === "FIRST AID") {
+    op.order = { type: "selfaid", t: 0 };
+    op.path = null;
+    bark(op, "PATCHING UP");
+    return op.name + " — self-aid, he is out of it for " + TUNE.selfAidTime + "s";
+  }
+  if (item.name === "SECURITY") {
+    op.order = { type: "hold", face: op.face, sector: deg(120) };
+    op.path = null;
+    bark(op, "HOLDING SECURITY");
+    return op.name + " — holding and pulling security";
+  }
+  if (item.name === "ON ME") {
+    op.order = { type: "follow" };
+    op.path = null;
+    return op.name + " — falling in";
+  }
+  return "";
+}
 
 function runPlay(key, team, ctx) {
   const play = PLAYS.find(p => p.key === key);
@@ -5111,7 +5261,7 @@ function updateSquaddie(s, dt) {
     const mayFire = executingEntry || s.roe === "free"
       || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0 || game.alarm));
     const canShoot = clearShot(s, threat);
-    const handsInWound = s.order.type === "aid" && s._aidT > 0;   // mid-treatment: he is a medic, not a gun
+    const handsInWound = (s.order.type === "aid" && s._aidT > 0) || s.order.type === "selfaid";   // hands busy, not a gun
     if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0 && !handsInWound) {
       tryFire(s, s.turret ? clampToArc(s.turret, aimAngle(s, threat.x, threat.y))
                           : aimAngle(s, threat.x, threat.y));
@@ -5252,10 +5402,26 @@ function updateSquaddie(s, dt) {
     case "move": {
       // A quiet order walks. moveAlongPath only emits footsteps above 100px/s,
       // so TUNE.squadWalk buys silence for free — it had been declared and
-      // never referenced anywhere in the file.
-      const spd = s.order.quiet ? TUNE.squadWalk : TUNE.squadRun;
+      // never referenced anywhere in the file. A BUMP is nearly a sprint.
+      const spd = s.order.quiet ? TUNE.squadWalk : s.order.fast ? TUNE.playerSprint * 0.9 : TUNE.squadRun;
       const arrived = squadMove(s, s.order.x, s.order.y, spd, dt);
-      if (arrived) { s.order = { type: "hold", face: s.order.face }; }
+      if (arrived) {
+        const o = s.order;
+        if (o.posture === "security") s.order = { type: "hold", face: (TAU / Math.max(1, o.n || 1)) * (o.pi || 0), sector: TAU / Math.max(1, o.n || 1) };
+        else if (o.posture === "overwatch") s.order = { type: "hold", face: o.face, sector: deg(80) };
+        else s.order = { type: "hold", face: o.face };
+      }
+      break;
+    }
+    // Field dressing, by his own hands: four seconds out of the fight for a
+    // third of his health back. Not a tourniquet — a downed man cannot do this.
+    case "selfaid": {
+      s.order.t = (s.order.t || 0) + dt;
+      if (s.order.t >= TUNE.selfAidTime) {
+        s.hp = Math.min(s.maxHp, s.hp + TUNE.selfAidHeal);
+        s.order = { type: "hold", face: s.face };
+        bark(s, "GOOD TO GO");
+      }
       break;
     }
     case "hold": {
@@ -6626,12 +6792,21 @@ function drawWheel() {
 
   const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   ctx.textAlign = "center";
-  for (const item of WHEEL) {
+  // breadcrumb: which ring you are in, and what you have locked so far
+  if (w.menu && w.menu !== "root") {
+    ctx.font = "bold 12px Consolas, monospace"; ctx.fillStyle = COLORS.accent;
+    const crumb = w.menu === "gait" ? (w.op ? w.op.name + " — MOVE…" : "MOVE…")
+                : w.menu === "posture" ? ((w.chain && w.chain.gait) || "bump").toUpperCase() + " → then…"
+                : w.op ? w.op.name : "";
+    ctx.fillText(crumb, w.sx, w.sy - R - 44);
+  }
+  const c2ctx = Object.assign({}, c, { op: w.op || null });
+  for (const item of wheelMenuItems(w)) {
     const off = OFF[item.dir];
     const x = w.sx + off[0] * R, y = w.sy + off[1] * R;
     const on = w.dir === item.dir;
     ctx.fillStyle = on ? "rgba(232,181,58,0.22)" : "rgba(6,9,12,0.85)";
-    const label = item.label(c, cmd);
+    const label = item.label(c2ctx, cmd);
     ctx.font = "bold 13px Consolas, monospace";
     const bw = Math.max(ctx.measureText(label).width, 90) + 22;
     ctx.fillRect(x - bw / 2, y - 17, bw, 34);
@@ -8118,6 +8293,23 @@ requestAnimationFrame(frame);
     draws the team's interlocking sectors — green for watching, red for
     suppressing and peel-cover, amber for a manned gun's arc, formation sectors
     riding the point man's facing. A downed man draws nothing, honestly.
+  v0.39 (2026-08-14): THE CHAINED WHEEL, Sam's spec nearly verbatim: "right is
+    movement, then up is bumping instead of bounding, and then right again on
+    the third menu is hold overwatch at their destination." Flick past
+    wheelCommit (52px) and the slot LOCKS — the wheel re-anchors under the
+    cursor and the next ring opens; release at ANY depth runs what you have,
+    with sane defaults (bump, then overwatch). The rings: root (TAKE IT / MOVE…
+    / HOLD / ON ME — a SHORT flick right still fires BOUND directly, so the old
+    muscle memory survives), gait (BUMP fast-and-loud at near-sprint / BOUND /
+    SNEAK quiet / PEEL), posture (OVERWATCH onward with an 80-degree sector /
+    360 SECURITY split by team size / BREACH if a door is near the destination
+    / weapons-tight QUIET). And the wheel is CONTEXTUAL: opened on a wall it
+    still reads BREACH THAT WALL, on a casualty it still assigns the medic, and
+    NEW — held on an able operator it opens HIS ring: FIRST AID (four seconds
+    kneeling, hands off the gun, a third of his health in field dressing),
+    MOVE HIM… (the same gait/posture chain, solo), HOLD & PULL SECURITY, ON
+    ME. A quick tap on a man still just selects him. Pad note: d-pad chains
+    inherit the mouse paths; a bare A press keeps the old one-ring behavior.
 -->
 </body>
 </html>
