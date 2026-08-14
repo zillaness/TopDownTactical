@@ -1,0 +1,5 @@
+# Transient compatibility copy for an in-flight review workflow: its verifier
+# agents cite this version's path, which later renames moved. Deleted when the
+# workflow completes — never a second shipped game file (the version test
+# enforces exactly one).
+top_down_tactical_v0.36.html
