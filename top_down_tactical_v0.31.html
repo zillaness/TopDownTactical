@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.30.html
-  version: 0.30
+  file: top_down_tactical_v0.31.html
+  version: 0.31
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.30 (working title)</title>
+<title>Top-Down Tactical v0.31 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.30 prototype &mdash; working title &mdash; seventeen missions</h2>
+  <h2>v0.31 prototype &mdash; working title &mdash; seventeen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -476,6 +476,10 @@ const TUNE = {
   // rooftops, never through one. The FPV is a frag with a camera: you fly it,
   // the world hears it, and while the goggles are down you are a statue.
   isrRadius: 180, isrTime: 24, isrOrbit: 48,
+  // FIELD TEST — security cameras. A fixed cone that dwells before it calls:
+  // cross it for a beat and the garrison learns where you were. Kill it loud
+  // (any round) or snip it quiet ([E] underneath).
+  camRange: 250, camFov: deg(72), camDwell: 1.2, camRecall: 4,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -1332,7 +1336,7 @@ const MAPS = [
 "#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,#",
 "#,,,,,,,,#######W###W#######,,,,,,,,,,,#",
 "#,,,,,,,,#........#........#,,,,,,,,,,,#",
-"#,,,,,,,,#..g.....#....g...#,,,,,,,,,,,#",
+"#,,,,,,,,#..g.....#....g..k#,,,,,,,,,,,#",
 "#,,,,,,,,#........D........W,,,,,,,,,,,#",
 "#,,,,,,,,####D#####....E...#,,,,,,,,,,,#",
 "#,,,,,,,,#........#........#,,,,,,,,,,,#",
@@ -1341,7 +1345,7 @@ const MAPS = [
 "#,,,,,,,,W........D...g....#,,,,,,,,,,,#",
 "#,,,,,,,,#........#........#,,,,,,,,,,,#",
 "#,,,,,,,,######L###W###W####,,,,,,,,,,,#",
-"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,#",
+"#,,,t,,,,,,,,,,,k,,,,,,,,,,,,,,,t,,,,,,#",
 "#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,#",
 "#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -1367,12 +1371,12 @@ const MAPS = [
 "#,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,ttt,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,======,================#",
-"#,,,,,,,,,ttt,,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,,,ttt,,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,k,,,,,,,,,,,,,,=#",
 "#,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
 "#,,ttt,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,=,,####D####,,,,,,,,,,=#",
 "#,ttttt,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,=,,#.......#,,,,,,,,,,=#",
 "#,,tttP,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,=,,W.g.....#,,###W####=#",
-"#,X,,,,,,,,,,,,,,,,,,,,,,####D####,,,,,,,,,,,,,,=,,#.....p.#,,#......#=#",
+"#,X,,,,,,,,,,,,,,,,,,,,,,####D####,,,,,,,,,,,,,,=,,#.....p.#,,#k.....#=#",
 "#,X,,,,,tt,,,,,,,,,,,,,,,#.......#,,p,,,,,,,,,,,=,,#.......#,,#......#=#",
 "#,,,,s,stt,,,,,,,,,,,,,,,#.......W,,,,,,,,,,,,,,=,,#########,,#.E....#=#",
 "#,,,,,s,,,,,,,,,,,,,,,,,,W..g....#,,,,,,,,,,,,,,=,,,,,,,,,,,,,#......#=#",
@@ -1405,7 +1409,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@t,.BDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@t,.kBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -1439,7 +1443,7 @@ const level = {
 function parseLevel() {
   const rows = MAP_SRC;
   level.h = rows.length; level.w = rows[0].length;
-  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = [];
+  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
   level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [] };
@@ -1470,6 +1474,16 @@ function parseLevel() {
       continue;
     }
     if (ch !== ",") level.interior[y][x] = 1;
+    if (ch === "k") {
+      // mounted on the adjacent wall, watching the other way
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      let face = Math.PI / 2;
+      for (const [ox, oy] of dirs) {
+        const r2 = rows[y + oy]; const ch2 = r2 && r2[x + ox];
+        if (ch2 && "#=-%@t".includes(ch2)) { face = Math.atan2(-oy, -ox); break; }
+      }
+      level.cameras.push({ x: cx, y: cy, tx: x, ty: y, face, alive: true, dwell: 0, recallT: 0 });
+    }
     if (ch === "P") level.spawns.player = { x: cx, y: cy };
     else if (ch === "s") level.spawns.squad.push({ x: cx, y: cy });
     else if (ch === "g") level.spawns.enemies.push({ x: cx, y: cy, kind: "guard" });
@@ -2237,6 +2251,37 @@ function launchISR(wx, wy) {
   sfxAt("click", game.player.x, game.player.y);
 }
 
+// FIELD TEST: the cameras watch for the garrison. Dwell before the call is
+// the counterplay window — cross a cone fast and you were a flicker; stand in
+// it and three men learn exactly where you stood.
+function updateCameras(dt) {
+  for (const cam of level.cameras) {
+    if (!cam.alive) continue;
+    cam.recallT = Math.max(0, cam.recallT - dt);
+    let spotted = null;
+    for (const tgt of [game.player, ...game.squad]) {
+      if (!tgt || !tgt.alive || tgt.downed) continue;
+      if (canSee(cam.x, cam.y, tgt.x, tgt.y, TUNE.camRange, cam.face, TUNE.camFov)) { spotted = tgt; break; }
+    }
+    if (!spotted) { cam.dwell = Math.max(0, cam.dwell - dt * 1.5); continue; }
+    cam.dwell += dt;
+    if (cam.dwell >= TUNE.camDwell && cam.recallT <= 0) {
+      cam.recallT = TUNE.camRecall;
+      const near = game.enemies.filter(e => e.alive && e.state !== "surrender" && e.state !== "cuffed")
+        .sort((a2, b2) => dist(a2.x, a2.y, cam.x, cam.y) - dist(b2.x, b2.y, cam.x, cam.y)).slice(0, 3);
+      for (const e of near) alertEnemy(e, spotted.x, spotted.y);
+      game.hint = "CAMERA — you are burned, they know where you were";
+      game.fx.push({ kind: "shout", x: cam.x, y: cam.y, t: 0.5, max: 0.5 });
+      sfxAt("click", cam.x, cam.y);
+    }
+  }
+}
+
+function snipCamera(cam) {
+  cam.alive = false; cam.dwell = 0;
+  game.fx.push({ kind: "spark", x: cam.x, y: cam.y, t: 0.2, max: 0.2 });
+}
+
 function updateISR(dt) {
   const d = game.isr; if (!d) return;
   d.t -= dt; d.ang += dt * 1.5; d.tick -= dt;
@@ -2374,6 +2419,8 @@ function playerInteract(p) {
   // priority: casualty > cuff surrendered > secure hostage > door
   const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed && !s.stabilized);
   if (cas) return;                            // the [E] HOLD owns this — do not open a door over him
+  const cam = nearestEntity(level.cameras, p.x, p.y, 42, c2 => c2.alive);
+  if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
@@ -2627,6 +2674,18 @@ function updateBullets(dt) {
       const hit = raycast(b.x, b.y, b.ang, budget, blocksBullet);
       const ex = hit.hit ? hit.x : b.x + Math.cos(b.ang) * budget;
       const ey = hit.hit ? hit.y : b.y + Math.sin(b.ang) * budget;
+      // a camera is a tiny hard target on the wall — any round takes it off
+      for (const cam of level.cameras) {
+        if (!cam.alive) continue;
+        if (segCircle(b.x, b.y, ex, ey, cam.x, cam.y, 9)) {
+          snipCamera(cam);
+          addNoise(cam.x, cam.y, 180, "glass", b.side);
+          sfxAt("glass", cam.x, cam.y);
+          b.alive = false;
+          break;
+        }
+      }
+      if (!b.alive) break;
       const victim = firstEntityOnSegment(b, ex, ey);
       if (victim) {
         game.fx.push({ kind: "tracer", x: b.x, y: b.y, x2: victim.x, y2: victim.y, t: 0.06, max: 0.06 });
@@ -5079,6 +5138,9 @@ function render() {
     if (!seen.grid[d.ty][d.tx]) continue;
     drawDoor(d);
   }
+  for (const cam of level.cameras) {
+    drawCamera(cam);
+  }
 
   // corpses (visible under normal rules, but keep once seen — they don't move)
   for (const e of [...game.enemies, ...game.civilians, ...game.hostages]) {
@@ -5468,6 +5530,34 @@ function deadSettle(e) {
   if (!e.deadAt && e.deadAt !== 0) return { k: 1, scale: 0.85, spin: 0 };
   const k = clamp(((game.stats ? game.stats.time : 0) - e.deadAt) / 0.35, 0, 1);
   return { k, scale: 1 - 0.15 * k, spin: (e.deadSpin || 0) * k };
+}
+
+function drawCamera(cam) {
+  if (!seen.grid[cam.ty] || !seen.grid[cam.ty][cam.tx]) return;
+  ctx.save();
+  ctx.translate(cam.x, cam.y);
+  if (cam.alive) {
+    // the cone is the counterplay: fun over realism, per the minimap ruling
+    const g2 = ctx.createRadialGradient(0, 0, 8, 0, 0, TUNE.camRange);
+    g2.addColorStop(0, "rgba(255,85,85,0.10)"); g2.addColorStop(1, "rgba(255,85,85,0)");
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, TUNE.camRange, cam.face - TUNE.camFov / 2, cam.face + TUNE.camFov / 2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.rotate(cam.face);
+  ctx.fillStyle = cam.alive ? "#2c333a" : "#20242a";
+  ctx.fillRect(-6, -4, 10, 8);
+  ctx.fillRect(4, -2.5, 4, 5);
+  if (cam.alive) {
+    const blink = (game.stats.time % 1.6) < 0.8;
+    ctx.fillStyle = blink ? COLORS.danger : "#5a2020";
+    ctx.beginPath(); ctx.arc(-3, 0, 1.6, 0, TAU); ctx.fill();
+  } else {
+    ctx.strokeStyle = "#5a6570"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-6, -5); ctx.lineTo(6, 5); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawDoor(d) {
@@ -6426,6 +6516,7 @@ function update(dt) {
   updateSmokes(dt);
   updateGasEffects(dt);
   updateISR(dt);
+  updateCameras(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -7419,6 +7510,18 @@ requestAnimationFrame(frame);
     blast. While the goggles are down YOU ARE A STATUE — the man stands exactly
     where he knelt, unable to move or shoot, which is the whole risk of the
     tool.
+  v0.31 (2026-08-14): FIELD TEST — SECURITY CAMERAS, the enemy's counter-intel.
+    New map glyph k: a camera mounts on its adjacent wall and watches the other
+    way, a fixed 72-degree cone with 250px of reach, drawn faintly on the floor
+    because the cone IS the counterplay (fun over realism, same ruling as the
+    minimap). Cross it fast and you were a flicker; stand in it for 1.2s and it
+    calls — the three nearest suspects alert onto the exact spot you were
+    standing, and it calls again every 4s until you deal with it. Two ways to
+    deal with it: any round takes it off the wall loudly (glass noise), or walk
+    underneath and [E] snips it silently. A downed man is not spotted. Mounted
+    on THE STANDOFF (the yard approach and the right-front room) and THE LONG
+    WALK (the town's north-gate courtyard and the principal's room). Tuning
+    open: dwell time, recall interval, and which older maps deserve them.
 -->
 </body>
 </html>

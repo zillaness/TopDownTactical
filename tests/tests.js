@@ -2606,3 +2606,64 @@ console.log('  LMB: detonated=' + !game.fpv + ', man beside it ' + (foe2.alive ?
 game.mapIndex = 0; initGame();
 console.log('DRONE TEST DONE');
 })();
+
+(function cameraTests(){
+console.log('--- FIELD TEST: security cameras ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE STANDOFF'); initGame(); game.state = 'play';
+
+console.log('  THE STANDOFF mounts ' + level.cameras.length + ' cameras',
+            level.cameras.length === 2 ? 'CORRECT' : 'WRONG');
+const yardCam = level.cameras.reduce((a, b) => a.y > b.y ? a : b);
+console.log('  yard camera faces ' + (Math.abs(angDiff(yardCam.face, Math.PI / 2)) < 0.1 ? 'south (the approach)' : yardCam.face.toFixed(2)),
+            Math.abs(angDiff(yardCam.face, Math.PI / 2)) < 0.1 ? 'CORRECT (away from its wall)' : 'WRONG');
+
+// stand in the cone: dwell, then the garrison learns
+const P = game.player;
+P.x = yardCam.x + Math.cos(yardCam.face) * 100; P.y = yardCam.y + Math.sin(yardCam.face) * 100;
+game.enemies.forEach(e => { e.alerted = false; e.state = 'idle'; });
+let t = 0;
+while (t < 3 && !game.enemies.some(e => e.alerted)) { updateCameras(1 / 30); t += 1 / 30; }
+const alerted = game.enemies.filter(e => e.alerted).length;
+console.log('  stood in the cone: burned after ' + t.toFixed(1) + 's, ' + alerted + ' suspects alerted',
+            t > TUNE.camDwell - 0.2 && t < TUNE.camDwell + 0.6 && alerted >= 1 && alerted <= 3
+              ? 'CORRECT (dwell, then the call)' : 'WRONG');
+
+// a fast crossing is a flicker, not a call
+initGame(); game.state = 'play';
+const cam2 = level.cameras.reduce((a, b) => a.y > b.y ? a : b);
+game.player.x = cam2.x + Math.cos(cam2.face) * 100; game.player.y = cam2.y + Math.sin(cam2.face) * 100;
+// the squad spawns at the police line — exactly what a yard camera watches, as
+// the first draft of this test discovered. Park them out of frame.
+game.squad.forEach((sq, i) => { sq.x = cam2.x - 400; sq.y = cam2.y - 400 + i * 30; });
+game.enemies.forEach(e => { e.alerted = false; e.state = 'idle'; });
+for (let i = 0; i < 15; i++) updateCameras(1 / 30);      // half a second
+game.player.x = cam2.x - 300;                             // gone
+for (let i = 0; i < 90; i++) updateCameras(1 / 30);
+console.log('  crossed it in 0.5s: alerted=' + game.enemies.some(e => e.alerted) + ', dwell decayed to ' + cam2.dwell.toFixed(2),
+            !game.enemies.some(e => e.alerted) && cam2.dwell === 0 ? 'CORRECT (a flicker)' : 'WRONG');
+
+// any round takes it off the wall — loudly
+game.bullets.push({ x: cam2.x - 60, y: cam2.y, ang: 0, speed: 1500, dmg: 30, pen: 26,
+                    side: 'player', traveled: 0, range: 300, alive: true, ox: cam2.x - 60, oy: cam2.y });
+game.noises.length = 0;
+for (let i = 0; i < 10 && cam2.alive; i++) updateBullets(1 / 120);
+console.log('  shot: camera dead=' + !cam2.alive + ', glass noise=' +
+            game.noises.some(n => n.type === 'glass'),
+            !cam2.alive && game.noises.some(n => n.type === 'glass') ? 'CORRECT (loud option)' : 'WRONG');
+
+// the quiet option: walk under it and snip
+initGame(); game.state = 'play';
+const cam3 = level.cameras[0];
+game.player.x = cam3.x + 10; game.player.y = cam3.y;
+game.noises.length = 0;
+playerInteract(game.player);
+console.log('  [E] underneath: dead=' + !cam3.alive + ', noises made=' + game.noises.length,
+            !cam3.alive && game.noises.length === 0 ? 'CORRECT (quiet option)' : 'WRONG');
+
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE LONG WALK'); initGame();
+console.log('  THE LONG WALK town mounts ' + level.cameras.length,
+            level.cameras.length === 2 ? 'CORRECT' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('CAMERA TEST DONE');
+})();
