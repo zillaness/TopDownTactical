@@ -65,6 +65,48 @@ item recorded: separate muzzle point from eyePoint. Suggested next session:
 Sam plays THE LANDING with RIFLE SQUAD (9) + suppressors — every system this
 night built points at that one mission.
 
+## Sam's 2026-08-13 list — triage (shipped / designed / researched)
+
+SHIPPED same day: casualties + tourniquet + retreat (v0.23), urban Iraq map,
+forest map, barricaded-suspect siege map, DMR zoom (v0.24), sprite improvement
+per reference sheet (v0.25). Earlier same day: 40mm, rifle squad, CS gas,
+suppressors (v0.19–0.22). Smoke grenades: confirmed working — bag slot RIGHT,
+rasterized into the vision grid (37 cells at full growth), squad AI throws them
+to cross open ground on bounds.
+
+### Designed, not yet built (ranked)
+1. ☐ ISR drone: hold a wheel slot or key, drone orbits a point you pick, paints
+   last-known contacts through the fog (shared-vision system already supports a
+   second viewer — punch its polygon like a squaddie's). Battery as the budget.
+2. ☐ Security cameras: mapped fixed-cone viewers for the ENEMY — being seen by
+   one starts the callout chain, shooting/disabling it is a noise trade. Then
+   "disable the cameras first" as a mission modifier. Needs enemy-side shared
+   vision, which callouts already approximate.
+3. ☐ Fire support (mortar/arty/airstrike): call a grid on the wheel → delay →
+   danger-close pattern lands. Balance: outdoor maps only, limited tubes,
+   friendly-fire is fully live (incident ledger already attributes it).
+4. ☐ 9-line medevac: extends v0.23 — a stabilized casualty becomes a carry to a
+   marked LZ instead of auto-surviving at debrief; mission keeps running while
+   two men are off the line carrying. Big, build after a playtest of v0.23.
+5. ☐ Kamikaze drone: pilotable frag with the snake-cam control feel.
+6. ☐ Two-story houses: needs a floor-layer engine lift (z per tile, stair
+   tiles, per-floor fog). Largest single item on the list — its own session.
+7. ☐ Mounted combat + turrets: vehicles as spawn-and-support platforms first
+   (dismount at the door, mountable turret = fixed heavy gun with a cone), not
+   drivable. QRF/recon/infil-exfil mission types ride on this.
+8. ☐ Multiple home layouts: cheap now that maps are grid-generated — a batch of
+   3-4 house variants for THE STANDOFF rotation.
+9. ☐ Muzzle point separate from eyePoint (suppressor corner cost, from v0.22).
+
+### Researched: US mounted squad organization (for vehicle missions)
+- STRYKER ICV: 2 crew (driver + vehicle commander) and carries a FULL 9-man
+  rifle squad — maps 1:1 onto our RIFLE SQUAD (9). The natural mounted mission.
+- M2 BRADLEY IFV: 3 crew (commander, gunner, driver) + 6-7 dismounts (M2A2
+  ODS six, M2A3 seven). A Bradley mission fields you + 6: SL + one fireteam
+  + a spare gun — a new "MECH SECTION (7)" template when built.
+- HMMWV gun truck: 4-5 — driver, TC, turret gunner, 1-2 dismounts. That is
+  the CURRENT 4-man team, which is why a Humvee mission needs no new org.
+
 ## Backlog (ranked, highest value-per-token first)
 
 1. ☑ Genre & doctrine research doc (`tactical_research_v1.0.md`)

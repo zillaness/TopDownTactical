@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.24.html
-  version: 0.24
+  file: top_down_tactical_v0.25.html
+  version: 0.25
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.24 (working title)</title>
+<title>Top-Down Tactical v0.25 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.24 prototype &mdash; working title &mdash; fifteen missions</h2>
+  <h2>v0.25 prototype &mdash; working title &mdash; fifteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -184,6 +184,115 @@ const SPRITES = {
   prop_wallcharge: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path data-part="cable" d="M23 26C14 17 20 11 32 18C44 11 50 17 41 27" fill="none" stroke="#14181c" stroke-width="5" stroke-linecap="round"/><path d="M23 26C14 17 20 11 32 18C44 11 50 17 41 27" fill="none" stroke="#6b6152" stroke-width="2" stroke-linecap="round"/><rect data-part="charge" x="20" y="25" width="24" height="23" rx="3" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="25" y="30" width="14" height="12" rx="1" fill="#14181c"/><circle cx="36" cy="32" r="2" fill="#9aa6b2"/><path d="M27 48V54H37V48" fill="none" stroke="#14181c" stroke-width="5" stroke-linecap="round"/><path d="M27 48V54H37V48" fill="none" stroke="#6b6152" stroke-width="2" stroke-linecap="round"/></svg>`,
   prop_mirror: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><path data-part="pole" d="M13 51L45 19" fill="none" stroke="#14181c" stroke-width="7" stroke-linecap="round"/><path d="M13 51L45 19" fill="none" stroke="#4a5560" stroke-width="3" stroke-linecap="round"/><circle data-part="handle" cx="13" cy="51" r="6" fill="#2c333a" stroke="#14181c" stroke-width="2"/><circle data-part="mirror" cx="46" cy="18" r="9" fill="#2c333a" stroke="#14181c" stroke-width="2"/><circle cx="46" cy="18" r="5.5" fill="#9aa6b2"/><path d="M43 15L48 20" fill="none" stroke="#c8b89a" stroke-width="1.5"/></svg>`,
 };
+
+// ---- SPRITE SET v3 — one body plan, per Sam's reference sheet. Every human is
+// generated from the same anatomy so the set stays consistent: torso ellipse
+// with both shoulders readable, a helmet/head ON TOP, and two ARMS actually
+// gripping the weapon, which is what the v2 blobs never had. Facing +X, pivot
+// (32,32), #TEAMCOLOR for the uniform so the faction swap still works, and the
+// weapon rides the +Y (right-shoulder) side so the handedness Y-flip reads.
+// Regenerating this block wholesale still works: the generator lives inside
+// the BEGIN/END markers and only overwrites the keys it names.
+(function buildHumans() {
+  const OUT = "#14181c", SKIN = "#c9a27a", HELM = "#2c333a", GEAR = "#4a5560", DARK = "#20262b";
+  const P = (d, fill, sw, st) => '<path d="' + d + '" fill="' + (fill || "none") + '"' +
+    (sw ? ' stroke="' + (st || OUT) + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round"' : '') + '/>';
+  const C = (x, y, r, fill, sw, st) => '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + fill + '"' +
+    (sw ? ' stroke="' + (st || OUT) + '" stroke-width="' + sw + '"' : '') + '/>';
+  const R = (x, y, w, h, rx, fill, sw, st) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" rx="' + (rx || 0) + '" fill="' + fill + '"' + (sw ? ' stroke="' + (st || OUT) + '" stroke-width="' + sw + '"' : '') + '/>';
+  const wrap = (inner) => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">' + inner + '</svg>';
+
+  // torso: shoulders across Y, vest on top, slight lean toward the gun
+  const torso = (opts) => {
+    let o = '<ellipse cx="29" cy="32" rx="8.5" ry="12.5" fill="#TEAMCOLOR" stroke="' + OUT + '" stroke-width="2"/>';
+    o += C(26.5, 21.5, 4.2, "#TEAMCOLOR", 1.5) + C(26.5, 42.5, 4.2, "#TEAMCOLOR", 1.5);   // shoulders
+    if (opts.vest) o += R(24, 25.5, 9.5, 13, 2, opts.vest, 1.5) + P("M25.5 28H33M25.5 32H33M25.5 36H33", null, 1, GEAR);
+    if (opts.pack) o += R(19.5, 26, 5.5, 12, 1.5, GEAR, 1.5);
+    return o;
+  };
+  // arms: support hand forward on the handguard, firing hand at the grip
+  const armsOnGun = (reach) =>
+    P("M27 21.5Q36 20 " + (43 + (reach || 0)) + " 27.5", null, 4.6, "#TEAMCOLOR") +
+    C(44 + (reach || 0), 28.5, 2.7, SKIN, 1.2) +
+    P("M27 42.5Q33 42 39.5 36", null, 4.6, "#TEAMCOLOR") + C(40, 35, 2.7, SKIN, 1.2);
+  // weapons: all muzzle +X, riding y≈31.5 so the right-shoulder mount reads
+  const guns = {
+    carbine: R(28.5, 30, 7, 3.2, 1, DARK, 1.2) + R(35, 29.3, 10.5, 4.4, 1, DARK, 1.5) +
+             R(40, 33.5, 3.4, 5.5, 1, DARK, 1.2) +
+             P("M45 31.5H56.5", null, 2.6, OUT) + P("M45.5 31.5H56", null, 1.2, GEAR) + P("M53.5 29.5V31", null, 1.4, OUT),
+    shotgun: R(28.5, 30.2, 7, 3, 1, "#5a4630", 1.2) + R(35, 29.5, 9, 4, 1, DARK, 1.5) +
+             P("M43.5 31.5H55.5", null, 3, OUT) + P("M44 33.4H51.5", null, 2, "#5a4630") + P("M52.5 29.6V31.2", null, 1.4, OUT),
+    saw:     R(27.5, 29.8, 8, 3.6, 1, DARK, 1.2) + R(34.5, 28.9, 12, 5.2, 1, DARK, 1.5) +
+             R(37.5, 34.4, 6, 6.5, 1, "#3a4048", 1.5) +                                 // belt box
+             P("M46 31.5H58", null, 3, OUT) + P("M46.5 31.5H57.5", null, 1.4, GEAR) +
+             P("M55 31.5L57.5 27.5M55 31.5L57.5 35.5", null, 1.3, GEAR),                 // bipod
+    dmr:     R(27.5, 30.1, 8.5, 3.2, 1, "#3d4a3a", 1.2) + R(35.5, 29.4, 10, 4.2, 1, DARK, 1.5) +
+             R(37.5, 27.2, 6.5, 2.6, 1, DARK, 1.2) +                                     // scope
+             R(41, 33.6, 3, 5, 1, DARK, 1.2) + P("M45 31.5H60", null, 2.2, OUT) + P("M45.5 31.5H59.5", null, 1, GEAR),
+    ak:      R(28.5, 30.1, 7, 3.2, 1, "#6b5535", 1.2) + R(35, 29.4, 9.5, 4.2, 1, DARK, 1.5) +
+             P("M39.5 33.5Q40.5 38.5 44 40.5L45.8 38.8Q42.5 36.5 42.6 33.5Z", "#6b5535", 1.3) +  // curved mag
+             P("M44 31.5H55.5", null, 2.4, OUT) + P("M44.5 31.5H55", null, 1.1, "#6b5535") + P("M52.5 29.7V31.2", null, 1.4, OUT),
+    pistol:  R(37, 30.3, 5.5, 3, 1, DARK, 1.3) + P("M42.5 31.8H47.5", null, 2.2, OUT),
+  };
+  // heads, drawn LAST so they sit over the shoulders and stock
+  const heads = {
+    helmet: (nvg) => C(30.5, 32, 7, HELM, 2) + P("M25.5 27.5Q23.8 32 25.5 36.5", null, 1.6, GEAR) +
+                     R(35.6, 29.6, 2.6, 4.8, 1, nvg ? "#3a4b3e" : GEAR, 1.3) +
+                     (nvg ? C(39.5, 30.6, 1.7, "#8affc1", 1) + C(39.5, 33.4, 1.7, "#8affc1", 1) : ""),
+    cap:    () => C(30.5, 32, 6.2, SKIN, 1.8) + P("M26 27Q31 24.4 36 27L36.8 29.5Q31 27.4 25.2 29.5Z", "#3d4a3a", 1.4) +
+                  P("M36 28.2L40 30", null, 1.6, "#3d4a3a"),
+    wrap:   () => C(30.5, 32, 6.4, SKIN, 1.8) + P("M25 29Q31 25.6 37 29L37 32Q31 29 25 32Z", "#8a8065", 1.3) +
+                  P("M25.5 34.5Q31 38 36.5 34.5", null, 2.2, "#8a8065"),
+    mask:   () => C(30.5, 32, 6.4, "#23282e", 1.8) + R(33.5, 29.8, 3.2, 4.4, 1.6, SKIN, 1),
+    bare:   () => C(30.5, 32, 6.2, SKIN, 1.8) + P("M26.5 28.5Q24.8 32 26.5 35.5", null, 2.4, "#5a4630"),
+    suit:   () => C(30.5, 32, 6.2, SKIN, 1.8) + P("M26 28.5Q24.4 32 26 35.5", null, 2.6, "#c9cdd2"),
+  };
+
+  const soldier = (head, gun, opts) => wrap(torso(opts || {}) + armsOnGun((opts || {}).reach) + guns[gun] + head());
+  SPRITES.player          = soldier(() => heads.helmet(false), "carbine", { vest: DARK });
+  SPRITES.squad_rifleman  = soldier(() => heads.helmet(false), "carbine", { vest: "#31424f" });
+  SPRITES.squad_breacher  = soldier(() => heads.helmet(false), "shotgun", { vest: "#31424f", pack: true });
+  SPRITES.squad_support   = soldier(() => heads.helmet(false), "saw",     { vest: "#31424f", pack: true });
+  SPRITES.player_nvg          = soldier(() => heads.helmet(true), "carbine", { vest: DARK });
+  SPRITES.squad_rifleman_nvg  = soldier(() => heads.helmet(true), "carbine", { vest: "#31424f" });
+  SPRITES.squad_breacher_nvg  = soldier(() => heads.helmet(true), "shotgun", { vest: "#31424f", pack: true });
+  SPRITES.squad_support_nvg   = soldier(() => heads.helmet(true), "saw",     { vest: "#31424f", pack: true });
+  SPRITES.enemy_guard     = soldier(() => heads.cap(),  "ak", {});
+  SPRITES.enemy_patrol    = soldier(() => heads.wrap(), "ak", {});
+  SPRITES.enemy_elite     = soldier(() => heads.helmet(false), "ak", { vest: "#3a2f3f" });
+  SPRITES.enemy_elite_nvg = soldier(() => heads.helmet(true),  "ak", { vest: "#3a2f3f" });
+  SPRITES.enemy_taker     = soldier(() => heads.mask(), "pistol", { vest: DARK });
+  // the principal: suit, empty hands half-raised
+  SPRITES.enemy_hvt = wrap(torso({ vest: "#262b31" }) +
+    P("M27 21.5Q34 17.5 41 20", null, 4.4, "#TEAMCOLOR") + C(42, 20.5, 2.7, SKIN, 1.2) +
+    P("M27 42.5Q34 46.5 41 44", null, 4.4, "#TEAMCOLOR") + C(42, 43.5, 2.7, SKIN, 1.2) +
+    P("M29 24.5L33 32L29 39.5", null, 1.6, "#7a2b2b") + heads.suit());
+  // hands wide and empty, weapon on the deck beside him
+  SPRITES.surrendered = wrap(torso({}) +
+    P("M27 21.5Q34 14.5 42 13.5", null, 4.4, "#TEAMCOLOR") + C(43, 13.5, 2.8, SKIN, 1.2) +
+    P("M27 42.5Q34 49.5 42 50.5", null, 4.4, "#TEAMCOLOR") + C(43, 50.5, 2.8, SKIN, 1.2) +
+    P("M18 42L28 47", null, 2, GEAR) + heads.bare());
+  // face down, wrists zip-tied over the small of the back
+  SPRITES.cuffed = wrap(
+    '<ellipse cx="30" cy="32" rx="8" ry="11.5" fill="#TEAMCOLOR" stroke="' + OUT + '" stroke-width="2" opacity="0.9"/>' +
+    P("M26 23Q20 26 21.5 31", null, 4, "#TEAMCOLOR") + P("M26 41Q20 38 21.5 33", null, 4, "#TEAMCOLOR") +
+    C(21.5, 32, 2.6, SKIN, 1.2) + R(19.8, 29.8, 3.4, 4.4, 1, "#d5d9dc", 1.2) +
+    C(33.5, 32, 5.6, "#3a3f45", 1.8));
+  // kneeling small, arms bound behind, head low
+  SPRITES.hostage = wrap(
+    '<ellipse cx="30" cy="32" rx="7" ry="10.5" fill="#TEAMCOLOR" stroke="' + OUT + '" stroke-width="2"/>' +
+    P("M27 24Q21.5 27 23 31.5", null, 3.6, "#TEAMCOLOR") + P("M27 40Q21.5 37 23 32.5", null, 3.6, "#TEAMCOLOR") +
+    C(23, 32, 2.4, SKIN, 1.2) + P("M21.5 29.5L24.5 34.5M24.5 29.5L21.5 34.5", null, 1.3, "#e8d44d") +
+    C(31.5, 32, 5.4, SKIN, 1.8) + P("M27.5 28.5Q26 32 27.5 35.5", null, 2, "#5a4630"));
+  SPRITES.hostage_secured = SPRITES.hostage;
+  // hugging themselves, trying to be small
+  SPRITES.civilian = wrap(
+    '<ellipse cx="30" cy="32" rx="7.5" ry="11" fill="#TEAMCOLOR" stroke="' + OUT + '" stroke-width="2"/>' +
+    P("M28 23.5Q37 26 36.5 32", null, 3.8, "#TEAMCOLOR") + P("M28 40.5Q37 38 36.5 32", null, 3.8, "#TEAMCOLOR") +
+    C(36.5, 32, 2.5, SKIN, 1.2) + heads.bare());
+})();
+
 // --- END SPRITES ---
 
 // ---- readability pass (v0.17). The authored geometry in the block above is
@@ -228,6 +337,11 @@ const SPRITE_ART_ACCENTS = {
 // A dead man should recede, not announce himself — he is the one thing on
 // screen that cannot hurt you.
 const NO_RIM = new Set(["corpse"]);
+// v3 bodies carry these roles in the anatomy itself — arms up, shotgun in the
+// hands, belt box on the gun — so the old behind-the-body accents would double.
+for (const k of ["surrendered", "enemy_hvt", "squad_breacher", "squad_support",
+                 "squad_breacher_nvg", "squad_support_nvg", "hostage", "civilian", "cuffed"])
+  delete SPRITE_ART_ACCENTS[k];   // hostage_secured keeps its check — secured must read at a glance
 
 function applySpriteArtPass(svg, key) {
   const openEnd = svg.indexOf(">") + 1;
@@ -6893,6 +7007,25 @@ requestAnimationFrame(frame);
     DMR GLASS: with the marksman rifle in hand the camera zooms out to 0.7x and
     the cursor drags the view over twice as far. Swap to the sidearm and the
     glass goes back in the pocket — the zoom snaps home.
+  v0.25 (2026-08-13): SPRITE SET v3, against Sam's reference sheet. The v2
+    bodies were blobs with a stick; the references all share one anatomy read
+    from above — a big centred helmet, both shoulders visible, and two ARMS
+    actually gripping a weapon with a real silhouette. v3 is a generator inside
+    the sprite block that builds every human from that one body plan: torso
+    ellipse with shoulder pads, vest or pack where the role carries one, a
+    support hand forward on the handguard and a firing hand at the grip, and
+    the weapon riding the +Y shoulder so the handedness Y-flip still reads.
+    Six weapon silhouettes (M4, shotgun, SAW with belt box and bipod, scoped
+    DMR, AK with curved magazine, pistol) and six heads (helmet, helmet+NVG,
+    patrol cap, shemagh wrap, balaclava, bare/suit). The HVT walks with empty
+    half-raised hands and a tie; the surrendered man's arms are wide and empty
+    with his rifle on the deck; the cuffed man is face down with zip-tied
+    wrists; the hostage is small and bound; the civilian hugs herself. Doors,
+    props and the corpse keep their v2 art. Old behind-the-body role accents
+    that the anatomy now carries are pruned; the taker's clock, the readability
+    rim and the whole 64/centre-pivot/#TEAMCOLOR contract stay. Because it is a
+    generator, the entire set is still swappable wholesale between the BEGIN and
+    END SPRITES markers.
 -->
 </body>
 </html>
