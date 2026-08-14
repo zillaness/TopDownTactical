@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.26.html
-  version: 0.26
+  file: top_down_tactical_v0.27.html
+  version: 0.27
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.26 (working title)</title>
+<title>Top-Down Tactical v0.27 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.26 prototype &mdash; working title &mdash; fifteen missions</h2>
+  <h2>v0.27 prototype &mdash; working title &mdash; fifteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -66,6 +66,7 @@
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
+      <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
@@ -5549,6 +5550,69 @@ function drawFx(pass) {
   if (lit) ctx.globalCompositeOperation = "source-over";
 }
 
+// ---- minimap. Sam's call, verbatim: "I think minimap is more fun if less
+// realistic." It shows what the fog rules already granted — explored geometry,
+// your people, and contacts someone can CURRENTLY see or remembers — so it is
+// a navigation aid, not a wallhack. The geometry layer is cached and rebuilt
+// twice a second; markers are live every frame.
+let mmCanvas = null, mmBuiltAt = -1;
+function buildMinimapLayer(scale) {
+  if (!mmCanvas) mmCanvas = document.createElement("canvas");
+  const w = Math.ceil(level.w * scale), h = Math.ceil(level.h * scale);
+  if (mmCanvas.width !== w) mmCanvas.width = w;
+  if (mmCanvas.height !== h) mmCanvas.height = h;
+  const c = mmCanvas.getContext("2d");
+  c.clearRect(0, 0, w, h);
+  for (let ty = 0; ty < level.h; ty++) for (let tx = 0; tx < level.w; tx++) {
+    if (!seen.grid[ty][tx]) continue;
+    let col;
+    if (level.wall[ty][tx]) { const m = MATERIALS[level.mat[ty][tx]]; col = m && m.col ? m.col : COLORS.wall; }
+    else if (level.doorAt.has(tx + "," + ty)) col = COLORS.doorClosed;
+    else if (level.window[ty][tx]) col = MATERIALS.glass.col;
+    else col = level.interior[ty][tx] ? "#232b33" : "#141b17";
+    c.fillStyle = col;
+    c.fillRect(Math.floor(tx * scale), Math.floor(ty * scale), Math.ceil(scale), Math.ceil(scale));
+  }
+}
+
+function drawMinimap() {
+  if (!game.minimap || !level.w) return;
+  const scale = Math.min(176 / level.w, 124 / level.h);
+  const w = Math.ceil(level.w * scale), h = Math.ceil(level.h * scale);
+  const x0 = viewW - w - 16, y0 = 16;
+  if (game.stats.time - mmBuiltAt > 0.5 || mmBuiltAt < 0) { buildMinimapLayer(scale); mmBuiltAt = game.stats.time; }
+  ctx.fillStyle = "rgba(6,9,12,0.8)"; ctx.fillRect(x0 - 5, y0 - 5, w + 10, h + 10);
+  ctx.strokeStyle = "#4d5964"; ctx.lineWidth = 1; ctx.strokeRect(x0 - 4.5, y0 - 4.5, w + 9, h + 9);
+  ctx.drawImage(mmCanvas, x0, y0, w, h);
+  const mx = (wx) => x0 + wx / TILE * scale, my = (wy) => y0 + wy / TILE * scale;
+  const dot = (wx, wy, col, r) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(mx(wx), my(wy), r || 2.2, 0, TAU); ctx.fill(); };
+  for (const ex of level.extraction) dot(ex.tx * TILE + 16, ex.ty * TILE + 16, COLORS.accent, 2.6);
+  for (const d of game.demo) if (!d.armed) dot(d.x, d.y, COLORS.danger, 2.4);
+  for (const hst of game.hostages) if (hst.alive && (hst.secured || visibleToPlayerSide(hst) || hst.lastSeen))
+    dot(hst.x, hst.y, hst.secured ? COLORS.ok : COLORS.hostage, 2.2);
+  for (const e of game.enemies) {
+    if (!e.alive || e.state === "cuffed") continue;
+    if (visibleToPlayerSide(e)) dot(e.x, e.y, e.state === "surrender" ? COLORS.surrendered : COLORS.enemy, 2.2);
+    else if (e.lastSeen && game.stats.time - e.lastSeen.t < TUNE.memoryFade) {
+      ctx.globalAlpha = 0.45; dot(e.lastSeen.x, e.lastSeen.y, COLORS.enemy, 1.8); ctx.globalAlpha = 1;
+    }
+  }
+  for (const sq of game.squad) {
+    if (!sq.alive) continue;
+    if (sq.downed) {
+      ctx.strokeStyle = sq.stabilized ? COLORS.ok : COLORS.danger; ctx.lineWidth = 1.4;
+      const cx2 = mx(sq.x), cy2 = my(sq.y);
+      ctx.beginPath(); ctx.moveTo(cx2 - 3, cy2); ctx.lineTo(cx2 + 3, cy2);
+      ctx.moveTo(cx2, cy2 - 3); ctx.lineTo(cx2, cy2 + 3); ctx.stroke();
+    } else dot(sq.x, sq.y, COLORS.squad, 2.2);
+  }
+  if (game.player.alive) dot(game.player.x, game.player.y, COLORS.player, 2.6);
+  const halfW = viewW / (2 * game.zoom), halfH = viewH / (2 * game.zoom);
+  ctx.strokeStyle = "rgba(207,214,221,0.5)"; ctx.lineWidth = 1;
+  ctx.strokeRect(mx(game.cam.x - halfW), my(game.cam.y - halfH),
+                 (2 * halfW) / TILE * scale, (2 * halfH) / TILE * scale);
+}
+
 function drawHud() {
   const p = game.player;
   ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
@@ -5745,6 +5809,7 @@ function drawHud() {
     ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
   }
 
+  drawMinimap();
   drawWheel();
 
   // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
@@ -6082,7 +6147,7 @@ const game = {
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
   wheel: null, nadeWheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
-  cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0,
+  cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0, minimap: true,
   visPoly: null,
   stats: null,
   playerDeadT: 0, endReason: "",
@@ -6434,6 +6499,7 @@ function frame(now) {
     // The marksman rifle earns its glass: with the DMR in hand the camera can
     // pull out to 0.7x and the cursor drags the view over twice as far, which
     // is the difference between owning a street and owning a doorway.
+    if (pressed("m")) game.minimap = !game.minimap;
     if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
     // Holding either wheel open is command time. Choosing what the squad does is
@@ -7097,6 +7163,14 @@ requestAnimationFrame(frame);
     MOVE and you are dragging him out of the line of fire instead, at 55%
     speed, sprint denied, trigger dead, with the tourniquet progress slipping
     while you haul. He trails at arm's length and slides around geometry.
+  v0.27 (2026-08-14): MINIMAP, Sam's call verbatim: "I think minimap is more
+    fun if less realistic." Top-right, [M] toggles. It shows only what the fog
+    rules already granted — explored geometry in its material colours, doors and
+    windows, your people (a downed man is a cross that goes green when tied
+    off), contacts someone can currently see, the fading memory of ones they
+    lost, objectives and the extraction, and the camera's viewport rectangle so
+    the map answers "where am I looking". Navigation aid, not a wallhack: the
+    geometry layer is cached and rebuilt twice a second, markers are live.
 -->
 </body>
 </html>
