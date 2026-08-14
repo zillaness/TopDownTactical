@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.31.html
-  version: 0.31
+  file: top_down_tactical_v0.32.html
+  version: 0.32
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.31 (working title)</title>
+<title>Top-Down Tactical v0.32 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.31 prototype &mdash; working title &mdash; seventeen missions</h2>
+  <h2>v0.32 prototype &mdash; working title &mdash; seventeen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -68,6 +68,7 @@
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">V</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
       <tr><td class="key">U</td><td>ISR drone to the cursor &mdash; paints open ground and anyone on it, never through a roof</td><td class="key">K</td><td>FPV drone &mdash; WASD flies it, LMB detonates; you stand still and the world hears it</td></tr>
+      <tr><td class="key">B</td><td>fire mission at the cursor (outdoor missions) &mdash; five rounds, 4s of flight, no recall, every casualty in the sheaf is yours</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
@@ -480,6 +481,11 @@ const TUNE = {
   // cross it for a beat and the garrison learns where you were. Kill it loud
   // (any round) or snip it quiet ([E] underneath).
   camRange: 250, camFov: deg(72), camDwell: 1.2, camRecall: 4,
+  // FIELD TEST — the guns. A fire mission is five 60mm rounds on a grid you
+  // pick: 4 seconds of flight you cannot recall, 70px of scatter you do not
+  // control, and every casualty in the sheaf is yours, attributed by name.
+  mortarFlight: 4, mortarRounds: 5, mortarGap: 0.45, mortarScatter: 70,
+  mortarLethal: 30, mortarWound: 110, mortarDmg: 110, noiseMortar: 820,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -1172,7 +1178,7 @@ const MAPS = [
 ",,###################,,,,#####W######W######,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] },
-{ name: "THE LANDING", advice: "Open sand into three bunkers with slits facing you. Nothing crosses that beach standing up — put the belt-fed on a slit, smoke the gap, and bound between the obstacles.",
+{ name: "THE LANDING", fireSupport: true, advice: "Open sand into three bunkers with slits facing you. Nothing crosses that beach standing up — put the belt-fed on a slit, smoke the gap, and bound between the obstacles.",
   brief: "Amphibious assault — open sand, a seawall, three bunkers, twenty-three guns",
   type: "ASSAULT — FORTIFIED BEACH", objectives: ["neutralize"], src: [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1218,7 +1224,7 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] },
-{ name: "SEAWALL", advice: "Same beach, different job. Three charges in three bunkers and back to the boat. Nobody is asking you to clear it — a garrison you never wake is a garrison you never fight.",
+{ name: "SEAWALL", fireSupport: true, advice: "Same beach, different job. Three charges in three bunkers and back to the boat. Nobody is asking you to clear it — a garrison you never wake is a garrison you never fight.",
   brief: "Infiltrate, set charges in all three bunkers, and get back to the water",
   type: "DEMOLITION — INFILTRATE AND EXFIL", objectives: ["demolish", "extract"], src: [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1294,7 +1300,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,s,P,ss,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "THE TREELINE", advice: "No rooms out here — the trunks are the walls and the lanes between them are the doors. A trunk eats pistol and blunts rifle, so fight trunk to trunk, and remember their patrols know these woods.",
+{ name: "THE TREELINE", fireSupport: true, advice: "No rooms out here — the trunks are the walls and the lanes between them are the doors. A trunk eats pistol and blunts rifle, so fight trunk to trunk, and remember their patrols know these woods.",
   brief: "Forest sweep — patrols in the trees, a poachers' camp in the deep wood",
   type: "FOREST SWEEP", objectives: ["neutralize"], src: [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1354,7 +1360,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "########################################",
 ] },
-{ name: "THE LONG WALK", advice: "Infil from the treeline, and remember every step in is a step you walk back out. The principal is behind a barricaded door in the far compound — take him quietly and the exfil is a walk, take him loudly and the whole town walks it with you. COLUMN through the woods, LINE at the wall.",
+{ name: "THE LONG WALK", fireSupport: true, advice: "Infil from the treeline, and remember every step in is a step you walk back out. The principal is behind a barricaded door in the far compound — take him quietly and the exfil is a walk, take him loudly and the whole town walks it with you. COLUMN through the woods, LINE at the wall.",
   brief: "Infil, snatch, exfil — a treeline, open farmland, a walled town, and the long walk home",
   type: "CAPTURE & EXTRACT — LONG RANGE", objectives: ["capture", "extract"], src: [
 "########################################################################",
@@ -2083,6 +2089,7 @@ function updatePlayer(p, dt) {
   }
   if (pressed("u")) launchISR(input.mouse.wx, input.mouse.wy);
   if (pressed("k")) launchFPV();
+  if (pressed("b")) callFireMission(input.mouse.wx, input.mouse.wy);
   p.blind = Math.max(0, p.blind - dt);
   p.stagger = Math.max(0, p.stagger - dt);
   p.shoutCd = Math.max(0, p.shoutCd - dt);
@@ -2345,6 +2352,49 @@ function updateFPV(dt) {
     game.fpv = null;
     game.hint = "FPV impact";
   }
+}
+
+// FIELD TEST: the fire mission. Five rounds, one grid, no recall. The whistle
+// is the only warning anyone gets, and the sheaf does not care whose side a
+// body is on — applyBlast writes every casualty into the incident ledger with
+// the caller's name on it.
+function callFireMission(wx, wy) {
+  if (!game.mission.fireSupport) { game.hint = "No guns on call for this one"; return; }
+  if (game.fireMissionsLeft <= 0) { game.hint = "Battery is dry — no fire missions left"; return; }
+  if (game.fireMission) { game.hint = "Rounds already in the air"; return; }
+  game.fireMissionsLeft--;
+  game.fireMission = { x: wx, y: wy, t: TUNE.mortarFlight, rounds: TUNE.mortarRounds, gap: 0 };
+  const friendlies = [game.player, ...game.squad, ...game.hostages, ...game.civilians]
+    .filter(e => e && e.alive && dist(e.x, e.y, wx, wy) < 160).length;
+  game.hint = "FIRE MISSION — splash in " + TUNE.mortarFlight + "s" +
+    (friendlies ? "  ⚠ DANGER CLOSE: " + friendlies + (friendlies > 1 ? " friendlies" : " friendly") + " in the sheaf" : "");
+  sfxAt("click", game.player.x, game.player.y);
+}
+
+function updateFireMission(dt) {
+  const fm = game.fireMission; if (!fm) return;
+  if (fm.t > 0) { fm.t -= dt; return; }
+  fm.gap -= dt;
+  if (fm.gap > 0) return;
+  fm.gap = TUNE.mortarGap;
+  fm.rounds--;
+  const ix = fm.x + rand(-TUNE.mortarScatter, TUNE.mortarScatter);
+  const iy = fm.y + rand(-TUNE.mortarScatter, TUNE.mortarScatter);
+  game.fx.push({ kind: "explosion", x: ix, y: iy, t: 0.55, max: 0.55 });
+  game.decals.push({ x: ix, y: iy, r: rand(8, 13) });
+  addNoise(ix, iy, TUNE.noiseMortar, "breach", "player");
+  sfxAt("breach", ix, iy);
+  game.camKick = Math.min(16, game.camKick + 9);
+  applyBlast(ix, iy, "player", TUNE.mortarLethal, TUNE.mortarWound, TUNE.mortarDmg);
+  for (const e of game.enemies) {
+    if (!e.alive) continue;
+    const d2 = dist(ix, iy, e.x, e.y);
+    if (d2 < TUNE.mortarWound * 1.8) {
+      e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + 2.0 * (1 - d2 / (TUNE.mortarWound * 1.8)));
+      alertEnemy(e, ix, iy);
+    }
+  }
+  if (fm.rounds <= 0) { game.fireMission = null; game.hint = "Rounds complete"; }
 }
 
 function circlePoly(x, y, r, n) {
@@ -5240,6 +5290,17 @@ function render() {
     ctx.beginPath(); ctx.arc(f.x, f.y, 7 * k, 0, TAU); ctx.stroke();
   }
 
+  // the fire mission: the mark, and the seconds nobody can take back
+  if (game.fireMission) {
+    const fm = game.fireMission, k = 1 / game.zoom;
+    ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 2 * k; ctx.setLineDash([5 * k, 5 * k]);
+    ctx.beginPath(); ctx.arc(fm.x, fm.y, TUNE.mortarScatter + 30, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "bold " + (12 / game.zoom).toFixed(1) + "px Consolas, monospace";
+    ctx.textAlign = "center"; ctx.fillStyle = COLORS.danger;
+    ctx.fillText(fm.t > 0 ? "SPLASH " + fm.t.toFixed(1) : "FIRE FOR EFFECT", fm.x, fm.y - TUNE.mortarScatter - 40 * k);
+  }
+
   // tourniquet in progress: the ring closing is the three seconds
   if (game.tq) {
     const k = 1 / game.zoom, c = game.tq.cas;
@@ -6490,6 +6551,7 @@ function initGame() {
   game.paused = false; game.slowmo = false; game.inProgress = true;
   game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.tq = null;
   game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
+  game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -6517,6 +6579,7 @@ function update(dt) {
   updateGasEffects(dt);
   updateISR(dt);
   updateCameras(dt);
+  updateFireMission(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -7522,6 +7585,18 @@ requestAnimationFrame(frame);
     on THE STANDOFF (the yard approach and the right-front room) and THE LONG
     WALK (the town's north-gate courtyard and the principal's room). Tuning
     open: dwell time, recall interval, and which older maps deserve them.
+  v0.32 (2026-08-14): FIELD TEST — FIRE MISSIONS, Sam's "call in coordinates
+    for mortar fire". [B] on the cursor, outdoor missions only (THE LANDING,
+    SEAWALL, THE TREELINE, THE LONG WALK carry a battery of two). Five 60mm
+    rounds on the grid you picked: four seconds of flight you cannot recall, a
+    dashed ring and a SPLASH countdown at the mark, 70px of scatter you do not
+    control, rounds walking in over two and a half seconds. Bigger than a hand
+    frag, louder than anything else in the game (820 noise), and every casualty
+    in the sheaf is attributed to you by name in the incident ledger — DANGER
+    CLOSE warns when friendlies are inside the pattern, and then it fires
+    anyway, because the grid was your call. Airstrike and artillery variants
+    are the same system with different sheafs — deferred until this one has
+    been felt in play.
 -->
 </body>
 </html>

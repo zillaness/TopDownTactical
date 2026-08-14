@@ -74,8 +74,8 @@ polished. Committed and pushed anyway (checkpoint discipline is the skill).
 ### Night queue (ranked)
 1. ☑ v0.30 — drones: ISR paints exterior only (96 street tiles vs 0 interior in test); FPV flies over walls, buzzes, LMB = 40mm-class blast, pilot is a statue
 2. ☑ v0.31 — cameras: k glyph, wall-derived facing, 1.2s dwell then a 3-man call every 4s; shoot it loud or [E]-snip silent; mounted on STANDOFF + LONG WALK
-   ▶ NEXT: v0.32 fire support
-3. ☐ v0.32 — fire support: mortar fire missions on outdoor maps
+3. ☑ v0.32 — fire missions: [B], 2 per outdoor map, 4s flight no recall, 5 rounds/70px scatter, DANGER CLOSE warns then fires anyway, all casualties attributed
+   ▶ NEXT: v0.33 house variants
 4. ☐ v0.33 — two more house layouts for the STANDOFF rotation
 - deferred tonight, with reasons: 9-line medevac (its own ledger note says
   after Sam playtests v0.23), two-story (a full engine session), mounted +

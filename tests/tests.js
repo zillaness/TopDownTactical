@@ -2667,3 +2667,52 @@ console.log('  THE LONG WALK town mounts ' + level.cameras.length,
 game.mapIndex = 0; initGame();
 console.log('CAMERA TEST DONE');
 })();
+
+(function fireSupportTests(){
+console.log('--- FIELD TEST: fire missions ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+// indoor missions have no guns on call
+game.mapIndex = 0; initGame(); game.state = 'play';
+callFireMission(game.player.x + 200, game.player.y);
+console.log('  THE COMPOUND: missions=' + game.fireMissionsLeft + ', called=' + !!game.fireMission,
+            game.fireMissionsLeft === 0 && !game.fireMission ? 'CORRECT (no guns for CQB)' : 'WRONG');
+
+// the treeline has a battery
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE'); initGame(); game.state = 'play';
+console.log('  THE TREELINE: ' + game.fireMissionsLeft + ' fire missions on call',
+            game.fireMissionsLeft === 2 ? 'CORRECT' : 'WRONG');
+const tx = game.player.x + 500, ty = game.player.y;
+const foe = game.enemies.find(e => e.alive);
+foe.x = tx; foe.y = ty; const hp0 = foe.hp;
+callFireMission(tx, ty);
+console.log('  called: left=' + game.fireMissionsLeft + ', splash in ' + game.fireMission.t + 's',
+            game.fireMissionsLeft === 1 && game.fireMission.t === TUNE.mortarFlight ? 'CORRECT' : 'WRONG');
+// nothing lands during flight
+for (let i = 0; i < 60 * 3.5; i++) updateFireMission(1 / 60);
+console.log('  3.5s in: rounds still in the air=' + (game.fireMission.rounds === TUNE.mortarRounds),
+            game.fireMission.rounds === TUNE.mortarRounds ? 'CORRECT (no recall, no early impact)' : 'WRONG');
+let t = 0;
+game.decals.length = 0;
+while (game.fireMission && t < 10) { updateFireMission(1 / 60); t += 1 / 60; }
+console.log('  fire for effect: ' + game.decals.length + ' craters over ' + t.toFixed(1) + 's, target ' +
+            (foe.alive ? (hp0 - foe.hp).toFixed(0) + ' dmg' : 'killed'),
+            game.decals.length === TUNE.mortarRounds && (!foe.alive || foe.hp < hp0)
+              ? 'CORRECT (five rounds, a sheaf, a result)' : 'WRONG');
+const spread2 = Math.max(...game.decals.map(d => dist(d.x, d.y, tx, ty)));
+console.log('  worst round landed ' + spread2.toFixed(0) + 'px off the grid',
+            spread2 <= TUNE.mortarScatter * 1.5 ? 'CORRECT (scatter bounded)' : 'WRONG');
+
+// danger close warns but does not refuse — the sheaf is YOUR responsibility
+initGame(); game.state = 'play';
+callFireMission(game.player.x + 60, game.player.y);
+console.log('  called on our own position: "' + game.hint.slice(0, 60) + '..."',
+            /DANGER CLOSE/.test(game.hint) && game.fireMission ? 'CORRECT (warns, fires anyway)' : 'WRONG');
+game.fireMission = null;
+callFireMission(game.player.x + 500, game.player.y);
+callFireMission(game.player.x + 500, game.player.y);
+console.log('  battery dry: "' + game.hint.slice(0, 40) + '"',
+            /dry|left/.test(game.hint) ? 'CORRECT' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('FIRE SUPPORT TEST DONE');
+})();
