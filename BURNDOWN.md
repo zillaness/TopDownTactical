@@ -68,7 +68,8 @@ night built points at that one mission.
 ## Burndown night 3, second extension — Sam: "burndown ALL the tokens; build, hold off shipping; alpha/beta split is fine"
 
 ### Queue (risk-ordered, all BETA unless stated)
-1. ☐ v0.37 — muzzle split: bullets exit the real muzzle (longer with a can), vision cone unchanged
+1. ☑ v0.37 — muzzle split: per-gun barrel lengths, +7px for the can, wall-clamped, flash and AAR line on the true muzzle; eyePoint untouched
+   ▶ NEXT: v0.38 sectors
 2. ☐ v0.38 — auto sectors of fire: formations and group-HOLD assign interlocking sectors, drawn while commanding
 3. ☐ v0.39 — contextual chained wheel: root varies by what is under the cursor; movement -> gait -> arrival-posture chains
 4. ☐ v0.40 — operator roster: recruits from rescues, recovery time for the wounded, deployment from READY operators

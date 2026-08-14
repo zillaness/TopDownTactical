@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.36.html
-  version: 0.36
+  file: top_down_tactical_v0.37.html
+  version: 0.37
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.36 (working title)</title>
+<title>Top-Down Tactical v0.37 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.36 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.37 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -496,6 +496,14 @@ const TUNE = {
   // clock than a fresh casualty: shock has set in, the bleeding is slower, and
   // the mission is the distance between you and them.
   brokenBleed: 75,
+  // Muzzle split, per Sam: the round leaves the END OF THE BARREL, further
+  // forward than the eye that aims it — and a suppressor makes that distance
+  // longer. Vision is untouched: you SEE from the eye, you SHOOT from the
+  // muzzle, and near a wall the muzzle is clamped so a barrel cannot poke
+  // through masonry and fire from the far side.
+  gunLen: { default: 14, "MP5 SMG": 10, "SHOTGUN": 13, "SQUAD AUTOMATIC": 16,
+            "MARKSMAN RIFLE": 18, "SIDEARM": 7, "EMPLACED M2": 24 },
+  gunLenCan: 7,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -2134,6 +2142,19 @@ function shootingSide(s) {
   return s.shoulder === "support" ? -hand : hand;   // +1 = unit's right (+Y local)
 }
 
+// Where the round actually leaves. Along the AIM line, one barrel-length past
+// the eye, clamped at the first thing solid enough to be a wall — pressing the
+// muzzle against brick means the round starts AT the brick, on your side.
+function muzzlePoint(s, ang) {
+  const eye = eyePoint(s);
+  const name = (s.guns && s.guns[s.gunIndex] && s.guns[s.gunIndex].name) || (s.weapon && s.weapon.name);
+  let len = TUNE.gunLen[name] ?? TUNE.gunLen.default;
+  if (s.can) len += TUNE.gunLenCan;
+  const clear = raycast(eye.x, eye.y, ang, len, solidForMove);
+  const d = clear.hit ? Math.max(1, clear.d - 1.5) : len;
+  return { x: eye.x + Math.cos(ang) * d, y: eye.y + Math.sin(ang) * d, len: d };
+}
+
 function eyePoint(s) {
   const lat = s.face + Math.PI / 2 * shootingSide(s);
   const x = s.x + Math.cos(s.face) * TUNE.eyeForward + Math.cos(lat) * TUNE.eyeLateral;
@@ -2776,12 +2797,13 @@ function tryFire(s, ang) {
   const glassAhead = windowAt(t0.tx, t0.ty);
   const glassPenalty = (glassAhead && !glassAhead.broken) ? deg(4.5) : 0;
   const shots = round.pellets || 1;
+  const mz = muzzlePoint(s, ang);    // the round leaves the barrel, not the eye
   for (let i = 0; i < shots; i++) {
     const cone = round.pellets ? round.spread : spread;
     const a = ang + rand(-cone / 2, cone / 2) + rand(-glassPenalty, glassPenalty);
     game.bullets.push({
-      x: eye.x + Math.cos(a) * 4, y: eye.y + Math.sin(a) * 4,
-      ox: eye.x, oy: eye.y,        // where it left the muzzle — the AAR draws this line
+      x: mz.x + Math.cos(a) * 2, y: mz.y + Math.sin(a) * 2,
+      ox: mz.x, oy: mz.y,          // where it left the muzzle — the AAR draws this line
       ang: a, speed: s.weapon.speed, dmg: s.weapon.dmg * round.dmgMul / (round.pellets ? 1.6 : 1),
       pen: round.pen * (s.weapon.penMul || 1), side: s.side,
       traveled: 0, range: s.weapon.range, alive: true, owner: s,
@@ -2791,7 +2813,7 @@ function tryFire(s, ang) {
   // the corner game is that those are not the same place. A can deletes it:
   // the flash is exactly the thing that gives a hidden shooter away over the
   // fog, so its absence is the suppressor's second product.
-  if (!s.can) game.fx.push({ kind: "muzzle", x: eye.x + Math.cos(ang) * 7, y: eye.y + Math.sin(ang) * 7, ang, t: 0.05, max: 0.05 });
+  if (!s.can) game.fx.push({ kind: "muzzle", x: mz.x, y: mz.y, ang, t: 0.05, max: 0.05 });
   addNoise(s.x, s.y, s.can ? TUNE.suppNoiseShot : TUNE.noiseShot, "shot", s.side, s.can);
   sfxAt(s.can ? "click" : "shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
@@ -8025,6 +8047,17 @@ requestAnimationFrame(frame);
     either side — nine guns hold the block, converging on the crash site. New
     glyph w places pre-downed friendlies on any map, so more of these can be
     authored cheaply.
+  v0.37 (2026-08-14): THE MUZZLE SPLIT, per Sam: "the bullet exits from a new
+    further point on the rifle. But vision cone should be the same." Rounds,
+    pellets and the muzzle flash now leave from the END OF THE BARREL — one
+    gun-length past the eye along the aim line (carbine 14px, SMG 10, DMR 18,
+    SAW 16, sidearm 7, emplaced M2 24), and a suppressor adds 7 more, which was
+    the missing cost from the v0.22 design: the longer gun announces itself
+    further forward. Vision is untouched — eyePoint has no idea what gun you
+    carry, and the corner game is exactly as before. Against a wall the muzzle
+    CLAMPS: press the barrel into brick and the round starts at the brick, on
+    your side — a barrel cannot poke through masonry and fire from the far
+    side. The AAR's line-of-fire now starts at the true muzzle.
 -->
 </body>
 </html>

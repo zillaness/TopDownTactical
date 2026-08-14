@@ -2905,3 +2905,54 @@ console.log('  he bleeds out: "' + (fail || '').slice(0, 50) + '..."',
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('BROKEN ARROW TEST DONE');
 })();
+
+(function muzzleSplitTests(){
+console.log('--- the muzzle split: you see from the eye, you shoot from the barrel ---');
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'standard'; game.loadout.primary = 'carbine'; game.loadout.can = false;
+initGame(); game.state = 'play';
+const P = game.player;
+
+function firedFrom(can) {
+  game.loadout.can = can; initGame(); game.state = 'play';
+  const p = game.player;
+  p.face = 0; p.cooldown = 0; p.ammo = 30; p.reloading = 0;
+  game.bullets.length = 0;
+  tryFire(p, 0);
+  const b = game.bullets[0];
+  const eye = eyePoint(p);
+  return { d: dist(b.ox, b.oy, eye.x, eye.y), eye };
+}
+const loud = firedFrom(false), supp = firedFrom(true);
+console.log('  carbine round leaves ' + loud.d.toFixed(1) + 'px past the eye, suppressed ' + supp.d.toFixed(1),
+            Math.abs(loud.d - TUNE.gunLen.default) < 0.5 &&
+            Math.abs(supp.d - (TUNE.gunLen.default + TUNE.gunLenCan)) < 0.5
+              ? 'CORRECT (the can is a longer gun)' : 'WRONG');
+
+// vision is untouched by the split: eyePoint has no idea what gun you carry
+game.loadout.can = false; initGame(); game.state = 'play';
+const p2 = game.player; p2.face = 0;
+const e1 = eyePoint(p2);
+game.loadout.can = true; initGame(); game.state = 'play';
+game.player.face = 0;
+game.player.x = p2.x; game.player.y = p2.y;
+const e2 = eyePoint(game.player);
+console.log('  eye point loud vs suppressed: ' + dist(e1.x, e1.y, e2.x, e2.y).toFixed(2) + 'px apart',
+            dist(e1.x, e1.y, e2.x, e2.y) < 0.01 ? 'CORRECT (vision cone unchanged)' : 'WRONG');
+
+// against a wall the muzzle clamps: no firing from the far side of masonry
+game.loadout.can = false; initGame(); game.state = 'play';
+const p3 = game.player;
+let wallT = null;
+outer: for (let ty = 1; ty < level.h - 1; ty++) for (let tx = 1; tx < level.w - 1; tx++) {
+  if (level.wall[ty][tx] && !level.wall[ty][tx - 1] && inBounds(tx - 1, ty) && level.interior[ty][tx - 1]) { wallT = { tx, ty }; break outer; }
+}
+p3.x = wallT.tx * TILE - 12; p3.y = wallT.ty * TILE + 16; p3.face = 0;
+const mzWall = muzzlePoint(p3, 0);
+const mt = tileAt(mzWall.x, mzWall.y);
+console.log('  12px from a wall, aiming into it: muzzle reaches ' + mzWall.len.toFixed(1) +
+            'px, still outside the wall: ' + !level.wall[mt.ty][mt.tx],
+            mzWall.len < 12 && !level.wall[mt.ty][mt.tx] ? 'CORRECT (pressed against the brick, not through it)' : 'WRONG');
+game.loadout.can = false; initGame();
+console.log('MUZZLE SPLIT TEST DONE');
+})();

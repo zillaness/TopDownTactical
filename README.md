@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.25
+version: 1.26
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-12
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.36.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.37.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.36.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.37.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -90,3 +90,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.23 (2026-08-14): Synced to v0.34 — THE PEEL on call sheet [5]: a fighting withdrawal.
 - v1.24 (2026-08-14): Synced to v0.35 — emplaced M2s (mount/dismount, arc-clamped) and the QRF counterattack on THE PILLBOX.
 - v1.25 (2026-08-14): Synced to v0.36 — BROKEN ARROW: you are the QRF; STABILIZE objective type.
+- v1.26 (2026-08-14): Synced to v0.37 — the muzzle split: shoot from the barrel, see from the eye.
