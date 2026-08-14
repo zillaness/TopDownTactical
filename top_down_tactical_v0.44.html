@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.43.html
-  version: 0.43
+  file: top_down_tactical_v0.44.html
+  version: 0.44
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-13
+  last_updated: 2026-08-14
   description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.43 (working title)</title>
+<title>Top-Down Tactical v0.44 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.43 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.44 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -66,7 +66,7 @@
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
-      <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">V</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
+      <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">Z</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
       <tr><td class="key">U</td><td>ISR drone to the cursor &mdash; paints open ground and anyone on it, never through a roof</td><td class="key">K</td><td>FPV drone &mdash; WASD flies it, LMB detonates; you stand still and the world hears it</td></tr>
       <tr><td class="key">B</td><td>fire mission at the cursor (outdoor missions) &mdash; five rounds, 4s of flight, no recall, every casualty in the sheaf is yours</td><td class="key">E on a gun</td><td>mount an emplaced M2 (right-click one to put a squaddie on it) &mdash; it only points where the mount points</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
@@ -2409,7 +2409,7 @@ function updatePlayer(p, dt) {
   if (pressed("n")) swapShoulder(p);
   // scroll or [1] to change guns — the sidearm is faster than a reload
   if ((pressed("scrollup") || pressed("scrolldown")) && !p.turret) swapGun(p, p.gunIndex + 1);
-  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging) {
+  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging && !game.tq) {
     let fa = aimAngle(p, input.mouse.wx, input.mouse.wy);
     if (p.turret) fa = clampToArc(p.turret, fa);   // the mount decides, not the wrist
     tryFire(p, fa);
@@ -2449,7 +2449,7 @@ function updatePlayer(p, dt) {
   if (pressed("c") && p.shoutCd <= 0) shoutCompliance(p);
   // formation is a gameplay verb, so it lives with the others (and headless
   // tests can reach it — frame() never runs without a real RAF)
-  if (pressed("v")) {
+  if (pressed("z")) {   // was V, which silently double-fired the ROE cycle — review catch
     const fi = (FORMATIONS.indexOf(game.formation || "wedge") + 1) % FORMATIONS.length;
     game.formation = FORMATIONS[fi];
     game.hint = "FORMATION: " + game.formation.toUpperCase() +
@@ -2545,9 +2545,10 @@ function updateCameras(dt) {
       if (canSee(cam.x, cam.y, tgt.x, tgt.y, TUNE.camRange, cam.face, TUNE.camFov)) { spotted = tgt; break; }
     }
     if (!spotted) { cam.dwell = Math.max(0, cam.dwell - dt * 1.5); continue; }
-    cam.dwell += dt;
+    cam.dwell = Math.min(TUNE.camDwell * 1.5, cam.dwell + dt);   // review catch: unbounded dwell made "cross it fast" a lie after any long look
     if (cam.dwell >= TUNE.camDwell && cam.recallT <= 0) {
       cam.recallT = TUNE.camRecall;
+      cam.dwell = 0;                                             // each call spends the dwell
       const near = game.enemies.filter(e => e.alive && e.state !== "surrender" && e.state !== "cuffed")
         .sort((a2, b2) => dist(a2.x, a2.y, cam.x, cam.y) - dist(b2.x, b2.y, cam.x, cam.y)).slice(0, 3);
       for (const e of near) alertEnemy(e, spotted.x, spotted.y);
@@ -2652,8 +2653,9 @@ function updateFireMission(dt) {
   if (fm.gap > 0) return;
   fm.gap = TUNE.mortarGap;
   fm.rounds--;
-  const ix = fm.x + rand(-TUNE.mortarScatter, TUNE.mortarScatter);
-  const iy = fm.y + rand(-TUNE.mortarScatter, TUNE.mortarScatter);
+  const sr = TUNE.mortarScatter * Math.sqrt(Math.random()), sa = rand(0, TAU);
+  const ix = fm.x + Math.cos(sa) * sr;
+  const iy = fm.y + Math.sin(sa) * sr;   // review catch: +-70 per axis was a 99px-corner square
   game.fx.push({ kind: "explosion", x: ix, y: iy, t: 0.55, max: 0.55 });
   game.decals.push({ x: ix, y: iy, r: rand(8, 13) });
   addNoise(ix, iy, TUNE.noiseMortar, "breach", "player");
@@ -2678,7 +2680,10 @@ function mountTurret(ent, t) {
   if (t.manned) return false;
   t.manned = ent; ent.turret = t;
   ent._preGun = { weapon: ent.weapon, ammoType: ent.ammoType, ammo: ent.ammo, reloading: ent.reloading };
-  ent.weapon = { ...TUNE.m2w }; ent.ammoType = "fmj"; ent.ammo = TUNE.m2w.mag; ent.reloading = 0;
+  // the belt is the GUN's, not the gunner's — remounting resumes it, it does
+  // not refill it (review catch: two E presses were a free 5s reload)
+  ent.weapon = { ...TUNE.m2w }; ent.ammoType = "fmj";
+  ent.ammo = (t.belt !== undefined) ? t.belt : TUNE.m2w.mag; ent.reloading = 0;
   ent.x = t.x; ent.y = t.y; ent.recoil = 0; ent.burst = 0;
   if (ent.side === "squad") bark(ent, "ON THE GUN!");
   else game.hint = "On the gun — [E] to come off it. It only points where the mount points.";
@@ -2686,6 +2691,7 @@ function mountTurret(ent, t) {
 }
 function dismountTurret(ent) {
   const t = ent.turret; if (!t) return;
+  t.belt = ent.ammo;                      // what is left stays in the feed tray
   t.manned = null; ent.turret = null;
   if (ent._preGun) {
     ent.weapon = ent._preGun.weapon; ent.ammoType = ent._preGun.ammoType;
@@ -2706,7 +2712,8 @@ function clampToArc(t, want) {
 function updateQRF(dt) {
   const q = game.qrfState; if (!q) return;
   if (q.phase === "waiting") {
-    const originalsDone = game.enemies.every(e => !e.original || !e.alive || e.state === "cuffed" || e.state === "surrender");
+    const originalsDone = game.enemies.every(e => !e.original || !e.alive || e.state === "cuffed" ||
+      (e.state === "surrender" && !e.feint));   // review catch: a fake surrender launched the QRF
     if (originalsDone) {
       q.phase = "inbound"; q.t = game.mission.qrf.delay;
       game.hint = "RADIO CHATTER — counterattack inbound. You took it; now hold it.";
@@ -2890,8 +2897,11 @@ function updateTourniquet(p, dt) {
     p.dragging = cas;
     if (game.tq) game.tq.t = Math.max(0, game.tq.t - dt * 2);   // the wrap slips while you haul
     const d = dist(p.x, p.y, cas.x, cas.y);
+    if (d > 90) { p.dragging = null; game.hint = "Lost your grip on him"; return; }   // review catch: no cross-map tether
     if (d > 18) {
-      const k = Math.min(1, (d - 18) / d);
+      // pull at a real speed, not the whole gap in one frame (review catch)
+      const maxStep = 300 * dt;
+      const k = Math.min(1, Math.min(d - 18, maxStep) / d);
       const res = moveCircle(cas.x, cas.y, cas.r, (p.x - cas.x) * k, (p.y - cas.y) * k, solidForMove);
       cas.x = res.x; cas.y = res.y;
       cas.face = angleTo(cas.x, cas.y, p.x, p.y);
@@ -3349,11 +3359,15 @@ function recordIncident(ent) {
 function killEntity(ent, bySide, by) {
   if (!ent.alive) return;
   if (ent.turret) dismountTurret(ent);   // a hit gunner slumps off the mount
+  if (ent === game.player && game.fpv) { // dead man's switch: the bird goes in
+    detonateHE40({ x: game.fpv.x, y: game.fpv.y, side: "player", armed: true });
+    game.fpv = null;
+  }
   // A squaddie's first zero is a casualty, not a corpse. He is down, bleeding,
   // out of the fight — and on a clock only a tourniquet stops. A second hit,
   // or the clock running out, comes back through here with downed already set.
   if (ent.side === "squad" && !ent.downed) {
-    ent.downed = true; ent.stabilized = false; ent.bleedT = TUNE.bleedOut;
+    ent.downed = true; ent.stabilized = false; ent.bleedT = TUNE.bleedOut; ent.bleedMax = TUNE.bleedOut;
     ent.hp = 0; ent.r = 7;                    // he is on the ground, a small target
     ent.order = { type: "down" }; ent.path = null; ent.engaged = null;
     removeFromPlans(ent);
@@ -3557,7 +3571,7 @@ function updateBangs(dt) {
           g.x = hit.x - Math.cos(ang) * 2; g.y = hit.y - Math.sin(ang) * 2;
           g.travelLeft *= 0.4;
         }
-      } else { g.x = hit.x; g.y = hit.y; g.travelLeft -= step; }
+      } else { g.x = hit.x; g.y = hit.y; g.travelLeft -= step; g.flew = (g.flew || 0) + step; }
     }
     if (g.fuse <= 0) detonateNade(g);
   }
@@ -3604,6 +3618,8 @@ function detonateFrag(g) {
 // both what the real fuze does and what keeps a point-blank launcher from being
 // a self-frag or an exploit.
 function detonateHE40(g) {
+  // review catch: armed-at-launch was aim distance; the FUZE cares how far it FLEW
+  if (g.armed && g.flew !== undefined && g.flew < TUNE.he40Arm) g.armed = false;
   if (!g.armed) {
     game.fx.push({ kind: "spark", x: g.x, y: g.y, t: 0.14, max: 0.14 });
     addNoise(g.x, g.y, 140, "thud", g.side);
@@ -4628,6 +4644,7 @@ const WEDGE9 = [
 // abreast with every sector FORWARD — the assault shape, maximum guns on the
 // front and nothing watching your back.
 const FORMATIONS = ["wedge", "column", "line"];
+function ableCount() { return game.squad.filter(s2 => s2.alive && !s2.downed).length; }
 function formationSlot(i, n) {
   const kind = game.formation || "wedge";
   if (kind === "column") {
@@ -4645,7 +4662,7 @@ function formationSlot(i, n) {
 // The station bearing eases rather than snapping, or whipping the mouse would
 // send three men sprinting a lap around you.
 function wedgeStation(s, dt) {
-  const p = game.player, w = formationSlot(s.slot, game.squad.length);
+  const p = game.player, w = formationSlot(s.slot, ableCount());   // stretchers do not widen the wedge (review catch)
   const want = p.face + w.bear;
   if (s._wedgeAng === undefined) s._wedgeAng = want;
   else s._wedgeAng = angLerp(s._wedgeAng, want, clamp((dt || 0) * 2.2, 0, 1));
@@ -4800,8 +4817,8 @@ function issueOrders() {
     }
     if (released("rmb")) {
       // no selection means the whole team — you should not have to select to command
-      const team = selectedSquaddies();
-      const cmd = team.length ? team : game.squad.filter(s => s.alive);
+      const team = selectedSquaddies().filter(s2 => !s2.downed);
+      const cmd = team.length ? team : game.squad.filter(s => s.alive && !s.downed);
       const ctx = wheelContext();
       const dir = game.wheel.dir;
       game.wheel = null;
@@ -4997,7 +5014,7 @@ const PLAYS = [
         tp = { x: game.player.x + Math.cos(back) * 300, y: game.player.y + Math.sin(back) * 300 };
       }
       const half = Math.ceil(team.length / 2);
-      const byTeam = team.some(s => s.team);
+      const byTeam = new Set(team.map(s => s.team).filter(Boolean)).size >= 2;
       team.forEach((s, i) => {
         removeFromPlans(s);
         s.order = { type: "peel", x: to.x, y: to.y,
@@ -5020,7 +5037,7 @@ const PLAYS = [
       const to = ctx.point;
       // split the team in two elements; odd man rides with the first
       const half = Math.ceil(team.length / 2);
-      const byTeam = team.some(s => s.team);   // a rifle squad bounds by fireteam
+      const byTeam = new Set(team.map(s => s.team).filter(Boolean)).size >= 2;   // one selected fireteam still splits in halves (review catch)
       team.forEach((s, i) => {
         removeFromPlans(s);
         s.order = { type: "bound", x: to.x, y: to.y,
@@ -5458,7 +5475,7 @@ function updatePeel(dt) {
 function updateBound(dt) {
   const B = game.bound;
   if (!B) return;
-  const live = B.members.filter(s => s.alive && s.order.type === "bound");
+  const live = B.members.filter(s => s.alive && !s.downed && s.order.type === "bound");
   if (!live.length) { game.bound = null; return; }
   // A one-element bound is not a bound. If everyone still standing is in the
   // same element, the covering element is dead — and a man leapfrogging with
@@ -5496,7 +5513,7 @@ function updatePie() {
   if (!pie) return;
   const live = pie.members.filter(s => s.alive);
   if (!live.length || pie.door.state !== "closed") { game.pie = null; return; }
-  const set = live.every((s, i) => dist(s.x, s.y, pie.slots[i % pie.slots.length].x,
+  const set = live.filter(s => !s.downed).every((s, i) => dist(s.x, s.y, pie.slots[i % pie.slots.length].x,
                                         pie.slots[i % pie.slots.length].y) < 18);
   if (!set) return;
   if (pie.door.locked) { game.hint = "Locked — angles are set, but it needs a kick or a charge"; game.pie = null; return; }
@@ -5563,6 +5580,28 @@ function updateSquaddie(s, dt) {
   // zip-cuff surrendered suspects in reach when not fighting
   if (!threat) {
     s._sidestep = 0;
+    // The grenadier's actual moment, made reachable (review catch: the old
+    // visible-but-unshootable condition could never occur, because clearShot
+    // only fails on friendly bodies). A fresh memory of a man he CANNOT see —
+    // behind cover, in a building — gets the 40mm: shooting the reported
+    // position is what an underbarrel launcher is FOR.
+    if (ROLES[s.role] && ROLES[s.role].launcher && (s.nadeCd || 0) <= 0 && s.stagger <= 0
+        && (s.roe === "free" || game.underFireT > 0 || game.alarm)) {
+      let mem = null, md = Infinity;
+      const now2 = game.stats.time;
+      for (const e of game.enemies) {
+        if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
+        if ((e.floor || 0) !== (s.floor || 0)) continue;
+        if (!e.lastSeen || now2 - e.lastSeen.t > 5) continue;
+        if (canSee(s.x, s.y, e.x, e.y, TUNE.aiViewDistAlert, s.face, deg(160))) continue;   // visible = a rifle problem
+        const d2 = dist(s.x, s.y, e.lastSeen.x, e.lastSeen.y);
+        if (d2 > TUNE.he40Arm + 40 && d2 < 780 && d2 < md) { md = d2; mem = e.lastSeen; }
+      }
+      if (mem && blastClearOfFriends(mem.x, mem.y, TUNE.he40Wound)) {
+        launch40mm(s, mem.x, mem.y);
+        bark(s, "GRENADE OUT!");
+      } else if (mem) s.nadeCd = 1.2;
+    }
     if (s.stagger <= 0) {
       const cuffable = nearestEntity(game.enemies, s.x, s.y, 45, e => e.alive && e.state === "surrender");
       if (cuffable) { cuffEnemy(cuffable, s); bark(s, "SUSPECT SECURED"); }
@@ -5689,7 +5728,8 @@ function updateSquaddie(s, dt) {
       } else {
         s._legX = undefined; s._legY = undefined; s._bounded = false;
         s.face = angLerp(s.face, angleTo(s.x, s.y, B.tx, B.ty), dt * 10);
-        if (s.reloading <= 0 && s.ammo > 0 && lineOfSight(s.x, s.y, B.tx, B.ty, opaque)) {
+        if (s.reloading <= 0 && s.ammo > 0 && lineOfSight(s.x, s.y, B.tx, B.ty, opaque)
+            && clearShot(s, { x: B.tx, y: B.ty })) {   // movers cross this line (review catch)
           s._supT = (s._supT || 0) - dt;
           if (s._supT <= 0) {
             if (tryFire(s, angleTo(s.x, s.y, B.tx, B.ty) + rand(-deg(3.2), deg(3.2)))) {
@@ -5708,6 +5748,7 @@ function updateSquaddie(s, dt) {
       if (!clear) { squadMove(s, o.x, o.y, TUNE.squadRun * 0.8, dt); break; }
       if (s.reloading > 0) break;
       if (s.ammo <= 0) { tryReload(s); break; }
+      if (!clearShot(s, { x: o.x, y: o.y })) break;   // a teammate is on the gun-target line (review catch)
       // hold a little back so the belt-fed does not empty in three seconds
       s._supT = (s._supT || 0) - dt;
       if (s._supT <= 0) {
@@ -5751,6 +5792,7 @@ function updateSquaddie(s, dt) {
     case "man": {
       const t = s.order.turret;
       if (!t || (t.manned && t.manned !== s)) { s.order = { type: "hold", face: s.face }; break; }
+      if (s.turret && s.turret !== t) dismountTurret(s);   // review catch: stuck aiming at B from A
       if (!s.turret) {
         if (dist(s.x, s.y, t.x, t.y) > 20) squadMove(s, t.x, t.y, TUNE.squadRun, dt);
         else mountTurret(s, t);
@@ -5855,7 +5897,8 @@ function updatePlans(dt) {
   for (const p of game.plans) {
     if (p.state !== "executing") syncPlanMembers(p);
     if (p.state === "forming") {
-      const allAt = p.members.length > 0 && p.members.every((s, i) => dist(s.x, s.y, p.slots[i].x, p.slots[i].y) < 14);
+      const ablePlan = p.members.filter(m2 => m2.alive && !m2.downed);
+      const allAt = ablePlan.length > 0 && ablePlan.every((s, i) => dist(s.x, s.y, p.slots[i].x, p.slots[i].y) < 14);
       if (allAt) { p.state = "ready"; bark(p.members[0], "SET"); }
     } else if (p.state === "ready") {
       const stillAt = p.members.some(s => s.alive && dist(s.x, s.y, doorCenter(p.door).x, doorCenter(p.door).y) < TILE * 3.2);
@@ -6942,7 +6985,7 @@ function drawHud() {
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
   ctx.fillStyle = game.formation !== "wedge" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText((game.formation || "wedge").toUpperCase() + "  [V]", bx + 158, by + 40);
+  ctx.fillText((game.formation || "wedge").toUpperCase() + "  [Z]", bx + 158, by + 40);
   ctx.font = "11px Consolas, monospace";
   let gx = bx;
   for (const k of THROW_ORDER) {
@@ -6982,7 +7025,7 @@ function drawHud() {
       // his row becomes the thing that matters now: the clock
       ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
       ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
-      ctx.fillRect(px + 8, sy + 22, 110 * (s.stabilized ? 1 : clamp(s.bleedT / TUNE.bleedOut, 0, 1)), 6);
+      ctx.fillRect(px + 8, sy + 22, 110 * (s.stabilized ? 1 : clamp(s.bleedT / (s.bleedMax || TUNE.bleedOut), 0, 1)), 6);
       ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), px + 126, sy + 15);
       if (!s.stabilized) { ctx.fillStyle = COLORS.hud; ctx.fillText("[E] hold", px + 126, sy + 30); }
     } else if (s.alive) {
@@ -7519,10 +7562,11 @@ function initGame() {
     const s2 = makeSquaddie(sp, game.squad.length);
     // the men you come for are STRANGERS — recruit-pool names, not your bench.
     // Save one and win, and he joins the roster.
-    const rn = RECRUIT_NAMES.find(n => !loadRosterOrder().includes(n) && !usedRecruits.includes(n));
-    if (rn) { s2.name = rn; usedRecruits.push(rn); s2.recruitCandidate = true; }
+    const rn = RECRUIT_NAMES.find(n => !loadRosterOrder().includes(n) && !usedRecruits.includes(n))
+            || ("STRAY " + (wi + 1));                  // pool exhausted: still a stranger (review catch)
+    s2.name = rn; usedRecruits.push(rn); s2.recruitCandidate = !rn.startsWith("STRAY");
     s2.xp = 150; s2.rank = rankFor(150);   // they were somebody's operators
-    s2.downed = true; s2.stabilized = false; s2.bleedT = TUNE.brokenBleed;
+    s2.downed = true; s2.stabilized = false; s2.bleedT = TUNE.brokenBleed; s2.bleedMax = TUNE.brokenBleed;
     s2.hp = 0; s2.r = 7; s2.order = { type: "down" }; s2.qrfCasualty = true;
     game.squad.push(s2);
   });
@@ -7558,6 +7602,7 @@ function initGame() {
   game.paused = false; game.slowmo = false; game.inProgress = true;
   game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.peel = null; game.tq = null;
   game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
+  mmBuiltAt = -1;                       // the minimap cache dies with the mission (review catch)
   game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
   game.enemies.forEach(e => e.original = true);
   game.qrfState = game.mission.qrf ? { phase: "waiting", t: 0 } : null;
@@ -7678,7 +7723,10 @@ const OBJECTIVES = {
     },
     failed() {
       const lost = game.squad.find(s2 => s2.qrfCasualty && !s2.alive);
-      return lost ? lost.name + " bled out before you reached him. He was the mission." : null;
+      if (!lost) return null;
+      return lost.bleedT <= 0
+        ? lost.name + " bled out before you reached him. He was the mission."
+        : lost.name + " was killed where he lay. He was the mission.";
     },
   },
   capture: {
@@ -7809,7 +7857,7 @@ function endMission(won, reason) {
   rows.push(`<div class="stat">Suspects arrested: ${st.arrests} &nbsp;·&nbsp; killed: ${st.kills}</div>`);
   if (st.surrenderedKilled) rows.push(`<div class="stat" style="color:#ff5555">Surrendered suspects killed: ${st.surrenderedKilled}</div>`);
   if (st.civsKilled) rows.push(`<div class="stat" style="color:#ff5555">Civilians dead: ${st.civsKilled} (by your team: ${st.civsKilledByUs})</div>`);
-  rows.push(`<div class="stat">Squad lost: ${st.squadLost}/3</div>`);
+  rows.push(`<div class="stat">Squad lost: ${st.squadLost}/${game.squad.length}</div>`);
   // Veterancy, settled and shown. A man who lived banks what he earned; a man
   // who did not takes every hour he ever put in with him.
   const vet = settleVeterancy(won);
@@ -7879,7 +7927,7 @@ function frame(now) {
     // be a separate "hold for command time" — the wheel gives you that
     // automatically whenever you are actually commanding, so the hold was a
     // binding doing a job something else already did.
-    if (pressed("tab")) game.paused = !game.paused;
+    if (pressed("tab") && game.player.alive) game.paused = !game.paused;   // review catch: dead men cannot stop the clock
     if (pressed("escape")) {
       game.state = "menu";
       document.getElementById("menu").classList.remove("hidden");
@@ -8787,6 +8835,25 @@ requestAnimationFrame(frame);
     a broken pane is a hole) — dark rooms beat eyes on the street, which was
     true in Mogadishu and is true here. THE WALKUP's yard gained a wrecked car
     and a guard lurking behind it as the proof scenario.
+  v0.44 (2026-08-14): THE NIGHT-REVIEW FIX BATCH. Ran the adversarial review
+    workflow over v0.43; the paid verifier agents died on a spend limit (again),
+    so every finding was confirmed or refuted by hand against the source, and
+    about twenty were real. The keeper bugs, fixed: [V] silently fired BOTH the
+    formation cycle and the ROE cycle (formations moved to [Z]); a downed man
+    still counted in team orders, bounding elements, wedge geometry, and pie
+    plans (he is now benched everywhere, and a bounding element reduced to one
+    able man HOLDS instead of bounding alone); the M2's belt refilled itself on
+    every remount (the belt now lives with the gun); a medic could shoot while
+    his hands were in the wound; the FPV froze mid-air if its pilot was killed
+    (dead-man's switch: it detonates where it hangs); a dead player could still
+    Tab-pause; a feint surrender triggered the QRF garrison as if it were real;
+    mortar scatter was square instead of circular; a 40mm armed by AIM DISTANCE
+    instead of flight distance (point-blank self-frags are gone — minimum arc
+    is minimum arc); the minimap showed the previous mission for a frame; the
+    grenadier's memory-lob branch was unreachable so he never actually fired
+    the M320 indirect (he does now, at last-known positions he cannot see, when
+    the blast is clear of friends); bleed-out bars were normalized wrong for
+    tourniquets; and stray recruits no longer sign on with empty nametapes.
 -->
 </body>
 </html>

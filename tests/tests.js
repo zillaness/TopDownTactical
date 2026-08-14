@@ -2515,14 +2515,14 @@ console.log('  LINE: ' + abreast + '/8 stations abreast, all sectors forward: ' 
             abreast === 8 && L.every(l => Math.abs(angDiff(0, l.sector)) < deg(5))
               ? 'CORRECT (assault shape — every gun on the front)' : 'WRONG');
 
-// V cycles and wraps
+// Z cycles and wraps (moved off V in v0.44 — V is ROE, the shared key double-fired both)
 game.formation = 'wedge';
-input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+input.justPressed.add('z'); updatePlayer(game.player, 1/60); input.justPressed.clear();
 const f1 = game.formation;
-input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+input.justPressed.add('z'); updatePlayer(game.player, 1/60); input.justPressed.clear();
 const f2 = game.formation;
-input.justPressed.add('v'); updatePlayer(game.player, 1/60); input.justPressed.clear();
-console.log('  [V]: wedge -> ' + f1 + ' -> ' + f2 + ' -> ' + game.formation,
+input.justPressed.add('z'); updatePlayer(game.player, 1/60); input.justPressed.clear();
+console.log('  [Z]: wedge -> ' + f1 + ' -> ' + f2 + ' -> ' + game.formation,
             f1 === 'column' && f2 === 'line' && game.formation === 'wedge' ? 'CORRECT (cycles)' : 'WRONG');
 game.loadout.squad = 'standard'; game.formation = 'wedge'; initGame();
 console.log('FORMATION TEST DONE');

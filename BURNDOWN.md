@@ -3,7 +3,7 @@ file: BURNDOWN.md (top-down-tactical)
 version: 1.0
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-12
+last_updated: 2026-08-14
 description: Living ranked backlog and checkpoint ledger for the top-down-tactical project, compatible with the token-burndown skill's ledger format.
 ai_update: Update last_updated in this frontmatter (filename stays BURNDOWN.md). Keep the ▶ NEXT line current at all times. Append ✅ ledger lines with commit hashes as units finish; never delete finished lines. Bump version only on structural changes to this file.
 ---
@@ -77,8 +77,45 @@ night built points at that one mission.
 3. ☑ v0.39 — chained wheel: Sam's right->up->right chain verbatim, commit-lock at 52px, defaults at every depth, short-flick BOUND kept, operator ring (self-aid/move/security/on-me), tap still selects
 4. ☑ v0.40 — roster: recruit pool signs at 150 XP on a saved-and-won rescue, wounded recover 2 missions, sideline heals 1/mission, deployment auto-fills from READY in roster order
 5. ☑ v0.41 — FLOOR TWO: src2 + S stairs swap snapshots, per-floor entities/bullets/noise/fog, followers take the stairs with you, THE WALKUP proof mission, BETA chips
-   ▶ ext2 queue complete — review workflow findings still pending
-6. ☐ review workflow findings folded in when it lands
+6. ☑ v0.44 — the review fix batch (see handoff below)
+   ▶ NEXT: Sam's playtest — nothing in flight
+
+### Handoff — night 3, second extension (close of night)
+The adversarial review workflow ran over v0.43 (34 raw findings) — and for
+the second time, every paid verifier agent died on the org's monthly spend
+limit before adjudicating a single one. Zero machine verdicts. Fallback:
+self-verified each finding by reading the cited code, then fixed what held
+up. Honest accounting:
+- CONFIRMED + FIXED (~20, all in v0.44): V key double-fired formation AND
+  ROE (formations moved to [Z], HUD + help synced, test moved with it);
+  downed men counted in team orders / bounding elements / wedge slots / pie
+  plans (benched everywhere; a bounding element cut to one able man now
+  HOLDS — "ELEMENT DOWN"); M2 belt refilled on remount (belt persists on
+  the gun); medic could fire mid-treatment; FPV froze if the pilot died
+  (dead-man's switch detonation); dead player could Tab-pause; feint
+  surrender tripped the QRF garrison trigger; mortar scatter was square not
+  circular; 40mm armed by aim distance not flight distance; minimap showed
+  the previous mission for a frame; grenadier memory-lob branch unreachable
+  (clearShot only fails on bodies — rebuilt in the no-threat branch, ROE-
+  gated, blast-clear-of-friends); bleed HUD normalized by the wrong max;
+  drag latch/pull limits (90px latch, 300px/s); camera dwell clamp + reset
+  per call; turret man-order dismounts the old gun first; STRAY fallback
+  nametapes (and STRAYs are not recruitable); stabilize fail text split
+  (bled out vs killed where he lay); debrief shows squad losses; BOUND/PEEL
+  byTeam split only fires with 2+ teams selected.
+- REFUTED on inspection: a handful of findings cited code paths that do not
+  exist in v0.43 or misread guards that were already present (per-finding
+  notes in the review journal).
+- DEFERRED, recorded not coded (Sam's call or needs his playtest first):
+  Abort-skips-settleVeterancy restart exploit (design decision — is Abort
+  free?); BROKEN ARROW should require carrying stabilized men to exfil
+  (designed, not built); QRF pathing plans from a single snapshot; mortar/
+  FPV kills get generic incident text; medic-freeze-under-threat claim and
+  the key-4 selection claim (neither harness-verified yet).
+Suite: 0 WRONGs twice after the batch. All of it is in v0.44, committed and
+pushed. Playtest list from night 3 still stands, plus: formations are on
+[Z] now, and the grenadier will actually use the M320 indirect — watch for
+whether he is too eager.
 
 ## Burndown night 3 extension — 2026-08-14 (Sam: 56% left; night 3 cost ~3%)
 
@@ -86,9 +123,10 @@ night built points at that one mission.
 1. ☑ v0.34 — THE PEEL [5]: 322px broken in 4s, 5 swaps, 13 covering rounds, 0 uncovered frames; ends set, facing the threat
 2. ☑ v0.35 — emplaced M2s (pinned, 110-deg arc, 2.2x pen, squaddie mountable by right-click) + PILLBOX QRF (6 guns, 6s after the garrison falls, win gated past the quiet minute)
 3. ☑ v0.36 — BROKEN ARROW: two men down in an ambushed convoy on 75s clocks, STABILIZE objective (fails by name if one dies), then extract; w glyph for authoring more
-   ▶ NEXT: the review workflow
-4. ☐ adversarial review workflow over all three burndown nights, findings
-   verified per-finding, confirmed bugs fixed before Sam's playtest
+4. ☑ adversarial review workflow over all three burndown nights — ran twice
+   (once here, once over v0.43); both times the verifier fleet died on the
+   monthly spend limit; findings self-verified and fixed in v0.44 (see the
+   second-extension handoff)
 
 ## Burndown night 3 — 2026-08-14 (Sam: 59% Fable left — was 62% before night 2, so the whole of night 2 cost ~3%)
 

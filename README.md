@@ -1,9 +1,9 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.32
+version: 1.33
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-12
+last_updated: 2026-08-14
 description: Index and quickstart for the top-down-tactical project (game title TBD).
 ai_update: Update last_updated and bump version in frontmatter (filename stays README.md). Append changelog at bottom.
 ---
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.43.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.44.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.43.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.44.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -97,3 +97,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.30 (2026-08-14): Synced to v0.41 — FLOOR TWO via stairs-as-map-swap; THE WALKUP; BETA chips in the picker.
 - v1.31 (2026-08-14): Synced to v0.42 — ammo cycling on X; vehicle ring mounts.
 - v1.32 (2026-08-14): Synced to v0.43 — elevated overwatch posts and the window vision rules.
+- v1.33 (2026-08-14): Synced to v0.44 — the night-review fix batch (~20 confirmed bugs; formations moved to [Z]).
