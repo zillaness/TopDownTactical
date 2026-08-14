@@ -65,6 +65,16 @@ item recorded: separate muzzle point from eyePoint. Suggested next session:
 Sam plays THE LANDING with RIFLE SQUAD (9) + suppressors — every system this
 night built points at that one mission.
 
+## Burndown night 3, second extension — Sam: "burndown ALL the tokens; build, hold off shipping; alpha/beta split is fine"
+
+### Queue (risk-ordered, all BETA unless stated)
+1. ☐ v0.37 — muzzle split: bullets exit the real muzzle (longer with a can), vision cone unchanged
+2. ☐ v0.38 — auto sectors of fire: formations and group-HOLD assign interlocking sectors, drawn while commanding
+3. ☐ v0.39 — contextual chained wheel: root varies by what is under the cursor; movement -> gait -> arrival-posture chains
+4. ☐ v0.40 — operator roster: recruits from rescues, recovery time for the wounded, deployment from READY operators
+5. ☐ v0.41 — FLOOR TWO (Sam's design: stairs swap to an upper-floor map) + BETA chips in the picker
+6. ☐ review workflow findings folded in when it lands
+
 ## Burndown night 3 extension — 2026-08-14 (Sam: 56% left; night 3 cost ~3%)
 
 ### Extension queue (ranked)
