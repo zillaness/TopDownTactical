@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.22.html
-  version: 0.22
+  file: top_down_tactical_v0.23.html
+  version: 0.23
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.22 (working title)</title>
+<title>Top-Down Tactical v0.23 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.22 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.23 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -118,6 +118,7 @@
   <div id="squadPick"></div>
   <button class="btn" id="btnStart">Breach</button>
   <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
+  <button class="btn" id="btnRetreat" style="display:none; background:#7a5a2b; margin-top:6px;">Retreat &mdash; fail the mission, keep your people</button>
 </div>
 
 <div id="debrief" class="screen hidden">
@@ -350,6 +351,11 @@ const TUNE = {
   suppNoiseShot: 185,               // vs 560 loud: one wall usually swallows it
   suppTurnMul: 0.8,                 // the longer gun swings slower
   suppFuzz: 96,                     // a heard suppressed shot is HARD to place
+  // Casualties. A squaddie whose hp reaches zero goes DOWN, not dead: he has
+  // bleedOut seconds of clock, a tourniquet takes tqTime seconds of standing
+  // over him holding [E], and it does not put him back in the fight — it keeps
+  // him, and every hour of experience he carries, alive to the debrief.
+  bleedOut: 24, tqTime: 3.0, tqReach: 44,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
   // surrender / compliance
@@ -1851,7 +1857,8 @@ function updatePlayer(p, dt) {
 
   // interactions
   updateDemo(p, dt);
-  if (pressed("e") && !game.planting) playerInteract(p);
+  if (pressed("e") && !game.planting && !game.tq) playerInteract(p);
+  updateTourniquet(p, dt);
   if (pressed("f")) {
     const d = nearestDoor(p.x, p.y, 56);
     if (d && d.state === "closed") kickDoor(d, p);
@@ -1938,6 +1945,29 @@ function throwSelected(p, kind, wx, wy) {
   game.hint = T.name + " out";
 }
 
+// The tourniquet. Same shape as the demolition hold: stand on him, hold [E],
+// stay there. It does not put him back in the fight — it stops the clock, and
+// with it the loss of every mission he has ever come back from.
+function updateTourniquet(p, dt) {
+  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach,
+                            s => s.alive && s.downed && !s.stabilized);
+  if (!cas) { game.tq = null; return; }
+  if (!held("e") || p.stagger > 0) {
+    if (game.tq) game.tq.t = Math.max(0, game.tq.t - dt * 2);
+    game.tq = null; return;
+  }
+  game.tq = game.tq && game.tq.cas === cas ? game.tq : { cas, t: 0 };
+  game.tq.t += dt;
+  if (game.tq.t >= TUNE.tqTime) {
+    cas.stabilized = true;
+    game.tq = null;
+    creditXp(p === game.player ? null : p, 0);
+    bark(cas, "...still here");
+    game.hint = cas.name + " is stable — he is out of the fight, but he is coming home";
+    sfxAt("surrender", cas.x, cas.y);
+  }
+}
+
 // Charges take time and you have to stay on them. Walking off cancels it, which
 // is what makes a covering element worth having on this mission type.
 function updateDemo(p, dt) {
@@ -1959,7 +1989,9 @@ function updateDemo(p, dt) {
 }
 
 function playerInteract(p) {
-  // priority: cuff surrendered > secure hostage > door
+  // priority: casualty > cuff surrendered > secure hostage > door
+  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed && !s.stabilized);
+  if (cas) return;                            // the [E] HOLD owns this — do not open a door over him
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
@@ -2352,6 +2384,23 @@ function recordIncident(ent) {
 
 function killEntity(ent, bySide, by) {
   if (!ent.alive) return;
+  // A squaddie's first zero is a casualty, not a corpse. He is down, bleeding,
+  // out of the fight — and on a clock only a tourniquet stops. A second hit,
+  // or the clock running out, comes back through here with downed already set.
+  if (ent.side === "squad" && !ent.downed) {
+    ent.downed = true; ent.stabilized = false; ent.bleedT = TUNE.bleedOut;
+    ent.hp = 0; ent.r = 7;                    // he is on the ground, a small target
+    ent.order = { type: "down" }; ent.path = null; ent.engaged = null;
+    removeFromPlans(ent);
+    const buddy = nearestEntity(game.squad, ent.x, ent.y, 1e9, s => s.alive && !s.downed && s !== ent);
+    if (buddy) { buddy._barkCd = 0; bark(buddy, "MAN DOWN — HE'S BLEEDING!"); }
+    game.hint = ent.name + " IS DOWN — get a tourniquet on him [hold E]";
+    game.fx.push({ kind: "incident", x: ent.x, y: ent.y, t: 5, max: 5 });
+    addNoise(ent.x, ent.y, 120, "bodyfall", ent.side);
+    sfxAt("thud", ent.x, ent.y);
+    return;
+  }
+  if (ent.side === "squad") ent.downed = false;   // past saving now
   ent.alive = false;
   ent.deadAt = game.stats ? game.stats.time : 0;
   ent.deadSpin = rand(-0.5, 0.5);
@@ -3008,7 +3057,7 @@ function updateEnemy(e, dt) {
   if (e.blind <= 0) {
     const threats = [game.player, ...game.squad];
     for (const t of threats) {
-      if (!t || !t.alive) continue;
+      if (!t || !t.alive || t.downed) continue;   // a downed man is out of the fight
       const fov = e.alerted ? TUNE.aiFovAlert : TUNE.aiFov;
       const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1);
       if (canSee(e.x, e.y, t.x, t.y, vd, e.face, fov)) {
@@ -3202,7 +3251,7 @@ function trySurrender(e, shouter) {
   else {
     let guns = 0;
     for (const t of [game.player, ...game.squad]) {
-      if (t && t.alive && canSee(t.x, t.y, e.x, e.y, 500)) guns++;
+      if (t && t.alive && !t.downed && canSee(t.x, t.y, e.x, e.y, 500)) guns++;
     }
     if (guns >= 2 && (e.state !== "combat" || e.reactT > 0)) p = Math.max(p, TUNE.surrenderOutgunned);
   }
@@ -3370,7 +3419,18 @@ function settleVeterancy(won) {
   for (const s of game.squad) {
     const rec = v[s.name] || (v[s.name] = { xp: 0, missions: 0, kia: 0 });
     const before = rankFor(rec.xp);
-    if (!s.alive) {
+    // A man still bleeding when it ends did not make it. A stabilized one did —
+    // that is the entire payoff of the three seconds the tourniquet cost.
+    const lost = !s.alive || (s.downed && !s.stabilized);
+    if (s.downed && s.stabilized) {
+      const gain = (s.mxp || 0) + (won ? XP.win : XP.survive);
+      rec.xp += gain; rec.missions++;
+      const after = rankFor(rec.xp);
+      rows.push({ name: s.name, kia: false, gain, rank: after, wounded: true,
+                  text: s.name + " WOUNDED, carried out — +" + gain + " XP kept, " + after.name });
+      continue;
+    }
+    if (lost) {
       const lost = rec.xp;
       rec.xp = 0; rec.kia++; rec.missions++;
       rows.push({ name: s.name, kia: true, lost, rank: RANKS[0],
@@ -4163,6 +4223,14 @@ function syncPlanMembers(p) {
 function updateSquaddie(s, dt) {
   s.nadeCd = Math.max(0, (s.nadeCd || 0) - dt);
   if (!s.alive) return;
+  if (s.downed) {
+    s.moving = false;
+    if (!s.stabilized) {
+      s.bleedT -= dt;
+      if (s.bleedT <= 0) killEntity(s, "bleed");   // downed already set: this one is final
+    }
+    return;
+  }
   s.blind = Math.max(0, s.blind - dt);
   s.stagger = Math.max(0, s.stagger - dt);
   s.suppress = Math.max(0, (s.suppress || 0) - dt * TUNE.suppressDecay);
@@ -4640,6 +4708,15 @@ function render() {
   // that is dimmed 86% is not a muzzle flash
   drawFx("post");
 
+  // tourniquet in progress: the ring closing is the three seconds
+  if (game.tq) {
+    const k = 1 / game.zoom, c = game.tq.cas;
+    ctx.strokeStyle = COLORS.ok; ctx.lineWidth = 3 * k;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 14 * k, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(game.tq.t / TUNE.tqTime, 0, 1));
+    ctx.stroke();
+  }
+
   // shoulder pip: shows which side your eye is on, so the corner game is learnable
   if (game.player.alive && game.eye) {
     const p = game.player, k = 1 / game.zoom;
@@ -4951,7 +5028,18 @@ function drawBody(e, dead) {
   const sp = s ? getSprite(s.key, s.tint) : null;
   if (sp && sp.ready) {
     const st = dead ? deadSettle(e) : null;
-    blitSprite(sp, e.x, e.y, (e.face || 0) + (st ? st.spin : 0), e.handed, st ? st.scale : 1);
+    blitSprite(sp, e.x, e.y, (e.face || 0) + (st ? st.spin : 0), e.handed, st ? st.scale : (e.downed ? 0.85 : 1));
+    if (e.downed && !dead) {
+      const k = 1 / game.zoom;
+      const blink = e.stabilized || (game.stats.time % 0.8) < 0.5;
+      if (blink) {
+        ctx.strokeStyle = e.stabilized ? COLORS.ok : COLORS.danger; ctx.lineWidth = 3 * k;
+        ctx.beginPath();
+        ctx.moveTo(e.x - 6 * k, e.y); ctx.lineTo(e.x + 6 * k, e.y);
+        ctx.moveTo(e.x, e.y - 6 * k); ctx.lineTo(e.x, e.y + 6 * k);
+        ctx.stroke();
+      }
+    }
     if (!dead && e.blind > 0) {
       ctx.fillStyle = "rgba(255,255,200,0.5)";
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU); ctx.fill();
@@ -5288,7 +5376,14 @@ function drawHud() {
       ? "#" + opNumber(s) + (s.team || "") + " " + s.name
       : "[" + (i + 1) + "] #" + opNumber(s) + " " + s.name;
     ctx.fillText(label + (s.alive ? "" : " ✝"), px + 8, sy + 15);
-    if (s.alive) {
+    if (s.alive && s.downed) {
+      // his row becomes the thing that matters now: the clock
+      ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
+      ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
+      ctx.fillRect(px + 8, sy + 22, 110 * (s.stabilized ? 1 : clamp(s.bleedT / TUNE.bleedOut, 0, 1)), 6);
+      ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), px + 126, sy + 15);
+      if (!s.stabilized) { ctx.fillStyle = COLORS.hud; ctx.fillText("[E] hold", px + 126, sy + 30); }
+    } else if (s.alive) {
       ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(px + 8, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
       // Rank rides on the ROE line rather than after the name: appended to the
@@ -5766,7 +5861,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null;
+  game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.tq = null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -6057,6 +6152,7 @@ function frame(now) {
       document.getElementById("menu").classList.remove("hidden");
       document.getElementById("btnStart").textContent = "Resume";
       document.getElementById("btnAbort").style.display = "";
+      document.getElementById("btnRetreat").style.display = "";
     }
     if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
     if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
@@ -6274,6 +6370,7 @@ function startMission(fresh) {
   document.getElementById("debrief").classList.add("hidden");
   document.getElementById("btnStart").textContent = "Breach";
   document.getElementById("btnAbort").style.display = "none";
+  document.getElementById("btnRetreat").style.display = "none";
   game.state = "play";
 }
 document.getElementById("btnStart").addEventListener("click", () => {
@@ -6281,6 +6378,16 @@ document.getElementById("btnStart").addEventListener("click", () => {
   startMission(!game.inProgress);
 });
 document.getElementById("btnAbort").addEventListener("click", () => startMission(true));
+// Retreat is a real decision, not a restart: the mission fails, the grade is an
+// F, and everyone still standing — and everyone with a tourniquet on — banks
+// what he earned and comes home. A man still bleeding when you pull out does
+// not make it, which is why you put the tourniquet on BEFORE you run.
+document.getElementById("btnRetreat").addEventListener("click", () => {
+  if (!game.inProgress) return;
+  document.getElementById("menu").classList.add("hidden");
+  game.state = "retreat";                  // not "play": endMission skips the AAR
+  endMission(false, "RETREAT — you pulled them out");
+});
 document.getElementById("btnRestart").addEventListener("click", () => startMission(true));
 
 // Without this the debrief is a dead end: its only control restarted the SAME
@@ -6293,6 +6400,7 @@ function toMissionSelect() {
   document.getElementById("menu").classList.remove("hidden");
   document.getElementById("btnStart").textContent = "Breach";
   document.getElementById("btnAbort").style.display = "none";
+  document.getElementById("btnRetreat").style.display = "none";
   refreshMenu();
 }
 document.getElementById("btnDebriefMenu").addEventListener("click", toMissionSelect);
@@ -6653,6 +6761,21 @@ requestAnimationFrame(frame);
     cost from the original design — eyePoint serves as both eye and muzzle, so
     lengthening it would let you SEE around corners earlier, a benefit. It
     needs a separate muzzle point, recorded in BURNDOWN as its own item.
+  v0.23 (2026-08-13): CASUALTIES, per Sam. A squaddie whose hp reaches zero
+    goes DOWN, not dead: he is out of the fight, enemies stop targeting him, and
+    he has a 24-second bleed-out clock only a tourniquet stops. Stand over him
+    and hold [E] for three seconds — walking off loses the progress, the same
+    rule as the demolition charge, which is what makes covering the man doing it
+    matter. Per Sam's design: the tourniquet does NOT heal him for the mission —
+    he stays on the ground to the end — it saves his life, and with it every
+    hour of experience he carries. The debrief now has three outcomes per man:
+    survived (banks XP), WOUNDED carried out (banks XP), KIA (everything gone).
+    A second hit while he is down, or the clock running out, is final.
+    RETREAT, per Sam: a new button on the Esc menu fails the mission on the spot
+    — grade F, no argument — but everyone standing and everyone stabilized banks
+    what he earned and comes home. A man still bleeding when you pull out does
+    not make it: tourniquet first, then run. Losing the mission and losing the
+    men are different losses now, which is the entire point of having both.
 -->
 </body>
 </html>

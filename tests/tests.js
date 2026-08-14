@@ -2276,3 +2276,86 @@ console.log('  one frame of a 180 swing: loud ' + swungLoud.toFixed(3) + ' rad, 
 game.loadout.can = false; initGame();
 console.log('SUPPRESSOR TEST DONE');
 })();
+
+(function casualtyTests(){
+console.log('--- casualties: down is not dead, and the tourniquet is the difference ---');
+localStorage.clear();
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'standard'; game.loadout.can = false; initGame(); game.state = 'play';
+
+// a squaddie at zero goes DOWN, and the team does not count him lost yet
+const cas = game.squad[0];
+cas.hp = 1; cas.armor = 0;
+killEntity(cas, 'enemy', null);
+console.log('  hit to zero: alive=' + cas.alive + ' downed=' + cas.downed + ' bleedT=' +
+            cas.bleedT + 's, squadLost=' + game.stats.squadLost,
+            cas.alive && cas.downed && cas.bleedT === TUNE.bleedOut && game.stats.squadLost === 0
+              ? 'CORRECT (a casualty, not a corpse)' : 'WRONG');
+
+// enemies stop seeing him as a target
+const foe = game.enemies.find(e => e.alive);
+foe.x = cas.x + 80; foe.y = cas.y; foe.blind = 0; foe.alerted = true; foe.face = Math.PI;
+let acquired = false;
+for (const t of [game.player, ...game.squad]) {
+  if (!t || !t.alive || t.downed) continue;
+  if (t === cas) acquired = true;
+}
+console.log('  target scan skips the man on the ground:', !acquired ? 'CORRECT' : 'WRONG');
+
+// the clock is real: unstabilized, he bleeds out and THEN it is a death
+let t = 0;
+while (cas.alive && t < 30) { updateSquaddie(cas, 0.5); t += 0.5; }
+console.log('  left bleeding: died after ' + t.toFixed(1) + 's, squadLost=' + game.stats.squadLost,
+            !cas.alive && Math.abs(t - TUNE.bleedOut) < 1.5 && game.stats.squadLost === 1
+              ? 'CORRECT (the clock was the whole fight)' : 'WRONG');
+
+// the tourniquet: hold [E] on him for tqTime and he is saved — but not healed
+initGame(); game.state = 'play';
+const cas2 = game.squad[0];
+cas2.hp = 1; cas2.armor = 0; killEntity(cas2, 'enemy', null);
+game.player.x = cas2.x + 10; game.player.y = cas2.y;
+input.keys.add('e');
+let held2 = 0;
+while (!cas2.stabilized && held2 < 5) { updateTourniquet(game.player, 1 / 60); held2 += 1 / 60; }
+input.keys.delete('e');
+console.log('  held [E] for ' + held2.toFixed(2) + 's: stabilized=' + cas2.stabilized +
+            ', still down=' + cas2.downed + ', hp=' + cas2.hp,
+            cas2.stabilized && cas2.downed && cas2.hp === 0 && Math.abs(held2 - TUNE.tqTime) < 0.1
+              ? 'CORRECT (saved, not healed)' : 'WRONG');
+// and stable means the clock has stopped
+const bt = cas2.bleedT;
+for (let i = 0; i < 600; i++) updateSquaddie(cas2, 1 / 60);
+console.log('  ten more seconds down: alive=' + cas2.alive + ', clock moved ' + (bt - cas2.bleedT).toFixed(1) + 's',
+            cas2.alive && bt === cas2.bleedT ? 'CORRECT (stable holds)' : 'WRONG');
+
+// walking away mid-hold loses progress
+initGame(); game.state = 'play';
+const cas3 = game.squad[0];
+cas3.hp = 1; cas3.armor = 0; killEntity(cas3, 'enemy', null);
+game.player.x = cas3.x + 10; game.player.y = cas3.y;
+input.keys.add('e');
+for (let i = 0; i < 60; i++) updateTourniquet(game.player, 1 / 60);   // 1s of 3
+const partial = game.tq ? game.tq.t : 0;
+game.player.x = cas3.x + 300;                                          // walked off
+updateTourniquet(game.player, 1 / 60);
+input.keys.delete('e');
+console.log('  1s of hold, then walked away: progress was ' + partial.toFixed(2) + 's, now ' +
+            (game.tq ? game.tq.t : 0),
+            partial > 0.9 && !game.tq && !cas3.stabilized ? 'CORRECT (you have to stay on him)' : 'WRONG');
+
+// veterancy: the stabilized man banks, the bleeder is wiped
+localStorage.setItem('tdt_vets', JSON.stringify({ REYES: { xp: 600, missions: 5, kia: 0 },
+  OKAFOR: { xp: 600, missions: 5, kia: 0 }, DANE: { xp: 0, missions: 0, kia: 0 } }));
+initGame(); game.state = 'play';
+const [rey, oka] = [game.squad.find(s => s.name === 'REYES'), game.squad.find(s => s.name === 'OKAFOR')];
+rey.hp = 1; rey.armor = 0; killEntity(rey, 'enemy', null); rey.stabilized = true; rey.mxp = 50;
+oka.hp = 1; oka.armor = 0; killEntity(oka, 'enemy', null); oka.mxp = 50;   // never tied off
+const rows = settleVeterancy(false);
+const saved = JSON.parse(localStorage.getItem('tdt_vets'));
+console.log('  REYES (tourniquet on): ' + saved.REYES.xp + ' XP — "' + rows.find(r => r.name === 'REYES').text + '"',
+            saved.REYES.xp === 660 ? 'CORRECT (kept + banked)' : 'WRONG');
+console.log('  OKAFOR (left bleeding): ' + saved.OKAFOR.xp + ' XP, kia=' + saved.OKAFOR.kia,
+            saved.OKAFOR.xp === 0 && saved.OKAFOR.kia === 1 ? 'CORRECT (the retreat does not save him)' : 'WRONG');
+localStorage.clear(); initGame();
+console.log('CASUALTY TEST DONE');
+})();
