@@ -175,7 +175,7 @@ exercises every system from both burndown nights in one mission.
 2. ☑ v0.27 — minimap: explored geometry in material colours, team, downed crosses, current + remembered contacts, objectives, viewport rect; [M] toggles
 3. ☑ v0.28 — formations: research §7 in tactical_research_v1.1, [V] cycles wedge/column/line with honest costs (column masks its own fire, line has no rear)
 4. ☑ v0.29 — THE LONG WALK: 72x40 treeline -> farmland -> walled town, capture + extract back the way you came, 16 guns, HVT 61 tiles out
-5. ☑ ART_PROMPT_environment_v1.0.md — master style block + per-asset prompts + integration contract + batch order
+5. ☑ ART_PROMPT_environment_v1.1.md — master style block + per-asset prompts + integration contract + batch order; v1.1 adds the raster-vs-vector call with payload math, the magenta-key workaround for GPT UI transparency, and the buildings section (roof scatter props + complete small structures)
 - ℹ AMMO RECOMMENDATION (Sam undecided, so recorded not coded): keep reserves
   unlimited. The game's pressure economy is time, noise and casualties — a
   fourth scarcity would fight the first three, and the guns already carry

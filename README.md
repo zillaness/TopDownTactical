@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.33
+version: 1.34
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-14
@@ -53,7 +53,7 @@ real browser with Playwright.
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
-| `ART_PROMPT_environment_v1.0.md` | Paste-ready prompts for generating top-down environment art with an image model |
+| `ART_PROMPT_environment_v1.1.md` | Paste-ready prompts for generating top-down environment art with an image model |
 | `ART_BRIEF_v1.2.md` | Self-contained art brief for an external pass — contract, assets, palette, and the mechanics the art serves |
 | `art/` | Sprite contact sheet + an honest gameplay frame, the other half of the art brief |
 | `improvement_plan_v1.1.md` | Ranked plan from the eight-agent audit-and-research study |
@@ -98,3 +98,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.31 (2026-08-14): Synced to v0.42 — ammo cycling on X; vehicle ring mounts.
 - v1.32 (2026-08-14): Synced to v0.43 — elevated overwatch posts and the window vision rules.
 - v1.33 (2026-08-14): Synced to v0.44 — the night-review fix batch (~20 confirmed bugs; formations moved to [Z]).
+- v1.34 (2026-08-14): Environment art prompt to v1.1 — raster decision, GPT transparency workaround, buildings section.
