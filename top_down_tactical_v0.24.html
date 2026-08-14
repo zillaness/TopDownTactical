@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.23.html
-  version: 0.23
+  file: top_down_tactical_v0.24.html
+  version: 0.24
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.23 (working title)</title>
+<title>Top-Down Tactical v0.24 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.23 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.24 prototype &mdash; working title &mdash; fifteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -381,6 +381,10 @@ const MATERIALS = {
   glass:      { name: "glass", resist: 3,    opaque: false, spall: 5,  defl: deg(7),  dmgKeep: 0.9,  col: "#8ed9f2" },
   sheetmetal: { name: "sheet metal", resist: 11,   opaque: true,  spall: 9,  defl: deg(7),  dmgKeep: 0.6,  col: "#788792" },
   engine:     { name: "an engine block", resist: 999,  opaque: true,  spall: 8,  defl: 0,       dmgKeep: 0,    col: "#34414b" },
+  // A tree is soft cover with a hard middle: the canopy blocks the sightline,
+  // the trunk eats pistol and degrades rifle, and rounds that cross it keep
+  // just over half their damage. Forest fights are fights between trunks.
+  tree:       { name: "a tree", resist: 22,   opaque: true,  spall: 5,  defl: deg(4),  dmgKeep: 0.55, col: "#3b5238" },
 };
 
 // ---- ammunition: penetration is caliber x projectile, and the two trade off
@@ -1134,7 +1138,97 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
-] }
+] },
+{ name: "RAMADI ROW", advice: "Walled compounds both sides, and the street itself is the kill zone. Clear compound by compound, cross at the cars, and let the grenadier post 40mm through the far windows.",
+  brief: "Urban sweep — walled compounds, a bare street, guns in the courtyards",
+  type: "URBAN SWEEP", objectives: ["neutralize"], src: [
+"##############################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,==================,,,,,,==================,#",
+"#,=,,,,,,,,,,,,,,,,=,,,,,,=,,,,,,,,,,,,,,,,=,#",
+"#,=,####D####,,,,,,=,,,,,,=,####D####,,,,,,=,#",
+"#,=,#.......#,,p,,,=,,,,,,=,#.......#,,g,,,=,#",
+"#,=,#.g.##D##,,,,,,=,,,,,,=,#..E....W,,,,,,=,#",
+"#,=,W...#...#,,,,,,=,,,,,,=,#.......#,,,,,,=,#",
+"#,=,#...#.g.#,,,,,,=,@%,,,=,#.......#,,,,,,=,#",
+"#,=,#...#...#,,,,,,=,,,,,,=,####W####,,,,,,=,#",
+"#,=,######W##,,,,,,=,,,,,,=,,,,,,,,,,,,,,,,=,#",
+"#,=,,,,,,,,,,,,,,,,=,,,,,,=,,g,,,,,,,,,,,,,=,#",
+"#,=======,==========,,,,,,=======,==========,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,%@,,,,,,,,,,,,,,,,,,,,#",
+"#,======,===========,,,,,,==============,===,#",
+"#,=,,,,,,,,,,,,,,,,=,,,,,,=,,,,,,,,,,,,,,,,=,#",
+"#,=,#####D#####,,,,=,,,,,,=,####D####,,,,,,=,#",
+"#,=,#.........#,,,,=,,,,,,=,#.......#,,,,,,=,#",
+"#,=,W.p.......#,,,,=,@%,,,=,W.g.....#,,,,,,=,#",
+"#,=,#......g..#,,,,=,,,,,,=,#.....E.#,,,,,,=,#",
+"#,=,#.........#,,,,=,,,,,,=,#.......#,,,,,,=,#",
+"#,=,########W##,,,,=,,,,,,=,#########,,,,,,=,#",
+"#,==================,,,,,,==================,#",
+"#,,,,,,,,,,,,,,,,,,,s,P,ss,,,,,,,,,,,,,,,,,,,#",
+"##############################################",
+] },
+{ name: "THE TREELINE", advice: "No rooms out here — the trunks are the walls and the lanes between them are the doors. A trunk eats pistol and blunts rifle, so fight trunk to trunk, and remember their patrols know these woods.",
+  brief: "Forest sweep — patrols in the trees, a poachers' camp in the deep wood",
+  type: "FOREST SWEEP", objectives: ["neutralize"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,ttt,,,,,tt,,,,,,,,ttt,,,,,,,,ttt,,,,,,,,tt,,,,,",
+",,ttttt,,,,tt,,,,,,,ttttt,,,,,,ttttt,,,,,,,tt,,,,,",
+",,,ttt,,,,,,,,,,,,,,,ttt,,,p,,,,ttt,tt,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,",
+",,,,,,,,ttt,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,,",
+",,,,,,,ttttt,,,,,tt,,,,,,,,ttttt,,,,,tt,,,,ttt,,,,",
+",,,,,,,,ttt,,,,,,tt,,,,,,,ttttttt,,,,tt,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,",
+",,,ttt,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,,",
+",,ttttt,,,,,,,,p,,,,,,,,,,,,,,,,,,,,,,%%%%%%tt,,,,",
+",,,ttt,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,%....%tt,,,,",
+",,,,,,,,,,,,,tt,,,,,ttt,,,,,,,,,,,,,,,%.g..D,,,,,,",
+",,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,,tt,,,%....%,,,,,,",
+",,,,,,ttt,,,,,,,,,,,ttt,,,,,,,,,,tt,,,%%%%%%,,,,,,",
+",,,,,ttttt,,,,,,,,,,,,,,,,,,,,g,,,,,,,,,,,,,,,,,,,",
+",,,,ttttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,ttttttt,,,,,,,,,,,,,ttt,,,,,,,,,,,%%%%%%%,,,,",
+",,,,,,ttt,tt,,,,,,,,,,,,ttttt,,,,,,,,,,%.....%,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,D..E..%,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%.....%,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%%%%%%,,,,",
+",,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,p,,,,,,,,,,,,,ttt,,",
+",,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttttt,",
+",,,ttt,,,,P,,,,,,,,,,,,,,,,,,,,,,,,,g,,,,,,,,ttt,,",
+",,,,,,,,s,s,s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+] },
+{ name: "THE STANDOFF", advice: "They know you are coming — nobody in that house investigates a noise, they hold their rooms and wait. The front door is barricaded. Gas through a window beats a bang through the funnel, and the flank beats the front.",
+  brief: "Barricaded suspects — advance across the yard, make entry, dig them out",
+  type: "BARRICADED SUSPECTS", objectives: ["neutralize"], src: [
+"########################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,#",
+"#,,,,,,,,#######W###W#######,,,,,,,,,,,#",
+"#,,,,,,,,#........#........#,,,,,,,,,,,#",
+"#,,,,,,,,#..g.....#....g...#,,,,,,,,,,,#",
+"#,,,,,,,,#........D........W,,,,,,,,,,,#",
+"#,,,,,,,,####D#####....E...#,,,,,,,,,,,#",
+"#,,,,,,,,#........#........#,,,,,,,,,,,#",
+"#,,,,,,,,#........#####D####,,,,,,,,,,,#",
+"#,,,,,,,,#..g.....#........#,,,,,,,,,,,#",
+"#,,,,,,,,W........D...g....#,,,,,,,,,,,#",
+"#,,,,,,,,#........#........#,,,,,,,,,,,#",
+"#,,,,,,,,######L###W###W####,,,,,,,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,@%,,,,,,,,,,,,,,,,,,,,,,,,%@,,,,,#",
+"#,,,,,,,,,,,,,P,,s,,s,,s,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"########################################",
+] },
 ];
 let MAP_SRC = MAPS[0].src;
 // hard-fail on malformed map data rather than rendering garbage
@@ -1146,7 +1240,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@,.BDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@t,.BDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -1190,10 +1284,11 @@ function parseLevel() {
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
     const ch = rows[y][x];
     const cx = x * TILE + TILE / 2, cy = y * TILE + TILE / 2;
-    if (ch === "#" || ch === "=" || ch === "-" || ch === "%" || ch === "@") {
+    if (ch === "#" || ch === "=" || ch === "-" || ch === "%" || ch === "@" || ch === "t") {
       level.wall[y][x] = 1;
       level.mat[y][x] = ch === "=" ? "brick" : ch === "-" ? "drywall"
-                      : ch === "%" ? "sheetmetal" : ch === "@" ? "engine" : "concrete";
+                      : ch === "%" ? "sheetmetal" : ch === "@" ? "engine"
+                      : ch === "t" ? "tree" : "concrete";
       continue;
     }
     if (ch === "W") {
@@ -3330,7 +3425,7 @@ function updateCivilian(c, dt) {
 // Per-barrier loss in the same px units as the noise radii. Drywall barely
 // muffles, which is correct — an interior partition is not soundproofing —
 // while concrete two rooms deep stops it dead.
-const SOUND_LOSS = { concrete: 210, brick: 150, sheetmetal: 110, wood: 85,
+const SOUND_LOSS = { concrete: 210, brick: 150, sheetmetal: 110, wood: 85, tree: 70,
                      drywall: 55, engine: 210, glass: 40, door: 85 };
 
 function soundLoss(ax, ay, bx, by) {
@@ -6107,10 +6202,16 @@ function endMission(won, reason) {
   document.getElementById("debrief").classList.remove("hidden");
 }
 
+function glassing() {
+  const g = game.player && game.player.guns && game.player.guns[game.player.gunIndex];
+  return !!(g && g.name === "MARKSMAN RIFLE");
+}
+
 function updateCamera(dt) {
   const p = game.player;
+  if (!glassing() && game.zoom < 1) game.zoom = 1;   // the glass goes back in the pocket
   const toCursor = { x: input.mouse.wx - p.x, y: input.mouse.wy - p.y };
-  const lead = Math.min(TUNE.camLeadMax, Math.hypot(toCursor.x, toCursor.y) * TUNE.camLead);
+  const lead = Math.min(TUNE.camLeadMax * (glassing() ? 2.2 : 1), Math.hypot(toCursor.x, toCursor.y) * TUNE.camLead);
   const ang = Math.atan2(toCursor.y, toCursor.x);
   const tx = p.x + Math.cos(ang) * lead, ty = p.y + Math.sin(ang) * lead;
   game.cam.x = lerp(game.cam.x, tx, clamp(dt * TUNE.camLerp, 0, 1));
@@ -6154,8 +6255,11 @@ function frame(now) {
       document.getElementById("btnAbort").style.display = "";
       document.getElementById("btnRetreat").style.display = "";
     }
-    if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), 1.0, 3.0);
-    if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), 1.0, 3.0);
+    // The marksman rifle earns its glass: with the DMR in hand the camera can
+    // pull out to 0.7x and the cursor drags the view over twice as far, which
+    // is the difference between owning a street and owning a doorway.
+    if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
+    if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
     // Holding either wheel open is command time. Choosing what the squad does is
     // a decision, and decisions should not be a dexterity test.
     game.slowmo = (!!game.wheel || !!game.nadeWheel) && !game.paused;
@@ -6776,6 +6880,19 @@ requestAnimationFrame(frame);
     what he earned and comes home. A man still bleeding when you pull out does
     not make it: tourniquet first, then run. Losing the mission and losing the
     men are different losses now, which is the entire point of having both.
+  v0.24 (2026-08-13): THREE NEW MAPS and the DMR gets its glass, from Sam's
+    list. RAMADI ROW — urban sweep: four walled compounds around a bare street
+    that is itself the kill zone, cars for mid-street cover, gates and courtyards
+    and interior rooms. THE TREELINE — forest sweep over a new tree material: the
+    canopy blocks the sightline, the trunk eats pistol (12 pen vs 22 resist) and
+    blunts but does not stop rifle, so the woods play as walls-made-of-lanes; a
+    poachers' camp of sheet-metal shacks holds the deep wood. THE STANDOFF —
+    Sam's barricaded-suspect scenario: a house whose garrison holds its rooms
+    and waits (no patrols, nobody investigates), a locked front door, windows
+    that gas fits through, and a police line with cars to advance from.
+    DMR GLASS: with the marksman rifle in hand the camera zooms out to 0.7x and
+    the cursor drags the view over twice as far. Swap to the sidearm and the
+    glass goes back in the pocket — the zoom snaps home.
 -->
 </body>
 </html>

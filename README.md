@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.12
+version: 1.13
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-12
@@ -13,7 +13,7 @@ ai_update: Update last_updated and bump version in frontmatter (filename stays R
 A top-down Door Kickers 2-style tactical game where you directly control the
 point man — WASD to move, **Shift** to sprint, **Space** to steady, mouse to aim
 and shoot, or a controller if you prefer — while commanding a 3-man AI squad — or a nine-man
-rifle squad in two fireteams — through stacks, synchronized breaches, and hostage rescues. Twelve
+rifle squad in two fireteams — through stacks, synchronized breaches, and hostage rescues. Fifteen
 missions across five objective types — including a training shoot house and a
 straight assault on a fortified position — three difficulty tiers, and best
 grades saved per mission.
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.23.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.24.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.23.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.24.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -76,3 +76,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.10 (2026-08-13): Synced to v0.21 — CS gas and the riot kit.
 - v1.11 (2026-08-13): Synced to v0.22 — suppressors: LOUD or SUPPRESSED at the briefing, whole team.
 - v1.12 (2026-08-13): Synced to v0.23 — casualties: downed state, tourniquets, retreat.
+- v1.13 (2026-08-13): Synced to v0.24 — RAMADI ROW, THE TREELINE, THE STANDOFF; tree material; DMR glass.

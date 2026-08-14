@@ -2359,3 +2359,54 @@ console.log('  OKAFOR (left bleeding): ' + saved.OKAFOR.xp + ' XP, kia=' + saved
 localStorage.clear(); initGame();
 console.log('CASUALTY TEST DONE');
 })();
+
+(function newMapsTests(){
+console.log('--- ramadi, the treeline, the standoff ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+// trees are a real material with the promised ballistics
+console.log('  tree: opaque=' + MATERIALS.tree.opaque + ' resist=' + MATERIALS.tree.resist +
+            ' (pistol pen ' + AMMO.pistol.pen + ', rifle pen ' + AMMO.fmj.pen + ')',
+            MATERIALS.tree.opaque && AMMO.pistol.pen < MATERIALS.tree.resist &&
+            AMMO.fmj.pen > MATERIALS.tree.resist ? 'CORRECT (blocks sight, eats pistol, blunts rifle)' : 'WRONG');
+
+for (const nm of ['RAMADI ROW', 'THE TREELINE', 'THE STANDOFF']) {
+  const mi = MAPS.findIndex(m => m.name === nm);
+  game.mapIndex = mi; initGame(); game.state = 'play';
+  // every enemy reachable from the player spawn
+  const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
+  const unreachable = level.spawns.enemies.filter(es => {
+    const et = tileAt(es.x, es.y);
+    return !astar(st0.tx, st0.ty, et.tx, et.ty, passForPath, pathCostSquad);
+  });
+  console.log('  ' + nm + ': ' + game.enemies.length + ' enemies, all reachable: ' +
+              (unreachable.length === 0), unreachable.length === 0 ? 'CORRECT' : 'WRONG');
+}
+
+// the treeline actually fights through trees: count tree tiles and check a trunk
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE'); initGame();
+let trees = 0; for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++)
+  if (level.mat[y][x] === 'tree') trees++;
+console.log('  THE TREELINE has ' + trees + ' tree tiles', trees > 80 ? 'CORRECT (it is a forest)' : 'WRONG');
+
+// the standoff: the front door is locked, and its garrison HOLDS (guards, no patrols)
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE STANDOFF'); initGame();
+const locked = level.doors.filter(d => d.locked).length;
+const patrols = game.enemies.filter(e => e.kind === 'patrol').length;
+console.log('  THE STANDOFF: ' + locked + ' barricaded door, ' + patrols + ' patrols among ' +
+            game.enemies.length + ' suspects',
+            locked >= 1 && patrols === 0 ? 'CORRECT (they hold and wait)' : 'WRONG');
+
+// DMR glass: zoom floor drops with the marksman rifle in hand
+game.mapIndex = 0; game.loadout.primary = 'dmr'; initGame(); game.state = 'play';
+game.player.gunIndex = 0;
+console.log('  glassing() with the DMR up: ' + glassing(), glassing() ? 'CORRECT' : 'WRONG');
+game.zoom = 0.7; glassing();
+game.player.gunIndex = 1;    // sidearm out
+updateCamera(1 / 60);
+console.log('  swap to the sidearm at 0.7x: zoom snaps to ' + game.zoom,
+            game.zoom === 1 ? 'CORRECT (the glass goes away with the rifle)' : 'WRONG');
+game.loadout.primary = 'carbine'; initGame();
+console.log('  carbine never glasses: ' + glassing(), !glassing() ? 'CORRECT' : 'WRONG');
+console.log('NEW MAPS TEST DONE');
+})();
