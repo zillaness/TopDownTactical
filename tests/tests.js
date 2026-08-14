@@ -1052,6 +1052,7 @@ console.log('  all ' + level.spawns.enemies.length + ' contacts reachable from t
 // --- bounding overwatch: somebody is always still
 const play = PLAYS.find(p => p.name === 'BOUND');
 console.log('  BOUND is in the playbook on [' + (play ? play.key : '?') + ']', play ? 'CORRECT' : 'WRONG');
+game.diffIndex = 1; game.densityIndex = 1;   // pin: leaked ELITE/SWARM is a different test
 game.mapIndex = shIdx; initGame(); game.state = 'play';
 const P = game.player;
 input.mouse.wx = P.x + 420; input.mouse.wy = P.y;
@@ -1078,6 +1079,20 @@ for (let f = 0; f < 60 * 14 && game.bound; f++) {
 console.log('  frames of travel where NOBODY was covering: ' + bothMoving + '/' + samples,
             samples > 0 && bothMoving / samples < 0.06 ? 'CORRECT' : 'WRONG (' +
             (100 * bothMoving / Math.max(1, samples)).toFixed(0) + '% uncovered)');
+
+// and the degenerate case: if the covering element dies, the bound must END,
+// not continue as one man strolling with nobody on his ground
+initGame(); game.state = 'play';
+input.mouse.wx = game.player.x + 420; input.mouse.wy = game.player.y;
+callPlay(play);
+const solo = game.squad.filter(s => s.order.element === 0);
+solo.forEach(s => { s.alive = false; });             // the covering element is gone
+update(1 / 60);
+const survivor = game.squad.find(s => s.alive);
+console.log('  covering element wiped: bound=' + (game.bound !== null) + ', survivor order=' +
+            (survivor ? survivor.order.type : '—'),
+            game.bound === null && survivor && survivor.order.type === 'hold'
+              ? 'CORRECT (ELEMENT DOWN — HOLDING)' : 'WRONG (he kept strolling)');
 console.log('  elements swapped ' + swaps + ' times during the move',
             swaps >= 1 ? 'CORRECT (it leapfrogs)' : 'WRONG (one element did it all)');
 console.log('SHOOT HOUSE + BOUND TEST DONE');
@@ -1264,11 +1279,14 @@ const pbIdx = MAPS.findIndex(m => m.name === 'THE PILLBOX');
 game.mapIndex = pbIdx; initGame(); game.state = 'play';
 const P = game.player;
 
-console.log('  the bag: ' + THROW_ORDER.map(k => THROWABLES[k].name + ' ' + (P.nades[k] || 0)).join(', '),
-            THROW_ORDER.length === 4 ? 'CORRECT' : 'WRONG');
-const dirs = THROW_ORDER.map(k => THROWABLES[k].dir);
-console.log('  one direction each: ' + dirs.join('/'),
-            new Set(dirs).size === 4 ? 'CORRECT' : 'WRONG');
+console.log('  the bag: ' + THROW_ORDER.map(k => THROWABLES[k].name + ' ' + (P.nades[k] || 0)).join(', '));
+// the wheel is four directions — kinds may share one (smoke/CS), but at most
+// one kind per direction can ever be CARRIED by a single kit
+const dirs = new Set(THROW_ORDER.map(k => THROWABLES[k].dir));
+const carriedPerDir = [...dirs].map(d =>
+  THROW_ORDER.filter(k => THROWABLES[k].dir === d && (P.nades[k] || 0) > 0).length);
+console.log('  four directions, carried kinds per direction ' + carriedPerDir.join('/'),
+            dirs.size === 4 && carriedPerDir.every(n => n <= 1) ? 'CORRECT (d-pad still works)' : 'WRONG');
 
 // FRAG kills, and the incident names it
 game.mapIndex = pbIdx; initGame(); game.state = 'play'; game.incidents.length = 0;
@@ -2120,4 +2138,69 @@ console.log('  STANDARD still fields ' + game.squad.length + ', teamless: ' +
             game.squad.length === 3 && game.squad.every(s => !s.team) ? 'CORRECT' : 'WRONG');
 localStorage.clear();
 console.log('RIFLE SQUAD TEST DONE');
+})();
+
+(function gasTests(){
+console.log('--- CS gas: your masks work, theirs do not ---');
+game.mapIndex = 0; game.loadout.squad = 'standard'; game.loadout.kit = 'riot'; initGame(); game.state = 'play';
+
+console.log('  RIOT kit carries: ' + JSON.stringify(game.player.nades),
+            game.player.nades.gas === 3 && game.player.nades.smoke === 0 ? 'CORRECT (gas replaces smoke)' : 'WRONG');
+
+// the cloud must never block a sightline
+game.smokes.length = 0;
+popGas({ x: game.player.x + 100, y: game.player.y, side: 'player' });
+for (let i = 0; i < 240; i++) { updateSmokes(1 / 60); }
+const cloud = game.smokes[0];
+// test the mechanism, not the map: a smoke cloud writes the vision grid, a gas
+// cloud must not — and opaque() at the cloud's own centre must stay false
+const gridSet = level.smokeGrid ? level.smokeGrid.reduce((n, v) => n + v, 0) : 0;
+const ct = tileAt(cloud.x, cloud.y);
+console.log('  cloud at r=' + cloud.r.toFixed(0) + ': smoke-grid cells set ' + gridSet +
+            ', opaque at centre ' + opaque(ct.tx, ct.ty),
+            gridSet === 0 && !opaque(ct.tx, ct.ty) ? 'CORRECT (CS is thin)' : 'WRONG');
+game.smokes.length = 0; popSmoke({ x: cloud.x, y: cloud.y, side: 'player' });
+for (let i = 0; i < 240; i++) updateSmokes(1 / 60);
+const gridSet2 = level.smokeGrid.reduce((n, v) => n + v, 0);
+console.log('  the same spot as SMOKE sets ' + gridSet2 + ' cells',
+            gridSet2 > 10 ? 'CORRECT (smoke still blinds)' : 'WRONG');
+game.smokes.length = 0; popGas({ x: cloud.x, y: cloud.y, side: 'player' });
+for (let i = 0; i < 240; i++) updateSmokes(1 / 60);
+
+// an unmasked man in the cloud accumulates pressure and eventually folds
+const foe = game.enemies.find(e => e.alive && e.kind !== 'elite' && e.kind !== 'taker');
+foe.x = cloud.x; foe.y = cloud.y; foe.state = 'idle'; foe.gasT = 0;
+const r0 = Math.random; let seq = 0.99; Math.random = () => (seq = seq > 0.5 ? 0.01 : 0.99);
+let t = 0;
+while (foe.state !== 'surrender' && t < 20) { updateSmokes(1/60); updateGasEffects(1 / 60); t += 1 / 60; }
+Math.random = r0;
+console.log('  unmasked suspect in the cloud folded after ' + t.toFixed(1) + 's (gasT=' +
+            foe.gasT.toFixed(1) + ', suppress=' + foe.suppress.toFixed(1) + ')',
+            foe.state === 'surrender' && t > TUNE.gasSurrenderAt ? 'CORRECT (chokes, then checks the will table)' : 'WRONG');
+
+// the squad is masked: standing in it costs them nothing
+const op = game.squad[0]; op.x = cloud.x; op.y = cloud.y;
+const sup0 = op.suppress || 0; op.gasT = 0;
+for (let i = 0; i < 120; i++) updateGasEffects(1 / 60);
+console.log('  a masked operator in the same cloud: gasT=' + (op.gasT || 0) + ', suppress +' +
+            ((op.suppress || 0) - sup0).toFixed(2),
+            !(op.gasT > 0) && (op.suppress || 0) - sup0 === 0 ? 'CORRECT (masks work)' : 'WRONG');
+
+// hostages cough but are never killed by it
+const h = game.hostages[0]; h.x = cloud.x; h.y = cloud.y; const hp0 = h.hp;
+for (let i = 0; i < 600; i++) updateGasEffects(1 / 60);
+console.log('  a hostage in the cloud for 10s: hp ' + hp0 + ' -> ' + h.hp + ', gasT=' + h.gasT.toFixed(1),
+            h.hp === hp0 && h.gasT > 0 ? 'CORRECT (miserable, not dead)' : 'WRONG');
+
+// the wheel: gas rides the smoke slot, and the pick prefers what you carry
+const cands = THROW_ORDER.filter(k => THROWABLES[k].dir === 'right');
+const picked = cands.find(k => (game.player.nades[k] || 0) > 0) || cands[0];
+console.log('  flick-right with the RIOT kit picks: ' + picked,
+            picked === 'gas' ? 'CORRECT' : 'WRONG');
+game.loadout.kit = 'entry'; initGame();
+const cands2 = THROW_ORDER.filter(k => THROWABLES[k].dir === 'right');
+const picked2 = cands2.find(k => (game.player.nades[k] || 0) > 0) || cands2[0];
+console.log('  flick-right with the ENTRY kit picks: ' + picked2,
+            picked2 === 'smoke' ? 'CORRECT (kits decide the slot)' : 'WRONG');
+console.log('GAS TEST DONE');
 })();

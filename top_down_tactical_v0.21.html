@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.20.html
-  version: 0.20
+  file: top_down_tactical_v0.21.html
+  version: 0.21
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.20 (working title)</title>
+<title>Top-Down Tactical v0.21 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.20 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.21 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -315,6 +315,7 @@ const TUNE = {
 
   // hand throwables
   fragLethal: 34, fragWound: 96, fragDmg: 98, noiseFrag: 700,
+  gasRadius: 118, gasLife: 13, gasPressure: 1.0, gasSurrenderAt: 2.6,
   // 40mm HE off the grenadier's underbarrel. Smaller charge than a hand frag,
   // but it arrives flat and fast where a throw cannot reach. Real 40mm arms by
   // spin after ~14-28m, which is the he40Arm distance here — inside that it is
@@ -1668,7 +1669,7 @@ function makePlayer(sp) {
   const kit = UTILITY_KITS[L.kit] || UTILITY_KITS.entry;
   const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w, carrySpeed: prim.speed || 1 });
   p.charges = kit.charges; p.shoutCd = 0;
-  p.nades = { bang: kit.bangs, frag: kit.frag || 0, conc: kit.conc || 0, smoke: kit.smoke || 0 };
+  p.nades = { bang: kit.bangs, frag: kit.frag || 0, conc: kit.conc || 0, smoke: kit.smoke || 0, gas: kit.gas || 0 };
   p.nadeKind = "bang";
   Object.defineProperty(p, "bangs", {                       // squad breach plans still read p.bangs
     get() { return this.nades.bang; }, set(v) { this.nades.bang = v; },
@@ -1859,7 +1860,8 @@ function updatePlayer(p, dt) {
            : Math.hypot(dx, dy) < TUNE.wheelDeadzone ? null
            : (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
     if (released("mmb")) {
-      const picked = nw.dir ? (THROW_ORDER.find(k => THROWABLES[k].dir === nw.dir) || p.nadeKind) : p.nadeKind;
+      const cands = THROW_ORDER.filter(k => THROWABLES[k].dir === nw.dir);
+      const picked = nw.dir ? (cands.find(k => (p.nades[k] || 0) > 0) || cands[0] || p.nadeKind) : p.nadeKind;
       game.nadeWheel = null;
       throwSelected(p, picked, nw.wx, nw.wy);
     }
@@ -2384,8 +2386,13 @@ const THROWABLES = {
           fuse: 1.3, note: "overpressure — reaches around a corner" },
   smoke: { key: "smoke", name: "SMOKE", dir: "right", col: "#9aa6b2",
            fuse: 1.1, note: "takes the room's eyes, yours included" },
+  // CS shares smoke's slot on the wheel — a kit carries one or the other. Your
+  // team is masked; the room is not. It does not block anyone's vision, it
+  // takes the will out of the men standing in it.
+  gas:  { key: "gas", name: "CS GAS", dir: "right", col: "#b8d44a",
+          fuse: 1.2, note: "your masks work, theirs don't — coughing men give up" },
 };
-const THROW_ORDER = ["bang", "frag", "conc", "smoke"];
+const THROW_ORDER = ["bang", "frag", "conc", "smoke", "gas"];
 
 // You do not throw a grenade AT a spot on the far side of a doorway, you throw
 // it THROUGH the doorway. Measured before this: 38% of throws at a point inside
@@ -2466,6 +2473,7 @@ function updateSmokes(dt) {
     const fade = clamp((sm.life - sm.t) / 3.5, 0, 1);
     sm.r = sm.max * grow * (0.35 + 0.65 * fade);
     if (sm.r <= 1) continue;
+    if (sm.kind === "gas") continue;      // CS is thin: it never blocks a sightline
     const t0 = tileAt(sm.x - sm.r, sm.y - sm.r), t1 = tileAt(sm.x + sm.r, sm.y + sm.r);
     for (let ty = t0.ty; ty <= t1.ty; ty++) for (let tx = t0.tx; tx <= t1.tx; tx++) {
       if (!inBounds(tx, ty)) continue;
@@ -2483,7 +2491,15 @@ function drawSmoke() {
     if (sm.r <= 1) continue;
     const fade = clamp((sm.life - sm.t) / 3.5, 0, 1);
     const g = ctx.createRadialGradient(sm.x, sm.y, sm.r * 0.15, sm.x, sm.y, sm.r);
-    const a = 0.82 * fade;
+    const a = (sm.kind === "gas" ? 0.34 : 0.82) * fade;   // CS reads thin because it IS thin
+    if (sm.kind === "gas") {
+      g.addColorStop(0, "rgba(184,212,74," + a.toFixed(3) + ")");
+      g.addColorStop(0.7, "rgba(150,180,60," + (a * 0.8).toFixed(3) + ")");
+      g.addColorStop(1, "rgba(120,150,50,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, TAU); ctx.fill();
+      continue;
+    }
     g.addColorStop(0, "rgba(168,176,184," + a.toFixed(3) + ")");
     g.addColorStop(0.7, "rgba(140,150,160," + (a * 0.8).toFixed(3) + ")");
     g.addColorStop(1, "rgba(120,130,140,0)");
@@ -2524,6 +2540,7 @@ function updateBangs(dt) {
 }
 
 function detonateNade(g) {
+  if (g.kind === "gas") return popGas(g);
   if (g.kind === "he40") return detonateHE40(g);
   if (g.kind === "frag") return detonateFrag(g);
   if (g.kind === "conc") return detonateConcussion(g);
@@ -2652,6 +2669,40 @@ function popSmoke(g) {
   addNoise(g.x, g.y, 200, "throw", g.side);
   sfxAt("door", g.x, g.y);
   game.stats.smokesUsed = (game.stats.smokesUsed || 0) + 1;
+}
+
+function popGas(g) {
+  game.smokes.push({ x: g.x, y: g.y, t: 0, life: TUNE.gasLife, r: 0,
+                     max: TUNE.gasRadius, kind: "gas" });
+  addNoise(g.x, g.y, 180, "throw", g.side);
+  sfxAt("door", g.x, g.y);
+}
+
+// The cloud's teeth. Masked people (your team) walk through it; everyone else
+// coughs — suppression climbs, and a man who has been choking in it long
+// enough starts checking the same will-to-fight table the shout does, with the
+// odds stacked the way a lungful of CS stacks them.
+function updateGasEffects(dt) {
+  for (const sm of game.smokes) {
+    if (sm.kind !== "gas" || sm.r <= 8) continue;
+    for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
+      if (!e || !e.alive) continue;
+      if (e.state === "cuffed") continue;
+      const d = dist(sm.x, sm.y, e.x, e.y);
+      if (d > sm.r) continue;
+      const depth = 1 - d / sm.r;
+      e.gasT = (e.gasT || 0) + dt * depth;
+      if (e.side === "enemy" && e.state !== "surrender") {
+        e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + TUNE.gasPressure * depth * dt);
+        e._gasCheck = (e._gasCheck || 0) - dt;
+        if (e.gasT > TUNE.gasSurrenderAt && e._gasCheck <= 0) {
+          e._gasCheck = 0.8;
+          e.flashedRecently = Math.max(e.flashedRecently || 0, 0.5);  // choking rattles like a flash
+          trySurrender(e, null);
+        }
+      }
+    }
+  }
 }
 
 function detonateBang(g) {
@@ -3388,6 +3439,8 @@ const UTILITY_KITS = {
   demo:   { name: "DEMOLITION",  bangs: 1, frag: 2, conc: 1, smoke: 0, charges: 4, note: "make your own doors" },
   assault:{ name: "ASSAULT",     bangs: 1, frag: 3, conc: 1, smoke: 2, charges: 0, note: "nobody in there to save" },
   screen: { name: "SCREENING",   bangs: 2, frag: 0, conc: 0, smoke: 4, charges: 1, note: "cross ground they can see" },
+  riot:   { name: "RIOT CONTROL", bangs: 2, frag: 0, conc: 1, smoke: 0, gas: 3, charges: 1,
+            note: "gas them out, cuff them coughing" },
 };
 
 const SQUAD_TEMPLATES = {
@@ -4027,6 +4080,16 @@ function updateBound(dt) {
   if (!B) return;
   const live = B.members.filter(s => s.alive && s.order.type === "bound");
   if (!live.length) { game.bound = null; return; }
+  // A one-element bound is not a bound. If everyone still standing is in the
+  // same element, the covering element is dead — and a man leapfrogging with
+  // nobody on his ground is just a man strolling through the kill zone. The
+  // manoeuvre ends where it stands; the survivors hold and wait for orders.
+  if (new Set(live.map(s => s.order.element)).size < 2) {
+    live.forEach(s => { s.order = { type: "hold", face: s.order.face }; s._legX = undefined; s._legY = undefined; });
+    bark(live[0], "ELEMENT DOWN — HOLDING");
+    game.bound = null;
+    return;
+  }
   B.t += dt;
   const movers = live.filter(s => s.order.element === B.moving);
   const done = live.every(s => dist(s.x, s.y, B.x, B.y) < 44);
@@ -5381,7 +5444,14 @@ function drawNadeWheel() {
   ctx.strokeStyle = "#2a333c"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(w.sx, w.sy, TUNE.wheelDeadzone, 0, TAU); ctx.stroke();
   ctx.textAlign = "center";
+  // one label per direction: where two kinds share a slot (smoke/CS), show the
+  // one this kit actually carries
+  const byDir = {};
   for (const k of THROW_ORDER) {
+    const d = THROWABLES[k].dir;
+    if (!byDir[d] || (p.nades[k] || 0) > 0) byDir[d] = byDir[d] && (p.nades[byDir[d]] || 0) > 0 ? byDir[d] : k;
+  }
+  for (const k of Object.values(byDir)) {
     const T = THROWABLES[k], off = OFF[T.dir];
     const x = w.sx + off[0] * R, y = w.sy + off[1] * R;
     const have = p.nades[k] || 0;
@@ -5703,6 +5773,7 @@ function update(dt) {
   updateBangs(dt);
   trackVelocities(dt);
   updateSmokes(dt);
+  updateGasEffects(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -6524,6 +6595,25 @@ requestAnimationFrame(frame);
     other five are for. Built for THE LANDING, SEAWALL and SWARM density, where
     four guns was never the right count. Also fixed opNumber wrapping at #4 —
     eight men now run #2 through #9 instead of repeating.
+  v0.21 (2026-08-13): CS GAS, the "other grenade type" from the tabled list.
+    Your team is masked; the room is not — that asymmetry is the whole tool. The
+    cloud never blocks a sightline (it skips the smoke grid entirely, and the
+    test proves the same spot as smoke sets 37 vision cells while gas sets 0);
+    instead, unmasked people in it cough. Suspects take suppression by depth and
+    after 2.6 seconds of choking start checking the same will-to-fight table the
+    compliance shout uses, with flash-grade odds. Hostages and civilians get
+    miserable, never hurt. Elites still resist folding; a cuffed man is left
+    alone. New RIOT CONTROL kit carries three CS on the smoke slot of the bag —
+    the wheel shows whichever of smoke/CS the kit actually carries, and the pick
+    prefers what you have. Gas rescues on FLIGHT 214 without breaking a single
+    window are now a thing that can be attempted.
+    ALSO FIXED, caught by a flaky test this unit made loud: if the covering
+    element of a BOUND was wiped, the survivor kept leapfrogging alone — one man
+    strolling the kill zone with nobody on his ground, up to 11% of travel
+    frames uncovered. A one-element bound is not a bound: the manoeuvre now ends
+    where it stands, the survivors hold, and the bark says ELEMENT DOWN. The
+    coverage test also pins difficulty and density, because inheriting SWARM
+    ELITE from an earlier test block was a different experiment.
 -->
 </body>
 </html>
