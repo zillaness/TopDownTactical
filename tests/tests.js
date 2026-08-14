@@ -2878,8 +2878,9 @@ console.log('  deployed ' + game.squad.length + ' (3 up + ' + wounded.length + '
             wounded.map(s2 => s2.bleedT + 's').join(', '),
             wounded.length === 2 && wounded.every(s2 => s2.downed && !s2.stabilized && s2.bleedT === TUNE.brokenBleed)
               ? 'CORRECT (the mission is the men)' : 'WRONG');
-console.log('  they are on the books: ' + wounded.map(s2 => s2.name).join(', '),
-            wounded.every(s2 => SQUAD_NAMES.includes(s2.name)) ? 'CORRECT (bench names, real XP stakes)' : 'WRONG');
+console.log('  they are strangers: ' + wounded.map(s2 => s2.name).join(', '),
+            wounded.every(s2 => RECRUIT_NAMES.includes(s2.name) && s2.recruitCandidate)
+              ? 'CORRECT (recruit pool — save them and they can sign)' : 'WRONG');
 console.log('  objective reads: "' + OBJECTIVES.stabilize.label() + '", done=' + OBJECTIVES.stabilize.done(),
             /WOUNDED 0\/2/.test(OBJECTIVES.stabilize.label()) && !OBJECTIVES.stabilize.done() ? 'CORRECT' : 'WRONG');
 
@@ -3053,4 +3054,59 @@ console.log('  a quick tap on a man still selects: ' + game.selected.has(1),
             game.selected.has(1) ? 'CORRECT (muscle memory kept)' : 'WRONG');
 game.selected.clear(); initGame();
 console.log('CHAINED WHEEL TEST DONE');
+})();
+
+(function rosterTests(){
+console.log('--- the roster: recruits, recovery, and who actually deploys ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+// a wounded survivor goes into recovery, and the next deployment skips him
+game.mapIndex = 0; initGame(); game.state = 'play';
+const w1 = game.squad[0];                     // REYES
+w1.hp = 1; w1.armor = 0; killEntity(w1, 'enemy', null); w1.stabilized = true;
+settleVeterancy(true);
+let v = loadVets();
+console.log('  REYES wounded+stabilized: status=' + v.REYES.status + ' recoverIn=' + v.REYES.recoverIn,
+            v.REYES.status === 'recovering' && v.REYES.recoverIn === 2 ? 'CORRECT (out 2 missions)' : 'WRONG');
+initGame();
+console.log('  next deployment: ' + game.squad.map(s2 => s2.name).join(', '),
+            !game.squad.some(s2 => s2.name === 'REYES') && game.squad.length === 3
+              ? 'CORRECT (VASQUEZ steps up, REYES sits)' : 'WRONG');
+
+// two finished missions later he is back
+settleVeterancy(true); initGame(); settleVeterancy(true);
+v = loadVets();
+console.log('  after two missions on the sideline: status=' + (v.REYES.status || 'ready'),
+            v.REYES.status !== 'recovering' ? 'CORRECT (cleared to return)' : 'WRONG');
+
+// BROKEN ARROW: save a stranger, win, and he signs
+localStorage.clear();
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
+const rc = game.squad.filter(s2 => s2.recruitCandidate);
+rc.forEach(s2 => { s2.stabilized = true; });
+const rows2 = settleVeterancy(true);
+v = loadVets();
+const signed = rc.filter(s2 => v[s2.name]);
+console.log('  both saved and brought home: ' + signed.map(s2 => s2.name + ' (' + v[s2.name].xp + ' XP, ' +
+            v[s2.name].status + ')').join(', '),
+            signed.length === 2 && signed.every(s2 => v[s2.name].xp === 150 && v[s2.name].recruit &&
+              v[s2.name].status === 'recovering') ? 'CORRECT (they owe you one)' : 'WRONG');
+console.log('  roster grew: ' + loadRosterOrder().length + ' names',
+            loadRosterOrder().length === 10 ? 'CORRECT (8 founders + 2 recruited)' : 'WRONG');
+const recruitRow = rows2.find(r => r.recruited);
+console.log('  debrief says: "' + recruitRow.text.slice(0, 44) + '..."',
+            /RECRUITED/.test(recruitRow.text) ? 'CORRECT' : 'WRONG');
+
+// an unsaved stranger does not sign
+localStorage.clear();
+initGame(); game.state = 'play';
+const rc2 = game.squad.filter(s2 => s2.recruitCandidate);
+rc2[0].stabilized = true; rc2[1].alive = false; rc2[1].downed = false;
+settleVeterancy(true);
+v = loadVets();
+console.log('  one saved, one lost: on the books=' + [rc2[0].name, rc2[1].name].map(n => !!v[n]).join('/'),
+            v[rc2[0].name] && !v[rc2[1].name] ? 'CORRECT (only the living sign)' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; game.loadout.squad = 'standard'; initGame();
+console.log('ROSTER TEST DONE');
 })();

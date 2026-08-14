@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.39.html
-  version: 0.39
+  file: top_down_tactical_v0.40.html
+  version: 0.40
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.39 (working title)</title>
+<title>Top-Down Tactical v0.40 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.39 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.40 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -4113,10 +4113,45 @@ function rankFor(xp) {
 }
 function nextRank(xp) { return RANKS.find(t => t.xp > xp) || null; }
 
+// BETA: the roster. The eight founding names plus anyone you pull out of the
+// fire and recruit. Wounded men RECOVER — stabilized casualties sit out the
+// next two missions, and the briefing deploys the first READY names in roster
+// order. Sam: "If you save lives you should be able to recruit them."
+const RECRUIT_NAMES = ["OKONKWO", "PRICE", "TANAKA", "DIAZ", "VOLKOV", "NDIAYE", "LARSSON", "QUINN"];
+
+function loadRosterOrder() {
+  try {
+    const r = JSON.parse(localStorage.getItem("tdt_roster") || "null");
+    if (Array.isArray(r) && r.length) {
+      for (const n of SQUAD_NAMES) if (!r.includes(n)) r.push(n);
+      return r;
+    }
+  } catch (e) {}
+  return SQUAD_NAMES.slice();
+}
+function saveRosterOrder(r) { try { localStorage.setItem("tdt_roster", JSON.stringify(r)); } catch (e) {} }
+
+function rosterStatus(rec) {
+  if (!rec) return "READY";
+  return rec.status === "recovering" ? "RECOVERING " + (rec.recoverIn || 1) : "READY";
+}
+function readyNames() {
+  const v = loadVets();
+  return loadRosterOrder().filter(n => !v[n] || v[n].status !== "recovering");
+}
+function nextRecruitName() {
+  const order = loadRosterOrder();
+  return RECRUIT_NAMES.find(n => !order.includes(n)) || ("R-" + ((Math.min(9, order.length)) + 1));
+}
+
 function loadVets() {
   let v = {};
   try { v = JSON.parse(localStorage.getItem("tdt_vets") || "{}"); } catch (e) { v = {}; }
   for (const n of SQUAD_NAMES) if (!v[n]) v[n] = { xp: 0, missions: 0, kia: 0 };
+  try {
+    const r = JSON.parse(localStorage.getItem("tdt_roster") || "null");
+    if (Array.isArray(r)) for (const n of r) if (!v[n]) v[n] = { xp: 0, missions: 0, kia: 0 };
+  } catch (e) {}
   return v;
 }
 function saveVets(v) {
@@ -4130,6 +4165,20 @@ function settleVeterancy(won) {
   const v = loadVets();
   const rows = [];
   for (const s of game.squad) {
+    // A recruit candidate is not on the books yet. Saved AND brought home on a
+    // won mission, he signs: 150 XP, one mission of recovery, a roster line.
+    if (s.recruitCandidate) {
+      if (won && s.alive && s.downed && s.stabilized) {
+        v[s.name] = { xp: 150, missions: 0, kia: 0, status: "recovering", recoverIn: 1, recruit: true };
+        const order = loadRosterOrder(); order.push(s.name); saveRosterOrder(order);
+        rows.push({ name: s.name, kia: false, gain: 150, rank: rankFor(150), recruited: true,
+                    text: s.name + " RECRUITED — he owes you one. Joins the roster after 1 mission of recovery." });
+      } else if (!s.alive || (s.downed && !s.stabilized)) {
+        rows.push({ name: s.name, kia: true, lost: 0, rank: RANKS[0],
+                    text: s.name + " KIA — you never got the chance to know him." });
+      }
+      continue;
+    }
     const rec = v[s.name] || (v[s.name] = { xp: 0, missions: 0, kia: 0 });
     const before = rankFor(rec.xp);
     // A man still bleeding when it ends did not make it. A stabilized one did —
@@ -4138,9 +4187,10 @@ function settleVeterancy(won) {
     if (s.downed && s.stabilized) {
       const gain = (s.mxp || 0) + (won ? XP.win : XP.survive);
       rec.xp += gain; rec.missions++;
+      rec.status = "recovering"; rec.recoverIn = 2;
       const after = rankFor(rec.xp);
       rows.push({ name: s.name, kia: false, gain, rank: after, wounded: true,
-                  text: s.name + " WOUNDED, carried out — +" + gain + " XP kept, " + after.name });
+                  text: s.name + " WOUNDED, carried out — +" + gain + " XP kept, " + after.name + ". Out 2 missions recovering." });
       continue;
     }
     if (lost) {
@@ -4159,6 +4209,19 @@ function settleVeterancy(won) {
     rows.push({ name: s.name, kia: false, gain, rank: after, promoted: after !== before,
                 text: s.name + " +" + gain + " XP — " + after.name +
                       (after !== before ? " (PROMOTED)" : nx ? " (" + (nx.xp - rec.xp) + " to " + nx.name + ")" : " (max)") });
+  }
+  // the sideline heals one mission at a time — whoever sat this one out is a
+  // mission closer to coming back
+  const deployed = new Set(game.squad.map(s2 => s2.name));
+  for (const n of Object.keys(v)) {
+    if (deployed.has(n)) continue;
+    if (v[n].status === "recovering") {
+      v[n].recoverIn = (v[n].recoverIn || 1) - 1;
+      if (v[n].recoverIn <= 0) { v[n].status = "ready"; delete v[n].recoverIn;
+        rows.push({ name: n, kia: false, gain: 0, rank: rankFor(v[n].xp), returned: true,
+                    text: n + " cleared to return — READY next mission." });
+      }
+    }
   }
   saveVets(v);
   return rows;
@@ -4254,7 +4317,7 @@ function makeSquaddie(sp, i) {
   const role = tmpl.roles[i % tmpl.roles.length];
   const w = { ...TUNE.rifle, spreadBase: deg(0.9), rpm: 480, ...ROLES[role].w };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
-  s.name = SQUAD_NAMES[i] || "OP" + i;
+  s.name = (game.deployRoster && game.deployRoster[i]) || SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
   s.role = role;
   s.team = tmpl.teams ? tmpl.teams[i] : null;
@@ -7112,6 +7175,9 @@ function initGame() {
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
   game.vets = loadVets();          // the men remember the last one
+  // deploy the first READY names in roster order — the recovering sit this out
+  const tmplDeploy = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
+  game.deployRoster = readyNames().slice(0, tmplDeploy.roles.length);
   // Maps author three squad spawn points; a nine-man squad rings the overflow
   // around them deterministically rather than demanding every map be re-drawn.
   const tmplSq = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
@@ -7126,8 +7192,14 @@ function initGame() {
   game.squad = sqPts.map((sp, i) => makeSquaddie(sp, i));
   // BROKEN ARROW: the men you came for are squaddies who were down before you
   // arrived — on the books, on a long clock, and on the far side of the map
+  const usedRecruits = [];
   level.spawns.wounded.forEach((sp, wi) => {
     const s2 = makeSquaddie(sp, game.squad.length);
+    // the men you come for are STRANGERS — recruit-pool names, not your bench.
+    // Save one and win, and he joins the roster.
+    const rn = RECRUIT_NAMES.find(n => !loadRosterOrder().includes(n) && !usedRecruits.includes(n));
+    if (rn) { s2.name = rn; usedRecruits.push(rn); s2.recruitCandidate = true; }
+    s2.xp = 150; s2.rank = rankFor(150);   // they were somebody's operators
     s2.downed = true; s2.stabilized = false; s2.bleedT = TUNE.brokenBleed;
     s2.hp = 0; s2.r = 7; s2.order = { type: "down" }; s2.qrfCasualty = true;
     game.squad.push(s2);
@@ -7620,9 +7692,15 @@ function renderBriefing() {
   const lines = briefingLines(map, s, game.diffIndex);
   const v = loadVets();
   const tmplBr = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
-  const roster = SQUAD_NAMES.slice(0, tmplBr.roles.length).map((n, bi) => {
-    const teamTag = tmplBr.teams ? tmplBr.teams[bi] + " · " : "";
-    return teamTag + rosterLine(n, v);
+  const deploying = readyNames().slice(0, tmplBr.roles.length);
+  const roster = loadRosterOrder().map((n) => {
+    const rec = v[n];
+    const st = rosterStatus(rec);
+    const di = deploying.indexOf(n);
+    const teamTag = di >= 0 && tmplBr.teams ? tmplBr.teams[di] + " · " : "";
+    const badge = st !== "READY" ? " ⛑ " + st
+                : di >= 0 ? "" : " (bench)";
+    return teamTag + rosterLine(n, v) + badge + (rec && rec.recruit ? " · recruited" : "");
   }).join("<br>");
   function rosterLine(n, v) {
     const rec = v[n] || { xp: 0, missions: 0, kia: 0 };
@@ -8310,6 +8388,20 @@ requestAnimationFrame(frame);
     MOVE HIM… (the same gait/posture chain, solo), HOLD & PULL SECURITY, ON
     ME. A quick tap on a man still just selects him. Pad note: d-pad chains
     inherit the mouse paths; a bare A press keeps the old one-ring behavior.
+  v0.40 (2026-08-14): THE ROSTER, per Sam: "If you save lives you should be
+    able to recruit them. And there should be a roster of operators with
+    different experience levels. And you have operators that are recovering
+    from injury." The eight founding names are now a persistent roster that
+    GROWS: BROKEN ARROW's casualties are strangers off a recruit pool
+    (OKONKWO, PRICE, TANAKA, DIAZ, VOLKOV, NDIAYE, LARSSON, QUINN) — save one
+    AND bring the mission home and he signs at 150 XP, one mission of recovery,
+    a debrief line of his own. Wounded operators RECOVER: a stabilized casualty
+    sits out the next two missions, every finished mission heals the sideline
+    by one, and the briefing deploys the first READY names in roster order —
+    REYES goes down and VASQUEZ steps up, automatically. The briefing roster
+    now shows everyone: deploying (with fireteam letters), bench, RECOVERING n,
+    recruited. Death still erases a man completely; recovery is what you get
+    for the tourniquet.
 -->
 </body>
 </html>

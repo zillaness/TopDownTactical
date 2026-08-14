@@ -71,8 +71,8 @@ night built points at that one mission.
 1. ☑ v0.37 — muzzle split: per-gun barrel lengths, +7px for the can, wall-clamped, flash and AAR line on the true muzzle; eyePoint untouched
 2. ☑ v0.38 — sectors: ANCHOR splits by team size (was hardcoded 3), every order records its width, wheel-open/pause draws the interlock (green watch, red suppress, amber gun arc)
 3. ☑ v0.39 — chained wheel: Sam's right->up->right chain verbatim, commit-lock at 52px, defaults at every depth, short-flick BOUND kept, operator ring (self-aid/move/security/on-me), tap still selects
-   ▶ NEXT: v0.40 roster
-4. ☐ v0.40 — operator roster: recruits from rescues, recovery time for the wounded, deployment from READY operators
+4. ☑ v0.40 — roster: recruit pool signs at 150 XP on a saved-and-won rescue, wounded recover 2 missions, sideline heals 1/mission, deployment auto-fills from READY in roster order
+   ▶ NEXT: v0.41 floor two
 5. ☐ v0.41 — FLOOR TWO (Sam's design: stairs swap to an upper-floor map) + BETA chips in the picker
 6. ☐ review workflow findings folded in when it lands
 
