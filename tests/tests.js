@@ -2204,3 +2204,75 @@ console.log('  flick-right with the ENTRY kit picks: ' + picked2,
             picked2 === 'smoke' ? 'CORRECT (kits decide the slot)' : 'WRONG');
 console.log('GAS TEST DONE');
 })();
+
+(function suppressorTests(){
+console.log('--- suppressors: silence bought with handling ---');
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'standard'; game.loadout.kit = 'entry';
+
+// loud is the default, and the toggle reaches the whole team
+game.loadout.can = false; initGame(); game.state = 'play';
+console.log('  default loadout: player can=' + !!game.player.can,
+            !game.player.can ? 'CORRECT (loud until chosen)' : 'WRONG');
+game.loadout.can = true; initGame(); game.state = 'play';
+console.log('  SUPPRESSED: player + squad fitted: ' +
+            [game.player, ...game.squad].map(e => !!e.can).join(','),
+            [game.player, ...game.squad].every(e => e.can) ? 'CORRECT (whole team)' : 'WRONG');
+
+// the report: radius, flash, and what an enemy hears through a wall
+const P = game.player;
+game.noises.length = 0; game.fx.length = 0;
+P.cooldown = 0; P.reloading = 0; P.ammo = 30;
+tryFire(P, P.face);
+const nSupp = game.noises.find(n => n.type === 'shot');
+const flashSupp = game.fx.some(f => f.kind === 'muzzle');
+console.log('  suppressed shot: radius ' + nSupp.radius + ' (loud is ' + TUNE.noiseShot + '), fuzzy=' +
+            nSupp.fuzzy + ', muzzle flash drawn=' + flashSupp,
+            nSupp.radius === TUNE.suppNoiseShot && nSupp.fuzzy && !flashSupp ? 'CORRECT' : 'WRONG');
+game.loadout.can = false; initGame(); game.state = 'play';
+const P2 = game.player;
+game.noises.length = 0; game.fx.length = 0;
+P2.cooldown = 0; P2.ammo = 30; tryFire(P2, P2.face);
+const nLoud = game.noises.find(n => n.type === 'shot');
+console.log('  loud shot: radius ' + nLoud.radius + ', flash drawn=' + game.fx.some(f => f.kind === 'muzzle'),
+            nLoud.radius === TUNE.noiseShot && !nLoud.fuzzy && game.fx.some(f => f.kind === 'muzzle')
+              ? 'CORRECT' : 'WRONG');
+
+// one interior wall swallows the suppressed report at ranges where loud carries
+const behindWall = TUNE.suppNoiseShot - (SOUND_LOSS.drywall || 55);
+console.log('  through one drywall partition: suppressed reaches ' + behindWall + 'px, loud reaches ' +
+            (TUNE.noiseShot - 55) + 'px',
+            behindWall < 160 && TUNE.noiseShot - 55 > 400 ? 'CORRECT (the wall does the work)' : 'WRONG');
+
+// a heard suppressed shot investigates a WRONG point, and does not combat-alert
+game.loadout.can = true; initGame(); game.state = 'play';
+let scatter = 0, alerted = 0, trials = 40;
+for (let i = 0; i < trials; i++) {
+  const e = game.enemies.find(x => x.alive);
+  e.state = 'idle'; e.investigate = null;
+  game.noises.length = 0;
+  addNoise(e.x + 60, e.y, TUNE.suppNoiseShot, 'shot', 'player', true);
+  processNoises();
+  if (e.state === 'combat') alerted++;
+  if (e.investigate) scatter += dist(e.investigate.x, e.investigate.y, e.x + 60, e.y);
+}
+console.log('  40 heard suppressed shots: combat alerts ' + alerted + ', mean placement error ' +
+            (scatter / trials).toFixed(0) + 'px',
+            alerted === 0 && scatter / trials > 30 ? 'CORRECT (goes looking in the wrong place)' : 'WRONG');
+
+// handling: the fitted gun swings slower
+game.loadout.can = false; initGame();
+const rate = (can) => {
+  game.loadout.can = can; initGame(); game.state = 'play';
+  const p = game.player; p.face = 0;
+  input.mouse.wx = p.x - 500; input.mouse.wy = p.y;   // 180 degrees away
+  updatePlayer(p, 1 / 60);
+  return Math.abs(p.face);
+};
+const swungLoud = rate(false), swungCan = rate(true);
+console.log('  one frame of a 180 swing: loud ' + swungLoud.toFixed(3) + ' rad, suppressed ' +
+            swungCan.toFixed(3) + ' rad (' + (100 * swungCan / swungLoud).toFixed(0) + '%)',
+            swungCan < swungLoud * 0.9 ? 'CORRECT (the longer gun is slower)' : 'WRONG');
+game.loadout.can = false; initGame();
+console.log('SUPPRESSOR TEST DONE');
+})();

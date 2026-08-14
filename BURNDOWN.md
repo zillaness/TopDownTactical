@@ -51,8 +51,9 @@ This would allow for longer engagements" + the 9-man rifle squad TO&E
 1. ☑ v0.19 — 40mm underbarrel (M320) + GRENADIER squad role — impact-fused at 640px/s, arms at 170px, refuses impacts near protected people, 8s cooldown
 2. ☑ v0.20 — RIFLE SQUAD (9): A/B fireteams (TL/GRN/AR/RFLM), doubled wedge, BOUND by fireteam, [T] team select, 5 new names on the vet books, two-column panel
 3. ☑ v0.21 — CS gas + RIOT kit: masked-vs-unmasked asymmetry, no vision block, suspects fold via the shout's will table, hostages cough but never die. Bonus real bug via a flaky test: a BOUND whose covering element died kept one man strolling the kill zone — now ends with ELEMENT DOWN, survivors hold
-   ▶ NEXT: v0.22 suppressors
-4. ☐ v0.22 — suppressors (tabled at v0.9 by Sam's call; the fight is losable now)
+4. ☑ v0.22 — suppressors: report 560->185 (one wall swallows it), no flash, heard shots mislocated by up to 96px and investigate instead of alerting; costs 20% traverse, whole team
+   - ☐ FOLLOW-UP (new item): separate muzzle point from eyePoint, so a longer gun can break a corner before your eye does — the one piece of the recorded suppressor design not built, because lengthening eyePoint would currently HELP you see around corners
+   ▶ NIGHT COMPLETE — queue empty, all four units shipped
 
 ## Backlog (ranked, highest value-per-token first)
 
