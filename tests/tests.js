@@ -845,13 +845,20 @@ console.log('  live level after surveying all six maps: ' + sig(),
 let drift = [];
 for (let m = 0; m < MAPS.length; m++) {
   game.mapIndex = m; initGame();
-  const s = surveyMap(MAPS[m].src, game.diffIndex);
-  if (s.contacts !== level.spawns.enemies.length) drift.push(MAPS[m].name + ' contacts ' + s.contacts + ' vs ' + level.spawns.enemies.length);
-  if (s.hostages.length !== level.spawns.hostages.length) drift.push(MAPS[m].name + ' hostages');
-  if (s.doors !== level.doors.length) drift.push(MAPS[m].name + ' doors ' + s.doors + ' vs ' + level.doors.length);
-  if (s.windows !== level.windowAt.size) drift.push(MAPS[m].name + ' windows');
-  let dry = 0;
-  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (level.mat[y][x] === 'drywall') dry++;
+  const s = surveyMap(MAPS[m].src, game.diffIndex, MAPS[m].src2 || null);
+  // a two-floor mission's survey counts the whole house — compare against the
+  // SUM of both parsed floors, not just the one currently swapped in
+  const floors = (game.floors && game.floors.length > 1) ? game.floors.map(f => f.levelSnap) : [level];
+  const tot = (fn) => floors.reduce((a2, L) => a2 + fn(L), 0);
+  if (s.contacts !== tot(L => L.spawns.enemies.length)) drift.push(MAPS[m].name + ' contacts ' + s.contacts + ' vs ' + tot(L => L.spawns.enemies.length));
+  if (s.hostages.length !== tot(L => L.spawns.hostages.length)) drift.push(MAPS[m].name + ' hostages');
+  if (s.doors !== tot(L => L.doors.length)) drift.push(MAPS[m].name + ' doors ' + s.doors + ' vs ' + tot(L => L.doors.length));
+  if (s.windows !== tot(L => L.windowAt.size)) drift.push(MAPS[m].name + ' windows');
+  const dry = tot(L => {
+    let n2 = 0;
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (L.mat[y][x] === 'drywall') n2++;
+    return n2;
+  });
   if (Math.abs(dry - s.partitions) > 0) drift.push(MAPS[m].name + ' partitions ' + s.partitions + ' vs ' + dry);
 }
 console.log('  survey vs parseLevel across six maps:',
@@ -1708,7 +1715,7 @@ for (let m = 0; m < MAPS.length; m++) {
     // nobody stacked on top of anybody
     const seenT = new Set();
     for (const e of game.enemies) {
-      const k = tileAt(e.x, e.y).tx + ',' + tileAt(e.x, e.y).ty;
+      const k = (e.floor || 0) + ':' + tileAt(e.x, e.y).tx + ',' + tileAt(e.x, e.y).ty;
       if (seenT.has(k)) bad.push(MAPS[m].name + '@' + DENSITY[d].key + ' two men on one tile');
       seenT.add(k);
     }
@@ -1729,7 +1736,7 @@ console.log('  placement legal on all ' + MAPS.length + ' maps x ' + DENSITY.len
 let drift = [];
 for (let m = 0; m < MAPS.length; m++) for (let d = 0; d < DENSITY.length; d++) {
   game.densityIndex = d; game.mapIndex = m; initGame();
-  const s = surveyMap(MAPS[m].src, game.diffIndex);
+  const s = surveyMap(MAPS[m].src, game.diffIndex, MAPS[m].src2 || null);
   if (Math.abs(s.contacts - game.enemies.length) > 1) {
     drift.push(MAPS[m].name + '@' + DENSITY[d].key + ' brief says ' + s.contacts + ', map has ' + game.enemies.length);
   }
@@ -3109,4 +3116,68 @@ console.log('  one saved, one lost: on the books=' + [rc2[0].name, rc2[1].name].
             v[rc2[0].name] && !v[rc2[1].name] ? 'CORRECT (only the living sign)' : 'WRONG');
 localStorage.clear(); game.mapIndex = 0; game.loadout.squad = 'standard'; initGame();
 console.log('ROSTER TEST DONE');
+})();
+
+(function floorTwoTests(){
+console.log('--- FLOOR TWO: the stairs are a door between worlds ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE WALKUP'); initGame(); game.state = 'play';
+
+console.log('  parsed: ' + game.floors.length + ' floors, stairs at floor0=' +
+            game.floors[0].levelSnap.stairs.length + ' floor1=' + game.floors[1].levelSnap.stairs.length,
+            game.floors.length === 2 && game.floors[0].levelSnap.stairs.length === 1 &&
+            game.floors[1].levelSnap.stairs.length === 1 ? 'CORRECT' : 'WRONG');
+const up = game.enemies.filter(e => e.floor === 1), down = game.enemies.filter(e => e.floor === 0);
+console.log('  garrison: ' + down.length + ' downstairs, ' + up.length + ' upstairs (elite up there: ' +
+            up.some(e => e.kind === 'elite') + ')',
+            down.length >= 2 && up.length >= 2 && up.some(e => e.kind === 'elite') ? 'CORRECT' : 'WRONG');
+
+// upstairs men are not in the downstairs fight
+const upman = up[0];
+console.log('  upstairs man visible from downstairs: ' + (visibleToPlayerSide(upman) || 'null'),
+            visibleToPlayerSide(upman) === null ? 'CORRECT (ceilings are opaque)' : 'WRONG');
+
+// take the stairs: world swaps, followers come along
+const P = game.player;
+const st = game.floors[0].levelSnap.stairs[0];
+P.x = st.tx * TILE + 16; P.y = st.ty * TILE + 16;
+game.squad.forEach(s2 => { s2.x = P.x + 30; s2.y = P.y; s2.order = { type: 'follow' }; });
+const wall0 = level.wall.map(r => r.join('')).join('|');
+useStairs(P);
+const wall1 = level.wall.map(r => r.join('')).join('|');
+console.log('  [E] on the stairs: floor=' + game.floor + ', the world actually changed: ' + (wall0 !== wall1) +
+            ', squad came: ' + game.squad.every(s2 => s2.floor === 1),
+            game.floor === 1 && wall0 !== wall1 && game.squad.every(s2 => s2.floor === 1)
+              ? 'CORRECT (a new map up the stairs — Sam design, verbatim)' : 'WRONG');
+
+// now the UPSTAIRS men are the fight and the downstairs men are not
+console.log('  upstairs man visible test now: ' + (visibleToPlayerSide(upman) === null ? 'blocked by dist/walls only' : 'floor-eligible'),
+            (upman.floor === 1 && game.floor === 1) ? 'CORRECT (same floor now)' : 'WRONG');
+const downman = down.find(e => e.alive);
+console.log('  downstairs man from upstairs: ' + (visibleToPlayerSide(downman) || 'null'),
+            visibleToPlayerSide(downman) === null ? 'CORRECT' : 'WRONG');
+
+// bullets do not cross ceilings
+game.bullets.length = 0;
+P.cooldown = 0; P.ammo = 30; P.reloading = 0;
+downman.x = P.x + 40; downman.y = P.y;   // "beneath" you in coords, on floor 0
+const hp0 = downman.hp;
+tryFire(P, 0);
+for (let i = 0; i < 30; i++) updateBullets(1 / 120);
+console.log('  fired across his coordinates from the other floor: hp ' + hp0 + ' -> ' + downman.hp,
+            downman.hp === hp0 ? 'CORRECT (ceilings are armour)' : 'WRONG');
+
+// separate fog memories
+const seen1 = seen.grid;
+useStairs(P);   // back down
+console.log('  back down: floor=' + game.floor + ', fog memory swapped: ' + (seen.grid !== seen1),
+            game.floor === 0 && seen.grid !== seen1 ? 'CORRECT (each floor remembers itself)' : 'WRONG');
+
+// threatsLeft spans both floors: the mission is the whole house
+console.log('  threats left counts the whole house: ' + threatsLeft(),
+            threatsLeft() === game.enemies.filter(e => e.alive && e.state !== 'cuffed').length &&
+            threatsLeft() >= 5 ? 'CORRECT' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('FLOOR TWO TEST DONE');
 })();

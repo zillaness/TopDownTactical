@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.40.html
-  version: 0.40
+  file: top_down_tactical_v0.41.html
+  version: 0.41
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.40 (working title)</title>
+<title>Top-Down Tactical v0.41 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.40 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.41 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -712,7 +712,23 @@ class MinHeap {
 // contacts, a compass sector for the hostages, "believed" and "reported". What
 // you get is enough to choose a loadout and a plan, not enough to skip looking.
 const WALL_GLYPHS = "#=-%@t";   // t (tree) added with THE TREELINE — the survey must agree with parseLevel
-function surveyMap(rows, diffIdx) {
+function surveyMap(rows, diffIdx, rows2) {
+  const s0 = surveyOneFloor(rows, diffIdx);
+  if (!rows2) return s0;
+  const s1 = surveyOneFloor(rows2, diffIdx);
+  // the briefing counts the whole HOUSE: contacts, kinds and windows add up;
+  // the plan drawn stays the ground floor (the floor you enter on)
+  s0.contacts += s1.contacts;
+  s0.declared = (s0.declared || 0) + (s1.declared || 0);
+  for (const k of Object.keys(s1.kinds)) s0.kinds[k] = (s0.kinds[k] || 0) + s1.kinds[k];
+  s0.doors += s1.doors; s0.locked += s1.locked; s0.windows += s1.windows;
+  s0.partitions += s1.partitions;
+  s0.hostages = s0.hostages.concat(s1.hostages);
+  s0.civilians = s0.civilians.concat(s1.civilians);
+  s0.floors = 2;
+  return s0;
+}
+function surveyOneFloor(rows, diffIdx) {
   const h = rows.length, w = rows[0].length;
   const at = (x, y) => (y >= 0 && y < h && x >= 0 && x < w) ? rows[y][x] : "#";
   const isWallG = (x, y) => WALL_GLYPHS.includes(at(x, y));
@@ -1483,7 +1499,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################",
 ] },
-{ name: "BROKEN ARROW", advice: "A convoy was ambushed on that road and two of ours are down in the wreckage, bleeding on a clock you can hear. You are the QRF. Fight up the road or through the buildings, tie them off, and bring everyone home — the mission fails the moment one of them dies.",
+{ name: "BROKEN ARROW", beta: true, advice: "A convoy was ambushed on that road and two of ours are down in the wreckage, bleeding on a clock you can hear. You are the QRF. Fight up the road or through the buildings, tie them off, and bring everyone home — the mission fails the moment one of them dies.",
   brief: "You are the QRF — two men down in an ambushed convoy, reach them and bring them home",
   type: "QUICK REACTION FORCE", objectives: ["stabilize", "extract"], src: [
 "##############################################################",
@@ -1523,6 +1539,55 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################################",
 ] },
+{ name: "THE WALKUP", beta: true, advice: "Two floors, one staircase, and everyone upstairs heard everything you did downstairs' neighbour never will — floors keep their own fights. Clear the ground, own the stairs, and remember the landing is a fatal funnel pointed DOWN at you.",
+  brief: "A two-storey house — clear the ground floor, then take the stairs",
+  type: "TWO-STOREY CLEAR", objectives: ["neutralize"], src: [
+"##############################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,####W#########W####,,,,#",
+"#,,,,,#........#........#,,,,#",
+"#,,,,,#........#....S...#,,,,#",
+"#,,,,,#...g....D........#,,,,#",
+"#,,,,,W........#........#,,,,#",
+"#,,,,,#........#........#,,,,#",
+"#,,,,,#.................W,,,,#",
+"#,,,,,#.................#,,,,#",
+"#,,,,,#..g.........g....#,,,,#",
+"#,,,,,#.................#,,,,#",
+"#,,,,,#.................#,,,,#",
+"#,,,,,########D##########,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,s,P,s,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,s,,,,,,,,,,,,,,#",
+"##############################",
+], src2: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,######W############,,,,,",
+",,,,,,#.....#...........#,,,,,",
+",,,,,,#.....#.......S...#,,,,,",
+",,,,,,#.....#...........W,,,,,",
+",,,,,,#..g..D...........#,,,,,",
+",,,,,,W.....#...........#,,,,,",
+",,,,,,#.....#...........#,,,,,",
+",,,,,,#.....#####D#######,,,,,",
+",,,,,,#.................#,,,,,",
+",,,,,,#..E.....g........#,,,,,",
+",,,,,,#.................#,,,,,",
+",,,,,,############W######,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+] },
 ];
 let MAP_SRC = MAPS[0].src;
 // hard-fail on malformed map data rather than rendering garbage
@@ -1534,7 +1599,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@t,.kMQwBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@t,.kMQwSBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -1568,7 +1633,7 @@ const level = {
 function parseLevel() {
   const rows = MAP_SRC;
   level.h = rows.length; level.w = rows[0].length;
-  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = []; level.turrets = [];
+  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = []; level.turrets = []; level.stairs = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
   level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [], wounded: [] };
@@ -1619,6 +1684,7 @@ function parseLevel() {
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
+    if (ch === "S") level.stairs.push({ tx: x, ty: y });
     if (ch === "k") {
       // mounted on the adjacent wall, watching the other way
       const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
@@ -1820,6 +1886,7 @@ function rememberSightings() {
 
 // Is this entity visible to the player side? Returns "direct" | "squad" | null.
 function visibleToPlayerSide(ent) {
+  if ((ent.floor || 0) !== (game.floor || 0)) return null;   // ceilings are opaque
   if (game.player.alive) {
     const eye = game.eye || game.player;
     if (canSee(eye.x, eye.y, ent.x, ent.y, TUNE.playerViewDist)) return "direct";
@@ -2072,7 +2139,7 @@ function held(k) { return input.keys.has(k); }
 // ---------------------------------------------------------------- S6 player
 function makeShooter(x, y, side, hp, weapon) {
   return {
-    x, y, r: TUNE.bodyRadius, face: 0, hp, maxHp: hp, alive: true, side,
+    x, y, r: TUNE.bodyRadius, face: 0, hp, maxHp: hp, alive: true, side, floor: game._parseFloor || 0,
     weapon, ammo: weapon.mag, reloading: 0, cooldown: 0, recoil: 0, burst: 0,
     blind: 0, stagger: 0, moving: false, walking: false,
     handed: "right",          // "left" mirrors the sprite across the facing axis
@@ -2691,6 +2758,7 @@ function playerInteract(p) {
   if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
   const trt = nearestEntity(level.turrets, p.x, p.y, TUNE.turretReach, t2 => !t2.manned);
   if (trt) { mountTurret(p, trt); return; }
+  if (useStairs(p)) return;
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
@@ -2978,6 +3046,7 @@ function updateBullets(dt) {
 }
 
 function firstEntityOnSegment(b, ex, ey) {
+  const bfl = (b.owner && b.owner.floor) || 0;
   let best = null, bestD = Infinity;
   const candidates = [game.player, ...game.squad]; // friendly fire is real — for everyone
   for (const e of game.enemies) {
@@ -2989,6 +3058,7 @@ function firstEntityOnSegment(b, ex, ey) {
   candidates.push(...game.hostages.filter(h => !h.prone), ...game.civilians);
   for (const ent of candidates) {
     if (!ent || !ent.alive || ent === b.owner) continue;
+    if ((ent.floor || 0) !== bfl) continue;          // ceilings are armour
     const hit = segCircle(b.x, b.y, ex, ey, ent.x, ent.y, ent.r);
     if (hit && hit.d < bestD) { bestD = hit.d; best = { ent, x: hit.x, y: hit.y }; }
   }
@@ -3661,7 +3731,7 @@ function hitTile(hit, ang) {
 
 // ---- noise
 function addNoise(x, y, radius, type, side, fuzzy) {
-  game.noises.push({ x, y, radius, type, side, fuzzy });
+  game.noises.push({ x, y, radius, type, side, fuzzy, floor: game.floor || 0 });
   // Noise is the enemy's information channel, so it has to be visible to be
   // learnable. Your own emissions always show; anyone else's shows if it is
   // loud enough that your operator would plainly hear it.
@@ -3746,6 +3816,7 @@ function coverSpotFrom(e, fromX, fromY) {
 }
 
 function updateEnemy(e, dt) {
+  if ((e.floor || 0) !== (game.floor || 0)) return;   // a man upstairs is not in this fight
   if (!e.alive) return;
   if (e._calloutCd) e._calloutCd -= dt;
   e.suppress = Math.max(0, (e.suppress || 0) - dt * TUNE.suppressDecay);
@@ -3771,6 +3842,7 @@ function updateEnemy(e, dt) {
     const threats = [game.player, ...game.squad];
     for (const t of threats) {
       if (!t || !t.alive || t.downed) continue;   // a downed man is out of the fight
+      if ((t.floor || 0) !== (e.floor || 0)) continue;
       const fov = e.alerted ? TUNE.aiFovAlert : TUNE.aiFov;
       const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1);
       if (canSee(e.x, e.y, t.x, t.y, vd, e.face, fov)) {
@@ -4022,7 +4094,7 @@ function trySecureHostage(h) {
 function makeCivilian(sp, isHostage) {
   return { x: sp.x, y: sp.y, r: 9, face: rand(0, TAU), hp: 40, alive: true,
            side: isHostage ? "hostage" : "civ", secured: false, blind: 0, stagger: 0, cower: 0,
-           handed: "right" };
+           handed: "right", floor: game._parseFloor || 0 };
 }
 function updateCivilian(c, dt) {
   if (!c.alive) return;
@@ -4076,6 +4148,7 @@ function processNoises() {
     const loud = n.type === "shot" || n.type === "bang" || n.type === "breach" || n.type === "doorbreak";
     for (const e of game.enemies) {
       if (!e.alive || e.state === "combat" || e.state === "surrender" || e.state === "cuffed") continue;
+      if ((e.floor || 0) !== (n.floor || 0)) continue;   // a ceiling swallows more than a wall
       if (dist(n.x, n.y, e.x, e.y) > audibleTo(n, e.x, e.y)) continue;
       // A suppressed report is heard as A shot, not THIS shot: the man goes to
       // where he thinks it was, and he is wrong by up to suppFuzz.
@@ -5279,6 +5352,7 @@ function updateSquaddie(s, dt) {
     }
     return;
   }
+  if ((s.floor || 0) !== (game.floor || 0)) return;   // holding a different floor
   s.blind = Math.max(0, s.blind - dt);
   s.stagger = Math.max(0, s.stagger - dt);
   s.suppress = Math.max(0, (s.suppress || 0) - dt * TUNE.suppressDecay);
@@ -5765,22 +5839,33 @@ function render() {
     drawCamera(cam);
   }
   for (const t of level.turrets) drawTurret(t);
+  for (const st of level.stairs || []) {
+    if (!seen.grid[st.ty] || !seen.grid[st.ty][st.tx]) continue;
+    const sx2 = st.tx * TILE, sy2 = st.ty * TILE;
+    ctx.strokeStyle = "#8a6a3b"; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(sx2 + 5, sy2 + 6 + i * 6); ctx.lineTo(sx2 + TILE - 5, sy2 + 6 + i * 6); ctx.stroke();
+    }
+    ctx.font = "9px Consolas, monospace"; ctx.fillStyle = COLORS.accent; ctx.textAlign = "center";
+    ctx.fillText(game.floor ? "DN [E]" : "UP [E]", sx2 + 16, sy2 - 3);
+  }
 
+  const onFloor = (e2) => (e2.floor || 0) === (game.floor || 0);
   // corpses (visible under normal rules, but keep once seen — they don't move)
   for (const e of [...game.enemies, ...game.civilians, ...game.hostages]) {
-    if (!e.alive) drawBody(e, true);
+    if (!e.alive && onFloor(e)) drawBody(e, true);
   }
-  for (const s of game.squad) if (!s.alive) drawBody(s, true);
+  for (const s of game.squad) if (!s.alive && onFloor(s)) drawBody(s, true);
 
-  // squad + player (always visible to you)
-  for (const s of game.squad) if (s.alive) drawBody(s);
+  // squad + player (always visible to you — if they are on this floor)
+  for (const s of game.squad) if (s.alive && onFloor(s)) drawBody(s);
   if (game.player.alive) drawBody(game.player);
 
   // hostiles & bystanders: draw direct sightings now; ghosts go above the fog later
   const ghosts = [];
   const lightsOn = game.state === "aar";
   for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
-    if (!e.alive) continue;
+    if (!e.alive || !onFloor(e)) continue;
     const vis = lightsOn ? "direct" : visibleToPlayerSide(e);
     if (vis === "direct") drawBody(e);
     else if (vis === "squad") ghosts.push(e);
@@ -6584,14 +6669,14 @@ function drawMinimap() {
   for (const hst of game.hostages) if (hst.alive && (hst.secured || visibleToPlayerSide(hst) || hst.lastSeen))
     dot(hst.x, hst.y, hst.secured ? COLORS.ok : COLORS.hostage, 2.2);
   for (const e of game.enemies) {
-    if (!e.alive || e.state === "cuffed") continue;
+    if (!e.alive || e.state === "cuffed" || (e.floor || 0) !== (game.floor || 0)) continue;
     if (visibleToPlayerSide(e)) dot(e.x, e.y, e.state === "surrender" ? COLORS.surrendered : COLORS.enemy, 2.2);
     else if (e.lastSeen && game.stats.time - e.lastSeen.t < TUNE.memoryFade) {
       ctx.globalAlpha = 0.45; dot(e.lastSeen.x, e.lastSeen.y, COLORS.enemy, 1.8); ctx.globalAlpha = 1;
     }
   }
   for (const sq of game.squad) {
-    if (!sq.alive) continue;
+    if (!sq.alive || (sq.floor || 0) !== (game.floor || 0)) continue;
     if (sq.downed) {
       ctx.strokeStyle = sq.stabilized ? COLORS.ok : COLORS.danger; ctx.lineWidth = 1.4;
       const cx2 = mx(sq.x), cy2 = my(sq.y);
@@ -6604,6 +6689,10 @@ function drawMinimap() {
   ctx.strokeStyle = "rgba(207,214,221,0.5)"; ctx.lineWidth = 1;
   ctx.strokeRect(mx(game.cam.x - halfW), my(game.cam.y - halfH),
                  (2 * halfW) / TILE * scale, (2 * halfH) / TILE * scale);
+  if (game.floors && game.floors.length > 1) {
+    ctx.font = "bold 11px Consolas, monospace"; ctx.fillStyle = COLORS.accent; ctx.textAlign = "left";
+    ctx.fillText("FLOOR " + ((game.floor || 0) + 1), x0, y0 + h + 14);
+  }
 }
 
 function drawHud() {
@@ -7169,10 +7258,60 @@ const game = {
   },
 };
 
+// ---- BETA: FLOOR TWO. Sam's own design, verbatim: "floor two is like a new
+// map for inside the building when you go up the stairs." Exactly that: a
+// mission may declare src2, both floors parse once into snapshots, and the S
+// stairs swap which snapshot IS the world. Entities carry a floor number;
+// whatever is not on your floor is not in your fight — enemies up there wait,
+// bullets do not cross ceilings, and the fog remembers each floor separately.
+function snapshotLevel() {
+  const snap = {};
+  for (const k of Object.keys(level)) snap[k] = level[k];
+  return snap;
+}
+function setFloor(i) {
+  const fl = game.floors && game.floors[i];
+  if (!fl) return;
+  game.floor = i;
+  Object.assign(level, fl.levelSnap);
+  seen.grid = fl.seenGrid;
+  level.smokeGrid = null; level._smokeDirty = [];
+  game.bullets.length = 0;                       // rounds do not survive a ceiling
+  game.fx = game.fx.filter(f => f.kind === "incident");
+}
+
+function useStairs(p) {
+  const st = level.stairs.find(t2 => dist(p.x, p.y, t2.tx * TILE + 16, t2.ty * TILE + 16) < 40);
+  if (!st || !game.floors || game.floors.length < 2) return false;
+  const from = game.floor, to = 1 - game.floor;
+  // the men actually WITH you take the stairs too
+  const movers = game.squad.filter(s2 => s2.alive && !s2.downed && s2.floor === from &&
+    s2.order.type === "follow" && dist(s2.x, s2.y, p.x, p.y) < 150);
+  setFloor(to);
+  p.floor = to;
+  movers.forEach(s2 => { s2.floor = to; s2.path = null; });
+  game.hint = (to === 1 ? "UP the stairs" : "DOWN the stairs") + (movers.length ? " — " + movers.length + " with you" : "");
+  sfxAt("door", p.x, p.y);
+  return true;
+}
+
 function initGame() {
   game.mission = MAPS[game.mapIndex] || MAPS[0];
+  game._parseFloor = 0;
   MAP_SRC = game.mission.src;
   parseLevel(); seen.init();
+  game.floors = [{ levelSnap: snapshotLevel(), seenGrid: seen.grid }];
+  game.floor = 0;
+  let upperSpawns = null;
+  if (game.mission.src2) {
+    MAP_SRC = game.mission.src2;
+    parseLevel(); seen.init();
+    game.floors.push({ levelSnap: snapshotLevel(), seenGrid: seen.grid });
+    upperSpawns = { enemies: level.spawns.enemies.slice(), hostages: level.spawns.hostages.slice(),
+                    civilians: level.spawns.civilians.slice() };
+    Object.assign(level, game.floors[0].levelSnap);
+    seen.grid = game.floors[0].seenGrid;
+  }
   game.player = makePlayer(level.spawns.player);
   game.vets = loadVets();          // the men remember the last one
   // deploy the first READY names in roster order — the recovering sit this out
@@ -7206,9 +7345,24 @@ function initGame() {
   });
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
+  if (upperSpawns) {
+    // densify the upper garrison against the UPPER floor's walls — jittered
+    // duplicates must land on ground that exists up there
+    Object.assign(level, game.floors[1].levelSnap);
+    game._parseFloor = 1;
+    for (const es of applyDensity(upperSpawns.enemies, game.density.mul)) game.enemies.push(makeEnemy(es));
+    game._parseFloor = 0;
+    Object.assign(level, game.floors[0].levelSnap);
+  }
   game.demo = level.spawns.demo.map(sp => ({ x: sp.x, y: sp.y, armed: false, t: 0 }));
   game.hostages = level.spawns.hostages.map(sp => makeCivilian(sp, true));
   game.civilians = level.spawns.civilians.map(sp => makeCivilian(sp, false));
+  if (upperSpawns) {
+    game._parseFloor = 1;
+    for (const hs of upperSpawns.hostages) game.hostages.push(makeCivilian(hs, true));
+    for (const cs of upperSpawns.civilians) game.civilians.push(makeCivilian(cs, false));
+    game._parseFloor = 0;
+  }
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = []; game.smokes = [];
   level.smokeGrid = null;
   game.selected = new Set();
@@ -7687,7 +7841,7 @@ function refreshMenu() {
 
 function renderBriefing() {
   const map = MAPS[game.mapIndex] || MAPS[0];
-  const s = surveyMap(map.src, game.diffIndex);
+  const s = surveyMap(map.src, game.diffIndex, map.src2 || null);
   drawFloorPlan(document.getElementById("planCanvas"), map.src, s);
   const lines = briefingLines(map, s, game.diffIndex);
   const v = loadVets();
@@ -7722,7 +7876,8 @@ MAPS.map((m, i) => ({ m, i }))
   const b = document.createElement("button");
   b.className = "mapbtn";
   b.dataset.idx = i;
-  b.innerHTML = "<b>" + m.name + "</b><br><span>" + m.brief + "</span><br><span class=\"best\" style=\"color:#e8b53a\"></span>";
+  b.innerHTML = "<b>" + m.name + (m.beta ? " <span style=\"color:#e8b53a;font-size:10px\">BETA</span>" : "") +
+    "</b><br><span>" + m.brief + "</span><br><span class=\"best\" style=\"color:#e8b53a\"></span>";
   b.addEventListener("click", () => { game.mapIndex = i; refreshMenu(); });
   mapPickEl.appendChild(b);
 });
@@ -8402,6 +8557,24 @@ requestAnimationFrame(frame);
     now shows everyone: deploying (with fireteam letters), bench, RECOVERING n,
     recruited. Death still erases a man completely; recovery is what you get
     for the tourniquet.
+  v0.41 (2026-08-14): FLOOR TWO, built to Sam's own engine design, verbatim:
+    "floor two is like a new map for inside the building when you go up the
+    stairs." Exactly that. A mission may declare src2; both floors parse once
+    into snapshots; the S staircase glyph swaps which snapshot IS the world.
+    Everything carries a floor number, and what is not on your floor is not in
+    your fight: enemies upstairs wait (ceilings are opaque — visibleToPlayerSide
+    returns null across floors), bullets die at the ceiling (firstEntityOnSegment
+    filters by the shooter's floor), noise does not climb the stairwell, each
+    floor keeps its own fog memory, and the minimap shows the floor you are on
+    with a FLOOR n tag. [E] on the stairs takes you up or down, and the men
+    actually WITH you — following, alive, within 150px — take them too; anyone
+    holding a room holds his floor. THE WALKUP is the proof mission: three down,
+    three up including a hardened shooter, one staircase between them, and the
+    landing a fatal funnel pointed down at you. BETA chips now mark THE WALKUP
+    and BROKEN ARROW in the mission picker — the alpha/beta split Sam asked for,
+    inside one build. Two integration bugs the existing suite caught: upper-
+    floor density spawns were being placed against ground-floor geometry, and
+    the briefing survey counted one floor of a two-floor house.
 -->
 </body>
 </html>

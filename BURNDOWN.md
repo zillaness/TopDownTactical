@@ -72,8 +72,8 @@ night built points at that one mission.
 2. ☑ v0.38 — sectors: ANCHOR splits by team size (was hardcoded 3), every order records its width, wheel-open/pause draws the interlock (green watch, red suppress, amber gun arc)
 3. ☑ v0.39 — chained wheel: Sam's right->up->right chain verbatim, commit-lock at 52px, defaults at every depth, short-flick BOUND kept, operator ring (self-aid/move/security/on-me), tap still selects
 4. ☑ v0.40 — roster: recruit pool signs at 150 XP on a saved-and-won rescue, wounded recover 2 missions, sideline heals 1/mission, deployment auto-fills from READY in roster order
-   ▶ NEXT: v0.41 floor two
-5. ☐ v0.41 — FLOOR TWO (Sam's design: stairs swap to an upper-floor map) + BETA chips in the picker
+5. ☑ v0.41 — FLOOR TWO: src2 + S stairs swap snapshots, per-floor entities/bullets/noise/fog, followers take the stairs with you, THE WALKUP proof mission, BETA chips
+   ▶ ext2 queue complete — review workflow findings still pending
 6. ☐ review workflow findings folded in when it lands
 
 ## Burndown night 3 extension — 2026-08-14 (Sam: 56% left; night 3 cost ~3%)
