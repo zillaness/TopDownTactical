@@ -68,8 +68,8 @@ night built points at that one mission.
 ## Burndown night 3 extension — 2026-08-14 (Sam: 56% left; night 3 cost ~3%)
 
 ### Extension queue (ranked)
-1. ☐ v0.34 — THE PEEL: BD2 Break Contact from research §7 — a fighting
-   withdrawal, one element suppressing while the other runs past it
+1. ☑ v0.34 — THE PEEL [5]: 322px broken in 4s, 5 swaps, 13 covering rounds, 0 uncovered frames; ends set, facing the threat
+   ▶ NEXT: v0.35 turrets + QRF
 2. ☐ v0.35 — emplaced guns: M glyph, mount/dismount, arc-clamped M2; paired
    with enemy QRF counterattack on THE PILLBOX ("you took it, now hold it")
 3. ☐ v0.36 — BROKEN ARROW: you are the QRF — wounded men on bleed clocks deep

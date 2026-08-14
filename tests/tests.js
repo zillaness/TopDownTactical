@@ -2745,3 +2745,54 @@ console.log('  THE RANCH hallway: ' + hall + '/32 tiles open',
 game.mapIndex = 0; initGame();
 console.log('HOUSE VARIANT TEST DONE');
 })();
+
+(function peelTests(){
+console.log('--- the peel: leaving a fight alive ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE'); initGame(); game.state = 'play';
+const P = game.player;
+
+// a known threat ahead, a rally behind
+const foe = game.enemies.find(e => e.alive);
+foe.x = P.x + 380; foe.y = P.y; foe.state = 'combat';
+foe.lastSeen = { x: foe.x, y: foe.y, t: game.stats.time, face: 0 };
+const rally = nearestPassable(P.x - 320, P.y);
+input.mouse.wx = rally.x; input.mouse.wy = rally.y;
+const play = PLAYS.find(pl => pl.name === 'PEEL');
+console.log('  PEEL is on the call sheet [' + play.key + ']', play ? 'CORRECT' : 'WRONG');
+callPlay(play);
+console.log('  called: orders ' + JSON.stringify(game.squad.map(s => s.order.type)) +
+            ', fire axis toward the threat: ' + (Math.abs(game.peel.tx - foe.x) < 60),
+            game.squad.every(s => s.order.type === 'peel') && Math.abs(game.peel.tx - foe.x) < 60
+              ? 'CORRECT' : 'WRONG');
+
+// drive it: displacement toward the rally, rounds toward the threat, never uncovered
+const d0 = game.squad.reduce((a, s2) => a + dist(s2.x, s2.y, rally.x, rally.y), 0) / 3;
+const shots0 = game.stats.shotsFired;
+let squadRounds = 0, bothMoving = 0, samples = 0, swaps = 0, lastUp = game.peel.moving;
+const prevPos = new Map();
+for (let f = 0; f < 60 * 16 && game.peel; f++) {
+  game.squad.forEach(s2 => prevPos.set(s2, { x: s2.x, y: s2.y }));
+  const ammoBefore = game.squad.reduce((a, s2) => a + s2.ammo, 0);
+  update(1 / 60);
+  squadRounds += Math.max(0, ammoBefore - game.squad.reduce((a, s2) => a + s2.ammo, 0));
+  if (!game.peel) break;
+  if (game.peel.moving !== lastUp) { swaps++; lastUp = game.peel.moving; }
+  samples++;
+  const moved = game.squad.filter(s2 => s2.alive && dist(s2.x, s2.y, prevPos.get(s2).x, prevPos.get(s2).y) > 0.4);
+  if (moved.length === game.squad.filter(s2 => s2.alive).length) bothMoving++;
+}
+const d1 = game.squad.reduce((a, s2) => a + dist(s2.x, s2.y, rally.x, rally.y), 0) / 3;
+console.log('  mean distance to rally ' + d0.toFixed(0) + ' -> ' + d1.toFixed(0) + 'px over ' +
+            (samples / 60).toFixed(1) + 's, ' + swaps + ' element swaps',
+            d1 < 80 && swaps >= 1 ? 'CORRECT (they got out, trading places)' : 'WRONG');
+console.log('  rounds fired covering the withdrawal: ' + squadRounds,
+            squadRounds > 6 ? 'CORRECT (shooting the whole way)' : 'WRONG');
+console.log('  frames with nobody set: ' + bothMoving + '/' + samples,
+            bothMoving / Math.max(1, samples) < 0.06 ? 'CORRECT' : 'WRONG');
+console.log('  and it ended holding, facing the threat: ' +
+            game.squad.every(s2 => s2.order.type === 'hold'),
+            game.squad.every(s2 => s2.order.type === 'hold') ? 'CORRECT' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('PEEL TEST DONE');
+})();

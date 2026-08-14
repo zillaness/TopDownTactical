@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.33.html
-  version: 0.33
+  file: top_down_tactical_v0.34.html
+  version: 0.34
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.33 (working title)</title>
+<title>Top-Down Tactical v0.34 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.33 prototype &mdash; working title &mdash; nineteen missions</h2>
+  <h2>v0.34 prototype &mdash; working title &mdash; nineteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -4412,6 +4412,43 @@ const PLAYS = [
     },
   },
   {
+    key: "5", name: "PEEL", needs: "point",
+    short: "Break contact — fall back to the cursor, shooting the whole way",
+    lines: ["One element pours fire at the threat while the other runs PAST it",
+            "They trade places every leg until everyone is at the rally",
+            "It is BOUND run backwards, and it is how you leave a fight alive"],
+    run(team, ctx) {
+      const to = ctx.point;
+      // where the fire goes: the nearest live threat anyone knows about, or
+      // straight back down the axis you are fleeing along
+      let tp = null, td2 = Infinity;
+      for (const e of game.enemies) {
+        if (!e.alive || e.state === "surrender" || e.state === "cuffed") continue;
+        const known = visibleToPlayerSide(e) ? { x: e.x, y: e.y }
+                    : (e.lastSeen && game.stats.time - e.lastSeen.t < TUNE.memoryFade ? e.lastSeen : null);
+        if (!known) continue;
+        const d2 = dist(game.player.x, game.player.y, known.x, known.y);
+        if (d2 < td2) { td2 = d2; tp = known; }
+      }
+      if (!tp) {
+        const back = angleTo(to.x, to.y, game.player.x, game.player.y);
+        tp = { x: game.player.x + Math.cos(back) * 300, y: game.player.y + Math.sin(back) * 300 };
+      }
+      const half = Math.ceil(team.length / 2);
+      const byTeam = team.some(s => s.team);
+      team.forEach((s, i) => {
+        removeFromPlans(s);
+        s.order = { type: "peel", x: to.x, y: to.y,
+                    element: byTeam ? (s.team === "B" ? 1 : 0) : (i < half ? 0 : 1),
+                    face: angleTo(to.x, to.y, tp.x, tp.y) };
+        s.path = null;
+      });
+      game.peel = { x: to.x, y: to.y, tx: tp.x, ty: tp.y, moving: 0, t: 0, members: team.slice() };
+      bark(team[0], "PEEL — BREAK CONTACT!");
+      return "PEEL — falling back shooting";
+    },
+  },
+  {
     key: "6", name: "BOUND", needs: "point",
     short: "Leapfrog to the cursor, one element always still",
     lines: ["Half the team moves while the other half watches the ground they cross",
@@ -4742,6 +4779,38 @@ function pickBoundLeg(s, gx, gy) {
 // The bound controller. It swaps which element is up as soon as the moving one
 // is set, and ends the manoeuvre when everyone has arrived — at which point
 // they hold facing the way they came, which is where the threat was.
+// The peel controller: same skeleton as the bound, with the roles reversed —
+// arrival swaps which element RUNS, and the manoeuvre ends at the rally with
+// everyone holding, facing the way they came from. If an element dies, same
+// rule as the bound: a one-element peel is just running, so they hold.
+function updatePeel(dt) {
+  const B = game.peel;
+  if (!B) return;
+  const live = B.members.filter(s => s.alive && !s.downed && s.order.type === "peel");
+  if (!live.length) { game.peel = null; return; }
+  if (new Set(live.map(s => s.order.element)).size < 2) {
+    live.forEach(s => { s.order = { type: "hold", face: angleTo(s.x, s.y, B.tx, B.ty) }; s._legX = undefined; });
+    bark(live[0], "ELEMENT DOWN — HOLDING");
+    game.peel = null;
+    return;
+  }
+  B.t += dt;
+  const movers = live.filter(s => s.order.element === B.moving);
+  const done = live.every(s => dist(s.x, s.y, B.x, B.y) < 52);
+  if (done) {
+    live.forEach(s => { s.order = { type: "hold", face: angleTo(s.x, s.y, B.tx, B.ty) }; s._legX = undefined; s._legY = undefined; });
+    bark(live[0], "SET — CONTACT BROKEN");
+    game.peel = null;
+    return;
+  }
+  const legDone = !movers.length || movers.every(s => s._bounded || dist(s.x, s.y, B.x, B.y) < 52);
+  if (legDone && B.t > 0.3) {
+    B.moving = 1 - B.moving;
+    B.t = 0;
+    live.forEach(s => { s._legX = undefined; s._legY = undefined; s._bounded = false; });
+  }
+}
+
 function updateBound(dt) {
   const B = game.bound;
   if (!B) return;
@@ -4951,6 +5020,36 @@ function updateSquaddie(s, dt) {
         const pt = nearestPassable(c.x + Math.cos(away) * TUNE.blastWound * 1.2,
                                    c.y + Math.sin(away) * TUNE.blastWound * 1.2);
         s.order = { type: "move", x: pt.x, y: pt.y, face: angleTo(pt.x, pt.y, c.x, c.y) };
+      }
+      break;
+    }
+    // The peel. A mover is a bound mover pointed the other way; a coverer is a
+    // suppress order in place — rounds at the threat, not at a body.
+    case "peel": {
+      const B = game.peel;
+      if (!B) { s.order = { type: "hold", face: s.face }; break; }
+      const up = s.order.element === B.moving;
+      if (up) {
+        if (s._legX === undefined) {
+          const ang = angleTo(s.x, s.y, B.x, B.y);
+          const legLen = Math.min(TUNE.boundLeg * 1.3, dist(s.x, s.y, B.x, B.y));
+          const leg = nearestPassable(s.x + Math.cos(ang) * legLen, s.y + Math.sin(ang) * legLen);
+          s._legX = leg.x; s._legY = leg.y;
+        }
+        const arrived = squadMove(s, s._legX, s._legY, TUNE.playerSprint, dt);
+        if (arrived || dist(s.x, s.y, s._legX, s._legY) < 16) s._bounded = true;
+      } else {
+        s._legX = undefined; s._legY = undefined; s._bounded = false;
+        s.face = angLerp(s.face, angleTo(s.x, s.y, B.tx, B.ty), dt * 10);
+        if (s.reloading <= 0 && s.ammo > 0 && lineOfSight(s.x, s.y, B.tx, B.ty, opaque)) {
+          s._supT = (s._supT || 0) - dt;
+          if (s._supT <= 0) {
+            if (tryFire(s, angleTo(s.x, s.y, B.tx, B.ty) + rand(-deg(3.2), deg(3.2)))) {
+              s._supBurst = (s._supBurst || 0) + 1;
+              if (s._supBurst >= 4) { s._supBurst = 0; s._supT = rand(0.4, 0.9); }
+            }
+          }
+        } else if (s.ammo <= 0) tryReload(s);
       }
       break;
     }
@@ -6605,7 +6704,7 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
-  game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.tq = null;
+  game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.peel = null; game.tq = null;
   game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
   game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
@@ -6636,6 +6735,7 @@ function update(dt) {
   updateISR(dt);
   updateCameras(dt);
   updateFireMission(dt);
+  updatePeel(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -7664,6 +7764,17 @@ requestAnimationFrame(frame);
     keep the STANDOFF contract: the garrison holds its rooms and waits, front
     door barricaded, one camera, six suspects. Verified: all reachable, no
     patrols, the ranch hallway genuinely open end to end.
+  v0.34 (2026-08-14): THE PEEL — BD2 Break Contact off research §7's "worth
+    stealing" list, and it is BOUND run backwards: call sheet [5], point at the
+    rally, and one element pours suppressive fire at the nearest known threat
+    (or straight back down the axis if nobody is known) while the other RUNS
+    PAST it, trading places leg by leg until everyone is at the rally, where
+    they set facing the way they came. Measured: 322px to the rally covered in
+    4s with 5 element swaps, 13 rounds fired covering the withdrawal, 0 frames
+    with nobody set. A one-element peel is just running, so the same rule as
+    the bound applies: covering element dies, survivors hold. Retreat (v0.23)
+    remains the mission-level surrender; the peel is how you leave one FIGHT
+    without leaving the map.
 -->
 </body>
 </html>
