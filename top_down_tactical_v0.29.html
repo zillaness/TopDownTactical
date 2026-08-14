@@ -672,7 +672,7 @@ class MinHeap {
 // It is deliberately approximate where real intel would be: a range of
 // contacts, a compass sector for the hostages, "believed" and "reported". What
 // you get is enough to choose a loadout and a plan, not enough to skip looking.
-const WALL_GLYPHS = "#=-%@";
+const WALL_GLYPHS = "#=-%@t";   // t (tree) added with THE TREELINE — the survey must agree with parseLevel
 function surveyMap(rows, diffIdx) {
   const h = rows.length, w = rows[0].length;
   const at = (x, y) => (y >= 0 && y < h && x >= 0 && x < w) ? rows[y][x] : "#";
