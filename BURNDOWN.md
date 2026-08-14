@@ -67,6 +67,10 @@ night built points at that one mission.
 
 ## Burndown night 3, second extension — Sam: "burndown ALL the tokens; build, hold off shipping; alpha/beta split is fine"
 
+### Ext3 (Sam's morning list)
+1. ☑ v0.42 — [X] cycles primary ammo (answered his question by building it); vehicle-adjacent guns are 300-deg ring mounts (BROKEN ARROW wreck, STANDOFF police truck)
+2. ☑ v0.43 — elevated overwatch: window posts see over cars, paint floor-0 intel, invisible until the first shot breaks the glass, then the street answers; unbroken panes halve outside-in vision anywhere
+
 ### Queue (risk-ordered, all BETA unless stated)
 1. ☑ v0.37 — muzzle split: per-gun barrel lengths, +7px for the can, wall-clamped, flash and AAR line on the true muzzle; eyePoint untouched
 2. ☑ v0.38 — sectors: ANCHOR splits by team size (was hardcoded 3), every order records its width, wheel-open/pause draws the interlock (green watch, red suppress, amber gun arc)

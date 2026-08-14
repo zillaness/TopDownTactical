@@ -3222,3 +3222,74 @@ console.log('  THE PILLBOX slit gun stays narrow: ' + (level.turrets[0].arc * 18
 game.mapIndex = 0; initGame();
 console.log('SHELLS+RINGS TEST DONE');
 })();
+
+(function overwatchTests(){
+console.log('--- elevated overwatch: the man in the window ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard'; game.loadout.can = false;
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE WALKUP'); initGame(); game.state = 'play';
+
+// window asymmetry, ground floor: outside-in through glass is half vision
+const win0 = [...level.windowAt.values()][0];
+// derive inside/outside from the interior grid — guessing by wall orientation
+// mislabeled a north-wall window in this test's first draft
+const dirs0 = win0.orient === 'h' ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+const inDir = dirs0.find(([ox, oy]) => level.interior[win0.ty + oy] && level.interior[win0.ty + oy][win0.tx + ox]);
+const outDir = [-inDir[0], -inDir[1]];
+const inx = (win0.tx + inDir[0] * 2) * TILE + 16, iny = (win0.ty + inDir[1] * 2) * TILE + 16;
+const outx = (win0.tx + outDir[0] * 2) * TILE + 16, outy = (win0.ty + outDir[1] * 2) * TILE + 16;
+const mulIn = windowVisionMul(outx, outy, inx, iny);
+const mulOut = windowVisionMul(inx, iny, outx, outy);
+console.log('  unbroken pane: outside-in x' + mulIn + ', inside-out x' + mulOut,
+            mulIn === TUNE.windowInPenalty && mulOut === 1 ? 'CORRECT (glass beats eyes on the street)' : 'WRONG');
+win0.broken = true;
+console.log('  broken pane: outside-in x' + windowVisionMul(outx, outy, inx, iny),
+            windowVisionMul(outx, outy, inx, iny) === 1 ? 'CORRECT (a hole is a hole)' : 'WRONG');
+win0.broken = false;
+
+// post a man at the south upper window
+const L1 = game.floors[1].levelSnap;
+const southWin = [...L1.windowAt.values()].reduce((a2, b2) => a2.ty > b2.ty ? a2 : b2);
+const s1 = game.squad[0];
+s1.floor = 1; s1.x = southWin.tx * TILE + 16; s1.y = southWin.ty * TILE - 10;
+updatePosts(0.5);
+console.log('  posted: ' + !!s1.post + ', watching ' + (s1.post && Math.abs(angDiff(s1.post.ang, Math.PI / 2)) < 0.1 ? 'south (the yard)' : '?') +
+            ', exposed=' + (s1.post && s1.post.exposed),
+            s1.post && Math.abs(angDiff(s1.post.ang, Math.PI / 2)) < 0.1 && !s1.post.exposed
+              ? 'CORRECT (invisible in the glass)' : 'WRONG');
+
+// he sees over the car: the guard behind it gets painted
+const yardGuard = game.enemies.filter(e => e.floor === 0)
+  .reduce((a2, b2) => dist(b2.x, b2.y, s1.post.ox, s1.post.oy + 100) < dist(a2.x, a2.y, s1.post.ox, s1.post.oy + 100) ? b2 : a2);
+yardGuard.x = 19 * TILE + 16; yardGuard.y = 19 * TILE + 16;   // right behind the wreck
+yardGuard.lastSeen = null;
+s1.post.tick = 0; updatePosts(0.01);
+console.log('  guard behind the car: painted=' + !!yardGuard.lastSeen,
+            yardGuard.lastSeen ? 'CORRECT (cars are beneath his sightline)' : 'WRONG');
+// but a man from the street cannot see him (the car blocks ground LOS)
+const gx = s1.post.ox, gy = s1.post.oy;
+console.log('  same line from street level: ' + !lineOfSight(gx, gy, yardGuard.x, yardGuard.y, opaque),
+            !lineOfSight(gx, gy, yardGuard.x, yardGuard.y, opaque) ? 'CORRECT (the wreck blocks the ground)' : 'WRONG');
+
+// he holds fire until weapons free — then the first shot breaks the glass
+yardGuard.state = 'combat';
+s1.roe = 'free'; s1.ammo = 30; s1.post.cd = 0;
+game.noises.length = 0;
+updatePosts(0.01);
+console.log('  weapons free: exposed=' + s1.post.exposed + ', window broken=' + southWin.broken +
+            ', glass noise on floor 0: ' + game.noises.some(n => n.type === 'glass' && n.floor === 0),
+            s1.post.exposed && southWin.broken && game.noises.some(n => n.type === 'glass' && n.floor === 0)
+              ? 'CORRECT (firing gives the window away)' : 'WRONG');
+const round = game.bullets[game.bullets.length - 1];
+console.log('  the round is in the STREET: floorOverride=' + round.floorOverride,
+            round && round.floorOverride === 0 ? 'CORRECT (fired down into floor 0)' : 'WRONG');
+
+// and the street answers: suppression and risk come back through the pane
+const sup0 = s1.suppress || 0;
+s1.post.hitT = 0;
+updatePosts(0.01);
+console.log('  return fire: suppression +' + ((s1.suppress || 0) - sup0).toFixed(2),
+            (s1.suppress || 0) > sup0 ? 'CORRECT (they know where the window is now)' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('OVERWATCH TEST DONE');
+})();

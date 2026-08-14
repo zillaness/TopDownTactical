@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.42.html
-  version: 0.42
+  file: top_down_tactical_v0.43.html
+  version: 0.43
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.42 (working title)</title>
+<title>Top-Down Tactical v0.43 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.42 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.43 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -509,6 +509,13 @@ const TUNE = {
   // run what you have; every ring has a sane default.
   wheelCommit: 52,
   selfAidTime: 4.0, selfAidHeal: 30,
+  // BETA — elevated overwatch. A man posted at an upper-floor window sees the
+  // STREET: over cars and engine blocks, out to postRange, and he is invisible
+  // to the men below until the first shot breaks the glass. An unbroken window
+  // also halves an outsider's view INTO any room, on any floor — glass and
+  // dark interiors beat eyes on the street.
+  postReach: 44, postRange: 460, postFov: deg(140), postCd: [0.55, 1.0],
+  windowInPenalty: 0.5,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -1559,8 +1566,8 @@ const MAPS = [
 "#,,,,,#.................#,,,,#",
 "#,,,,,########D##########,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,@%,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,g,,,,,,,,,#",
 "#,,,,,,,,,,,s,P,s,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,s,,,,,,,,,,,,,,#",
 "##############################",
@@ -1893,6 +1900,23 @@ function rememberSightings() {
 }
 
 // Is this entity visible to the player side? Returns "direct" | "squad" | null.
+// Does this sightline cross an unbroken pane into an interior? Outside-in
+// through glass is half vision; inside-out is normal; a broken pane is a hole.
+function crossesUnbrokenWindow(x1, y1, x2, y2) {
+  for (const w of level.windowAt.values()) {
+    if (w.broken) continue;
+    if (segCircle(x1, y1, x2, y2, w.tx * TILE + 16, w.ty * TILE + 16, 15)) return true;
+  }
+  return false;
+}
+function windowVisionMul(vx, vy, tx2, ty2) {
+  const vt = tileAt(vx, vy), tt = tileAt(tx2, ty2);
+  const viewerOutside = inBounds(vt.tx, vt.ty) && !level.interior[vt.ty][vt.tx];
+  const targetInside = inBounds(tt.tx, tt.ty) && level.interior[tt.ty][tt.tx];
+  if (viewerOutside && targetInside && crossesUnbrokenWindow(vx, vy, tx2, ty2)) return TUNE.windowInPenalty;
+  return 1;
+}
+
 function visibleToPlayerSide(ent) {
   if ((ent.floor || 0) !== (game.floor || 0)) return null;   // ceilings are opaque
   if (game.player.alive) {
@@ -2708,6 +2732,137 @@ function updateQRF(dt) {
   }
 }
 
+// BETA: elevated overwatch posts. Stand a man on floor two at a window and he
+// works the street below: cars and engine blocks are beneath his sightline,
+// what he sees is painted into the ground floor's map and memory, and the men
+// below have no idea he is there — until the first shot breaks the glass.
+function elevOpaque0(tx, ty) {
+  const L = game.floors && game.floors[0] && game.floors[0].levelSnap;
+  if (!L || !L.wall[ty]) return true;
+  if (!L.wall[ty][tx]) return false;                // open ground and windows: clear from above
+  const m = L.mat[ty][tx];
+  return !(m === "engine" || m === "sheetmetal");   // vehicles are BELOW the sightline
+}
+
+function windowOutward1(win) {
+  const L1 = game.floors[1].levelSnap;
+  const dirs = win.orient === "h" ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+  for (const [ox, oy] of dirs) {
+    const ty = win.ty + oy, tx = win.tx + ox;
+    if (L1.interior[ty] && !L1.interior[ty][tx]) return Math.atan2(oy, ox);
+  }
+  return win.orient === "h" ? Math.PI / 2 : 0;
+}
+
+function updatePosts(dt) {
+  if (!game.floors || game.floors.length < 2) return;
+  const L1 = game.floors[1].levelSnap;
+  for (const s2 of game.squad) {
+    if (!s2.alive || s2.downed || s2.floor !== 1) { s2.post = null; continue; }
+    let win = null;
+    for (const w of L1.windowAt.values()) {
+      if (dist(s2.x, s2.y, w.tx * TILE + 16, w.ty * TILE + 16) < TUNE.postReach) { win = w; break; }
+    }
+    if (!win) { s2.post = null; continue; }
+    if (!s2.post || s2.post.win !== win) {
+      const outAng = windowOutward1(win);
+      s2.post = { win, ang: outAng, exposed: !!win.broken, tick: 0, cd: 0, hitT: 0,
+                  ox: win.tx * TILE + 16 + Math.cos(outAng) * TILE,
+                  oy: win.ty * TILE + 16 + Math.sin(outAng) * TILE };
+      if (s2.post && !s2.post.exposed) bark(s2, "IN POSITION — THEY CAN'T SEE ME");
+    }
+    const post = s2.post;
+    post.tick -= dt; post.cd -= dt; post.hitT -= dt;
+    // intel: paint the street into floor 0's map and memory
+    if (post.tick <= 0) {
+      post.tick = 0.4;
+      const L0 = game.floors[0].levelSnap, seen0 = game.floors[0].seenGrid;
+      const R = TUNE.postRange, wx2 = post.ox, wy2 = post.oy;
+      const t0 = tileAt(wx2 - R, wy2 - R), t1 = tileAt(wx2 + R, wy2 + R);
+      for (let ty = Math.max(0, t0.ty); ty <= Math.min(L0.h - 1, t1.ty); ty++) {
+        for (let tx = Math.max(0, t0.tx); tx <= Math.min(L0.w - 1, t1.tx); tx++) {
+          const cx = tx * TILE + 16, cy = ty * TILE + 16;
+          if (dist(wx2, wy2, cx, cy) > R) continue;
+          if (Math.abs(angDiff(post.ang, angleTo(wx2, wy2, cx, cy))) > TUNE.postFov / 2) continue;
+          if (L0.interior[ty][tx] && !L0.wall[ty][tx]) continue;         // he sees streets, not rooms
+          const hit = raycast(wx2, wy2, angleTo(wx2, wy2, cx, cy), dist(wx2, wy2, cx, cy) - 4, elevOpaque0);
+          if (!hit.hit) seen0[ty][tx] = 1;
+        }
+      }
+      const now = game.stats.time;
+      for (const e of game.enemies) {
+        if (!e.alive || (e.floor || 0) !== 0) continue;
+        const et = tileAt(e.x, e.y);
+        if (L0.interior[et.ty] && L0.interior[et.ty][et.tx]) continue;
+        if (dist(wx2, wy2, e.x, e.y) > R) continue;
+        if (Math.abs(angDiff(post.ang, angleTo(wx2, wy2, e.x, e.y))) > TUNE.postFov / 2) continue;
+        if (raycast(wx2, wy2, angleTo(wx2, wy2, e.x, e.y), dist(wx2, wy2, e.x, e.y) - 8, elevOpaque0).hit) continue;
+        e.lastSeen = { x: e.x, y: e.y, t: now, face: e.face };
+        e._postSeen = s2;
+      }
+    }
+    // the gun: aimed single shots down into the street, when ROE allows
+    if (post.cd <= 0 && s2.reloading <= 0) {
+      if (s2.ammo <= 0) { tryReload(s2); }
+      else {
+        let tgt = null, td2 = Infinity;
+        for (const e of game.enemies) {
+          if (!e.alive || (e.floor || 0) !== 0 || e.state === "surrender" || e.state === "cuffed") continue;
+          if (e._postSeen !== s2) continue;
+          const mayFire = s2.roe === "free" || e.state === "combat" || game.underFireT > 0 || game.alarm;
+          if (!mayFire) continue;
+          const d2 = dist(post.ox, post.oy, e.x, e.y);
+          if (d2 < td2) { td2 = d2; tgt = e; }
+        }
+        if (tgt) {
+          post.cd = randIn(TUNE.postCd);
+          s2.ammo--;
+          if (!post.exposed) {
+            post.exposed = true;
+            post.win.broken = true;                       // the glass goes first
+            game.noises.push({ x: post.ox, y: post.oy, radius: 180, type: "glass", side: "player", floor: 0 });
+            sfxAt("glass", post.ox, post.oy);
+            bark(s2, "FIRING — I'M MADE");
+          }
+          const ang = angleTo(post.ox, post.oy, tgt.x, tgt.y) + rand(-deg(2.4), deg(2.4));
+          const round = AMMO[s2.ammoType] || AMMO.fmj;
+          game.bullets.push({
+            x: post.ox + Math.cos(ang) * 3, y: post.oy + Math.sin(ang) * 3,
+            ox: post.ox, oy: post.oy, ang, speed: s2.weapon.speed,
+            dmg: s2.weapon.dmg * round.dmgMul, pen: round.pen * (s2.weapon.penMul || 1),
+            side: "squad", traveled: 0, range: s2.weapon.range, alive: true,
+            owner: s2, floorOverride: 0,
+          });
+          game.noises.push({ x: post.ox, y: post.oy, radius: s2.can ? TUNE.suppNoiseShot : TUNE.noiseShot,
+                             type: "shot", side: "squad", fuzzy: !!s2.can, floor: 0 });
+          if (!s2.can) game.fx.push({ kind: "muzzle", x: post.ox, y: post.oy, ang, t: 0.05, max: 0.05 });
+        }
+      }
+    }
+    // the answer comes back through the same window, once they know
+    if (post.exposed && post.hitT <= 0) {
+      post.hitT = 1.2;
+      let guns = 0;
+      for (const e of game.enemies) {
+        if (!e.alive || (e.floor || 0) !== 0 || e.state !== "combat") continue;
+        if (dist(e.x, e.y, post.ox, post.oy) > 500) continue;
+        if (raycast(e.x, e.y, angleTo(e.x, e.y, post.ox, post.oy), dist(e.x, e.y, post.ox, post.oy) - 8, elevOpaque0).hit) continue;
+        guns++;
+        alertEnemy(e, post.ox, post.oy);
+      }
+      if (guns) {
+        s2.suppress = Math.min(TUNE.suppressMax, (s2.suppress || 0) + 0.9 * guns);
+        if (Math.random() < 0.15 * guns) {
+          const dmg = 12 + Math.random() * 14;
+          s2.hp -= dmg;
+          noteHurt(s2, post.ang + Math.PI, false);
+          if (s2.hp <= 0) killEntity(s2, "enemy", null);
+        }
+      }
+    }
+  }
+}
+
 function circlePoly(x, y, r, n) {
   const pts = [];
   for (let i = 0; i < (n || 24); i++) {
@@ -3073,7 +3228,7 @@ function updateBullets(dt) {
 }
 
 function firstEntityOnSegment(b, ex, ey) {
-  const bfl = (b.owner && b.owner.floor) || 0;
+  const bfl = b.floorOverride !== undefined ? b.floorOverride : ((b.owner && b.owner.floor) || 0);
   let best = null, bestD = Infinity;
   const candidates = [game.player, ...game.squad]; // friendly fire is real — for everyone
   for (const e of game.enemies) {
@@ -3871,7 +4026,8 @@ function updateEnemy(e, dt) {
       if (!t || !t.alive || t.downed) continue;   // a downed man is out of the fight
       if ((t.floor || 0) !== (e.floor || 0)) continue;
       const fov = e.alerted ? TUNE.aiFovAlert : TUNE.aiFov;
-      const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1);
+      const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1)
+               * windowVisionMul(e.x, e.y, t.x, t.y);
       if (canSee(e.x, e.y, t.x, t.y, vd, e.face, fov)) {
         const d = dist(e.x, e.y, t.x, t.y);
         if (d < visD) { visD = d; vis = t; }
@@ -7433,6 +7589,7 @@ function update(dt) {
   updateISR(dt);
   updateCameras(dt);
   updateFireMission(dt);
+  updatePosts(dt);
   updatePeel(dt);
   updateQRF(dt);
   updateBound(dt);
@@ -8614,6 +8771,22 @@ requestAnimationFrame(frame);
     its own gun on the block) and one on THE STANDOFF's police truck (a support
     gunner covering the yard while the stack works). The pillbox slit guns keep
     their narrow arcs; concrete does not swivel.
+  v0.43 (2026-08-14): ELEVATED OVERWATCH AND THE WINDOW RULES, Sam's design
+    point by point. Post a man on floor two at a window and he works the street
+    below: cars and engine blocks are BENEATH his sightline (a guard crouched
+    behind the wreck that blocks every ground-level eye is painted plainly from
+    above), what he sees goes into the ground floor's explored map and into
+    last-known marks — more vision and more information, exactly as asked. He
+    is INVISIBLE to the men below while the glass holds: no detection at all
+    until the first shot, which breaks the window, makes glass noise in the
+    street, and marks the post — from then on the street answers, suppression
+    and aimed fire coming back up through the pane he just broke. His shots are
+    aimed single rounds fired down into floor 0, ROE-gated like every other
+    gun on the team. And the general window rule, any floor: an unbroken pane
+    HALVES an outsider's vision into the room behind it (inside-out is normal,
+    a broken pane is a hole) — dark rooms beat eyes on the street, which was
+    true in Mogadishu and is true here. THE WALKUP's yard gained a wrecked car
+    and a guard lurking behind it as the proof scenario.
 -->
 </body>
 </html>
