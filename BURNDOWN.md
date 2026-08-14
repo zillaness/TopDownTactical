@@ -71,9 +71,14 @@ night built points at that one mission.
 1. ☑ v0.26 — buddy aid + casualty drag: right-click assigns a medic who cannot shoot mid-treatment; [E] still=treat, [E] moving=drag at 55%, no sprint, no trigger
 2. ☑ v0.27 — minimap: explored geometry in material colours, team, downed crosses, current + remembered contacts, objectives, viewport rect; [M] toggles
 3. ☑ v0.28 — formations: research §7 in tactical_research_v1.1, [V] cycles wedge/column/line with honest costs (column masks its own fire, line has no rear)
-   ▶ NEXT: v0.29 infil/exfil map + art prompt
-4. ☐ v0.29 — large infil/exfil map
-5. ☐ Codex environment-art prompt (deliverable: prompt file, no code)
+4. ☑ v0.29 — THE LONG WALK: 72x40 treeline -> farmland -> walled town, capture + extract back the way you came, 16 guns, HVT 61 tiles out
+5. ☑ ART_PROMPT_environment_v1.0.md — master style block + per-asset prompts + integration contract + batch order
+- ℹ AMMO RECOMMENDATION (Sam undecided, so recorded not coded): keep reserves
+  unlimited. The game's pressure economy is time, noise and casualties — a
+  fourth scarcity would fight the first three, and the guns already carry
+  honest costs (reload time, the SAW's 5.4s). If scarcity ever earns its way
+  in, do it as a per-mission BASIC LOAD briefing option, not a global rule.
+   ▶ NIGHT 2 COMPLETE — queue empty, five for five
 - ℹ ammo: recommendation only, Sam undecided — no code without his call
 
 ## Sam's 2026-08-13 list — triage (shipped / designed / researched)

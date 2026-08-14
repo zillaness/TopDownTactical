@@ -2520,3 +2520,29 @@ console.log('  [V]: wedge -> ' + f1 + ' -> ' + f2 + ' -> ' + game.formation,
 game.loadout.squad = 'standard'; game.formation = 'wedge'; initGame();
 console.log('FORMATION TEST DONE');
 })();
+
+(function longWalkTests(){
+console.log('--- the long walk: infil, snatch, exfil ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+const mi = MAPS.findIndex(m => m.name === 'THE LONG WALK');
+game.mapIndex = mi; initGame(); game.state = 'play';
+console.log('  map: ' + level.w + 'x' + level.h + ', objectives ' + JSON.stringify(MAPS[mi].objectives),
+            level.w >= 70 && MAPS[mi].objectives.includes('capture') && MAPS[mi].objectives.includes('extract')
+              ? 'CORRECT (large, and the job is a round trip)' : 'WRONG');
+const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
+const hvt = level.spawns.enemies.find(e => e.kind === 'hvt');
+const ht = tileAt(hvt.x, hvt.y);
+const path = astar(st0.tx, st0.ty, ht.tx, ht.ty, passForPath, pathCostSquad);
+console.log('  HVT reachable, ' + (path ? path.length : 0) + ' tiles out',
+            path && path.length > 60 ? 'CORRECT (a genuinely long walk)' : 'WRONG');
+const unreachable = level.spawns.enemies.filter(es => {
+  const et = tileAt(es.x, es.y);
+  return !astar(st0.tx, st0.ty, et.tx, et.ty, passForPath, pathCostSquad);
+});
+console.log('  all ' + level.spawns.enemies.length + ' contacts reachable: ' + (unreachable.length === 0),
+            unreachable.length === 0 ? 'CORRECT' : 'WRONG');
+console.log('  extraction back at the treeline: ' + level.extraction.length + ' tiles at x=' +
+            level.extraction.map(e => e.tx).join(','),
+            level.extraction.length >= 2 && level.extraction.every(e => e.tx < 10) ? 'CORRECT' : 'WRONG');
+console.log('LONG WALK TEST DONE');
+})();

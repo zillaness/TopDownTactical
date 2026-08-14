@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.28.html
-  version: 0.28
+  file: top_down_tactical_v0.29.html
+  version: 0.29
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.28 (working title)</title>
+<title>Top-Down Tactical v0.29 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.28 prototype &mdash; working title &mdash; fifteen missions</h2>
+  <h2>v0.29 prototype &mdash; working title &mdash; seventeen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -1343,6 +1343,50 @@ const MAPS = [
 "#,,,,,,,,,,,,,P,,s,,s,,s,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "########################################",
+] },
+{ name: "THE LONG WALK", advice: "Infil from the treeline, and remember every step in is a step you walk back out. The principal is behind a barricaded door in the far compound — take him quietly and the exfil is a walk, take him loudly and the whole town walks it with you. COLUMN through the woods, LINE at the wall.",
+  brief: "Infil, snatch, exfil — a treeline, open farmland, a walled town, and the long walk home",
+  type: "CAPTURE & EXTRACT — LONG RANGE", objectives: ["capture", "extract"], src: [
+"########################################################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,ttt,,,,,,,,,,,tt,,,,,,,,,,,,,,tt,,,,,,,,,%%%%%%%,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,tt,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,%.....%,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,D..g..%,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,%.....%,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,ttt,,,,,,,,,,,,,,,,ttttt,,,,,,,,,,,,,,,%.....%,,,,,,,,,,,,,,,,,,,,#",
+"#,,,ttttt,,,,,,p,,,,,,,,,ttt,,,,,,,,,,,,,,,,%%%%%%%,,,,,,,,,,,,,,,,,,,,#",
+"#,,ttttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,ttt,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,======,================#",
+"#,,,,,,,,,ttt,,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,ttt,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,=,,####D####,,,,,,,,,,=#",
+"#,ttttt,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,=,,#.......#,,,,,,,,,,=#",
+"#,,tttP,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,=,,W.g.....#,,###W####=#",
+"#,X,,,,,,,,,,,,,,,,,,,,,,####D####,,,,,,,,,,,,,,=,,#.....p.#,,#......#=#",
+"#,X,,,,,tt,,,,,,,,,,,,,,,#.......#,,p,,,,,,,,,,,=,,#.......#,,#......#=#",
+"#,,,,s,stt,,,,,,,,,,,,,,,#.......W,,,,,,,,,,,,,,=,,#########,,#.E....#=#",
+"#,,,,,s,,,,,,,,,,,,,,,,,,W..g....#,,,,,,,,,,,,,,=,,,,,,,,,,,,,#......#=#",
+"#,,,,ttt,,,,,,,,,,,,,,,,,#.....p.#,,,,,,,,,,,,,,=,,,,,,,,,,,,,L......#=#",
+"#,,,ttttt,,,,,,,,,,,,,,,,#.......#,,,,,,tt,,,,,,=,,,,,,,,,,,,,#...V..#=#",
+"#,,ttttttt,,,,,,,,ttt,,,,#########,,,,,,tt,,,,,,=,,,,,,,,,,,,,#......#=#",
+"#,,,ttttt,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,####D####,,#......#=#",
+"#,,,,ttt,,ttt,,,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,#.......#,,#....E.#=#",
+"#,,,,,,,,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,#.......#,,#......#=#",
+"#,,,,,,,,,ttt,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,=,,#..g....W,,#......#=#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,=,,#.....g.#,,###W####=#",
+"#,,ttt,,,,,,,,,,,,,,,p,,,,,,,,,,,,,,ttt,,,,,,,,,=,,#.......#,,,,,,,,,,=#",
+"#,ttttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,=,,#########,,,,,,,,,,=#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,p,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,g,,,,,,,,,=#",
+"#,,,,,,,tt,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,=,p,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=======================#",
+"########################################################################",
 ] },
 ];
 let MAP_SRC = MAPS[0].src;
@@ -7221,6 +7265,21 @@ requestAnimationFrame(frame);
     stations still snap to standable ground; the squad barks the change and the
     point-man panel shows it. BOUND is unchanged — doctrine agrees: bounding is
     a movement TECHNIQUE, not a formation, and they compose.
+  v0.29 (2026-08-14): THE LONG WALK — the large infil/exfil mission Sam asked
+    for, 72x40 across three terrains: infil from a dense western treeline (the
+    extraction is the same treeline — every step in is a step you walk back
+    out), open farmland with scattered copses, a farmhouse and a barn in the
+    middle distance, and a walled town at the far end where the principal sits
+    behind a barricaded door with two hardened shooters. Sixteen guns on the
+    route, all verified reachable; the HVT is 61 pathing tiles out. It is the
+    mission the formation key was built for: COLUMN through the woods, LINE at
+    the wall. Also ART_PROMPT_environment_v1.0.md — the ready-to-paste prompt
+    set for generating top-down environment art with an image model: master
+    style block (strict 90-degree orthographic, transparent, flat-lit, palette
+    anchored to ours), per-asset prompts for trees, bushes, benches, six
+    vehicle types, furniture and barricades, seamless ground textures, the
+    integration contract (data-URI PNGs, nose-right like every sprite, size
+    budgets), and a batch order for limited credits.
 -->
 </body>
 </html>
