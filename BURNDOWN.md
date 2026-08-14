@@ -69,9 +69,8 @@ night built points at that one mission.
 
 ### Extension queue (ranked)
 1. ☑ v0.34 — THE PEEL [5]: 322px broken in 4s, 5 swaps, 13 covering rounds, 0 uncovered frames; ends set, facing the threat
-   ▶ NEXT: v0.35 turrets + QRF
-2. ☐ v0.35 — emplaced guns: M glyph, mount/dismount, arc-clamped M2; paired
-   with enemy QRF counterattack on THE PILLBOX ("you took it, now hold it")
+2. ☑ v0.35 — emplaced M2s (pinned, 110-deg arc, 2.2x pen, squaddie mountable by right-click) + PILLBOX QRF (6 guns, 6s after the garrison falls, win gated past the quiet minute)
+   ▶ NEXT: v0.36 BROKEN ARROW
 3. ☐ v0.36 — BROKEN ARROW: you are the QRF — wounded men on bleed clocks deep
    in a hostile map, reach them, tie them off, get them home
 4. ☐ adversarial review workflow over all three burndown nights, findings

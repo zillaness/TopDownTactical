@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.34.html
-  version: 0.34
+  file: top_down_tactical_v0.35.html
+  version: 0.35
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.34 (working title)</title>
+<title>Top-Down Tactical v0.35 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.34 prototype &mdash; working title &mdash; nineteen missions</h2>
+  <h2>v0.35 prototype &mdash; working title &mdash; nineteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -68,7 +68,7 @@
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">V</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
       <tr><td class="key">U</td><td>ISR drone to the cursor &mdash; paints open ground and anyone on it, never through a roof</td><td class="key">K</td><td>FPV drone &mdash; WASD flies it, LMB detonates; you stand still and the world hears it</td></tr>
-      <tr><td class="key">B</td><td>fire mission at the cursor (outdoor missions) &mdash; five rounds, 4s of flight, no recall, every casualty in the sheaf is yours</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
+      <tr><td class="key">B</td><td>fire mission at the cursor (outdoor missions) &mdash; five rounds, 4s of flight, no recall, every casualty in the sheaf is yours</td><td class="key">E on a gun</td><td>mount an emplaced M2 (right-click one to put a squaddie on it) &mdash; it only points where the mount points</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
@@ -486,6 +486,12 @@ const TUNE = {
   // control, and every casualty in the sheaf is yours, attributed by name.
   mortarFlight: 4, mortarRounds: 5, mortarGap: 0.45, mortarScatter: 70,
   mortarLethal: 30, mortarWound: 110, mortarDmg: 110, noiseMortar: 820,
+  // FIELD TEST — the emplaced gun. An M2 on a fixed mount: devastating inside
+  // its arc, useless outside it, and whoever is on it is not going anywhere.
+  m2w: { name: "EMPLACED M2", dmg: 50, rpm: 460, mag: 75, reload: 5.0, speed: 1700,
+         range: 1200, spreadBase: 0.023, spreadMove: 0.023, recoil: 0.009,
+         recoilMax: 0.09, recoilDecay: 0.10, penMul: 2.2, ammo: "fmj" },
+  turretArc: deg(110), turretReach: 44,
   fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
@@ -1079,11 +1085,11 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] },
-{ name: "THE PILLBOX", advice: "Open ground into firing slits. Put the belt-fed on the slits and bound the rest of the team up, or take the long way round to the back door.", brief: "Fortified strongpoint across open ground — suppress and bound, or flank",
+{ name: "THE PILLBOX", qrf: { size: 6, delay: 6 }, advice: "Open ground into firing slits. Put the belt-fed on the slits and bound the rest of the team up, or take the long way round to the back door.", brief: "Fortified strongpoint across open ground — suppress and bound, or flank",
   type: "ASSAULT — FORTIFIED POSITION", objectives: ["neutralize"], src: [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,#################,",
-",,,,,,,,,,,,,,,,,,,,,,,,,,,,.................,",
-",,,,,,,,,,,,,,,,,,,,,,,,,,,,.................,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,................Q,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,................Q,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,=.,,,,,,,,,,,,,..,",
 ",,,,,,,,,,,,,,,,,,,,,,,==,,,.g,,,,,,,,,,,,,..,",
 ",,,,,,,,,==,,,,,,,,,,,,==,,,..,,,,,,,,,,,,,..,",
@@ -1093,7 +1099,7 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,==,,,,,,,,,,,,,#########,,,..,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......#,,,..,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......#,,,..,",
-",,,,,,,,,,,,,,,,,,,%%,===,,,,,,W...-...#,,,..,",
+",,,,,,,,,,,,,,,,,,,%%,===,,,,,,WM..-...#,,,..,",
 ",,s,,,,,===,,,,,,,,%%,===,,,,,,#.E.-...#,,,..,",
 ",,,,,,,,===,,,,,,,,,,,,,,,,,,,,W...-...#,,,..,",
 ",sP,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.....g.D.....,",
@@ -1188,7 +1194,7 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,==,,,,,#,,,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,==,,,,,,,,,==,,,,,#,p,.,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
-",,,,,,,,,==,,,,,,,,,,,,,g,,#,,,=,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,==,,,,,,,,,,,,,g,,#,,,=,,,,,,WMg......#,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,.,,,=,,,,,,#.....E..D..g,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,==,,,,,,,,,.,,,=,,,,,,W........#,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,==,,,,,,,,,#,,,=,,,,,,#..g.....#,..,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1201,7 +1207,7 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,==,,,,#,,,=,,,,,,,,,,,,,,,,,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,s,,,,,,,,,,,,,,,,,,==,,,,#,p,=,,,,,,##########,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,g,,#,,,=,,,,,,#........#,..,,,,,,,,,,,,,,,,,,,,,,,",
-",sP,,,,,==,,,,,,,,,,,,,,,,,.,,,.,,,,,,W.g......#,..,,,,,,,,,,,,,,,,,,,,,,,",
+",sP,,,,,==,,,,,,,,,,,,,,,,,.,,,.,,,,,,WMg......#,..,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,==,,,,,,,,,,,,,,,,,.,,,=,,,,,,#.....E..D...,,,,,,,,,,,,,,,,,,,,,,,",
 ",,s,,,,,,,,,,,,==,,,,,,,,,,#,,,=,,,,,,W........#,.g,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,==,,,,,,,,,,#,,,=,,,,,,#..g.....#,..,,,,,,,,,,,,,,,,,,,,,,,",
@@ -1471,7 +1477,7 @@ let MAP_SRC = MAPS[0].src;
       // parseLevel accepts four explicit material glyphs (= brick, - drywall,
       // % sheet metal, @ engine block); the validator used to reject all four,
       // so no map could ever declare its own materials.
-      if (!/^[#=\-%@t,.kBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
+      if (!/^[#=\-%@t,.kMQBDLWPsgphcTEVX]+$/.test(row)) throw new Error(`${m.name} row ${y} has an unknown tile char`);
     });
     // A map that deploys the wrong number of people is silently broken — HIGH VALUE
     // shipped with a one-man squad because the extraction block ate two spawn tiles.
@@ -1505,10 +1511,10 @@ const level = {
 function parseLevel() {
   const rows = MAP_SRC;
   level.h = rows.length; level.w = rows[0].length;
-  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = [];
+  level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = []; level.turrets = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
-  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [] };
+  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.room = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -1536,6 +1542,25 @@ function parseLevel() {
       continue;
     }
     if (ch !== ",") level.interior[y][x] = 1;
+    if (ch === "M") {
+      // an emplaced gun faces its firing slit if one is near, else away from
+      // its wall — bunker guns cover the ground they were built to cover
+      let face = 0, found = false;
+      for (const [ox, oy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        for (let r2 = 1; r2 <= 2 && !found; r2++) {
+          const rr = rows[y + oy * r2];
+          if (rr && rr[x + ox * r2] === "W") { face = Math.atan2(oy, ox); found = true; }
+        }
+      }
+      if (!found) {
+        for (const [ox, oy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+          const rr = rows[y + oy];
+          if (rr && "#=-%@t".includes(rr[x + ox])) { face = Math.atan2(-oy, -ox); found = true; break; }
+        }
+      }
+      level.turrets.push({ x: cx, y: cy, tx: x, ty: y, face0: face, manned: null });
+    }
+    if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "k") {
       // mounted on the adjacent wall, watching the other way
       const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
@@ -2155,12 +2180,13 @@ function updatePlayer(p, dt) {
   // movement
   let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
   let dy = (held("s") ? 1 : 0) - (held("w") ? 1 : 0);
+  if (p.turret) { dx = 0; dy = 0; }               // the mount is where you live now
   // Three gaits on two modifiers: SPACE settles you down to a quiet, steady
   // walk; SHIFT opens you up to a sprint you can technically shoot from and
   // will not hit anything with, and cannot hold forever. Nothing held is the
   // honest middle.
   p.steady = held(" ");
-  const wantSprint = held("shift") && !p.steady && !p.dragging;   // you cannot sprint hauling a man
+  const wantSprint = held("shift") && !p.steady && !p.dragging && !p.turret;
   updateStamina(p, dt, wantSprint);
   p.sprinting = wantSprint && p.stamOk;
   p.walking = p.steady;
@@ -2184,7 +2210,9 @@ function updatePlayer(p, dt) {
   // angLerp — but the firing solution below still reads the true cursor angle,
   // so nothing is lost off the mouse. Only the sprite and the shoulder lag.
   const faceWas = p.face;
-  p.face = angLerp(p.face, angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy),
+  let wantFace = angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy);
+  if (p.turret) { p.x = p.turret.x; p.y = p.turret.y; wantFace = clampToArc(p.turret, wantFace); }
+  p.face = angLerp(p.face, wantFace,
                    clamp(dt * TUNE.playerTurnRate * (p.can ? TUNE.suppTurnMul : 1), 0, 1));
   const swung = Math.abs(angDiff(faceWas, p.face));
   p.turnBloom = Math.max(0, (p.turnBloom || 0) - dt * TUNE.turnBloomDecay) + swung * TUNE.turnBloomGain;
@@ -2193,9 +2221,11 @@ function updatePlayer(p, dt) {
   updateShooterWeapon(p, dt);
   if (pressed("n")) swapShoulder(p);
   // scroll or [1] to change guns — the sidearm is faster than a reload
-  if (pressed("scrollup") || pressed("scrolldown")) swapGun(p, p.gunIndex + 1);
+  if ((pressed("scrollup") || pressed("scrolldown")) && !p.turret) swapGun(p, p.gunIndex + 1);
   if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging) {
-    tryFire(p, aimAngle(p, input.mouse.wx, input.mouse.wy));
+    let fa = aimAngle(p, input.mouse.wx, input.mouse.wy);
+    if (p.turret) fa = clampToArc(p.turret, fa);   // the mount decides, not the wrist
+    tryFire(p, fa);
   }
   if (pressed("r")) tryReload(p);
 
@@ -2453,6 +2483,66 @@ function updateFireMission(dt) {
   if (fm.rounds <= 0) { game.fireMission = null; game.hint = "Rounds complete"; }
 }
 
+// FIELD TEST: the emplaced gun. Mounting trades everything for firepower —
+// you are pinned to the mount, clamped to its arc, and the man you were
+// carrying a carbine for is now a belt-fed that goes through brick.
+function mountTurret(ent, t) {
+  if (t.manned) return false;
+  t.manned = ent; ent.turret = t;
+  ent._preGun = { weapon: ent.weapon, ammoType: ent.ammoType, ammo: ent.ammo, reloading: ent.reloading };
+  ent.weapon = { ...TUNE.m2w }; ent.ammoType = "fmj"; ent.ammo = TUNE.m2w.mag; ent.reloading = 0;
+  ent.x = t.x; ent.y = t.y; ent.recoil = 0; ent.burst = 0;
+  if (ent.side === "squad") bark(ent, "ON THE GUN!");
+  else game.hint = "On the gun — [E] to come off it. It only points where the mount points.";
+  return true;
+}
+function dismountTurret(ent) {
+  const t = ent.turret; if (!t) return;
+  t.manned = null; ent.turret = null;
+  if (ent._preGun) {
+    ent.weapon = ent._preGun.weapon; ent.ammoType = ent._preGun.ammoType;
+    ent.ammo = ent._preGun.ammo; ent.reloading = ent._preGun.reloading;
+    ent._preGun = null;
+  }
+  ent.cooldown = Math.max(ent.cooldown, 0.4);
+}
+function clampToArc(t, want) {
+  return t.face0 + clamp(angDiff(t.face0, want), -TUNE.turretArc / 2, TUNE.turretArc / 2);
+}
+
+// FIELD TEST: the counterattack. Take the position and someone gets on a radio:
+// a QRF spawns at the map's Q points, already alerted, already converging.
+// The mission does not end in the quiet minute between the last defender and
+// the first counterattacker — that minute is for reloading.
+function updateQRF(dt) {
+  const q = game.qrfState; if (!q) return;
+  if (q.phase === "waiting") {
+    const originalsDone = game.enemies.every(e => !e.original || !e.alive || e.state === "cuffed" || e.state === "surrender");
+    if (originalsDone) {
+      q.phase = "inbound"; q.t = game.mission.qrf.delay;
+      game.hint = "RADIO CHATTER — counterattack inbound. You took it; now hold it.";
+      sfxAt("shout", game.player.x, game.player.y);
+    }
+    return;
+  }
+  if (q.phase === "inbound") {
+    q.t -= dt;
+    if (q.t > 0) return;
+    const kinds = game.mission.qrf.kinds || ["elite", "guard", "guard", "elite", "guard", "guard"];
+    const pts = level.spawns.qrf.length ? level.spawns.qrf : [level.spawns.player];
+    for (let i = 0; i < game.mission.qrf.size; i++) {
+      const base = pts[i % pts.length];
+      const sp = nearestPassable(base.x + Math.cos(i * 2.1) * 30, base.y + Math.sin(i * 2.1) * 30);
+      const e = makeEnemy({ x: sp.x, y: sp.y, kind: kinds[i % kinds.length] });
+      e.original = false;
+      game.enemies.push(e);
+      alertEnemy(e, game.player.x, game.player.y);
+    }
+    q.phase = "landed";
+    game.hint = "COUNTERATTACK — " + game.mission.qrf.size + " inbound from the flank";
+  }
+}
+
 function circlePoly(x, y, r, n) {
   const pts = [];
   for (let i = 0; i < (n || 24); i++) {
@@ -2525,8 +2615,11 @@ function playerInteract(p) {
   // priority: casualty > cuff surrendered > secure hostage > door
   const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed && !s.stabilized);
   if (cas) return;                            // the [E] HOLD owns this — do not open a door over him
+  if (p.turret) { dismountTurret(p); game.hint = "Off the gun"; return; }
   const cam = nearestEntity(level.cameras, p.x, p.y, 42, c2 => c2.alive);
   if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
+  const trt = nearestEntity(level.turrets, p.x, p.y, TUNE.turretReach, t2 => !t2.manned);
+  if (trt) { mountTurret(p, trt); return; }
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
@@ -2931,6 +3024,7 @@ function recordIncident(ent) {
 
 function killEntity(ent, bySide, by) {
   if (!ent.alive) return;
+  if (ent.turret) dismountTurret(ent);   // a hit gunner slumps off the mount
   // A squaddie's first zero is a casualty, not a corpse. He is down, bleeding,
   // out of the fight — and on a clock only a tourniquet stops. A second hit,
   // or the clock running out, comes back through here with downed already set.
@@ -4298,6 +4392,18 @@ function issueOrders() {
       game.wheel = null;
       if (!cmd.length) { game.hint = "No one left to command"; return; }
       const item = dir && WHEEL.find(w => w.dir === dir);
+      const trtUnder = !dir && nearestEntity(level.turrets, ctx.x, ctx.y, 30, t2 => !t2.manned);
+      if (trtUnder) {
+        const gunner = cmd.reduce((a2, b2) => dist(a2.x, a2.y, trtUnder.x, trtUnder.y) < dist(b2.x, b2.y, trtUnder.x, trtUnder.y) ? a2 : b2);
+        removeFromPlans(gunner);
+        gunner.order = { type: "man", turret: trtUnder };
+        gunner.path = null;
+        game.hint = gunner.name + " — GET ON THAT GUN";
+        game.wheel = null;
+        game.lastPlay = { name: "MAN THE GUN", t: 2.2 };
+        game.lastOrderMark = { x: trtUnder.x, y: trtUnder.y, t: 2.2 };
+        return;
+      }
       game.hint = item ? item.run(cmd, ctx) : orderGoThere(cmd, ctx.x, ctx.y);
       // every command confirms itself by name, whichever branch ran it
       game.lastPlay = { name: item ? item.label(ctx, cmd) : "GO THERE", t: 2.2 };
@@ -4881,6 +4987,8 @@ function syncPlanMembers(p) {
 function updateSquaddie(s, dt) {
   s.nadeCd = Math.max(0, (s.nadeCd || 0) - dt);
   if (!s.alive) return;
+  if (s.turret && s.order.type !== "man") dismountTurret(s);   // any new order comes off the gun
+  if (s.turret) { s.x = s.turret.x; s.y = s.turret.y; s.face = clampToArc(s.turret, s.face); }
   if (s.downed) {
     s.moving = false;
     if (!s.stabilized) {
@@ -4936,7 +5044,8 @@ function updateSquaddie(s, dt) {
     const canShoot = clearShot(s, threat);
     const handsInWound = s.order.type === "aid" && s._aidT > 0;   // mid-treatment: he is a medic, not a gun
     if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0 && !handsInWound) {
-      tryFire(s, aimAngle(s, threat.x, threat.y));
+      tryFire(s, s.turret ? clampToArc(s.turret, aimAngle(s, threat.x, threat.y))
+                          : aimAngle(s, threat.x, threat.y));
       s._sidestep = 0;
     }
     // The grenadier's whole job: a threat he can see or knows about but cannot
@@ -5082,6 +5191,17 @@ function updateSquaddie(s, dt) {
     }
     case "hold": {
       if (!threat && s.order.face !== undefined) s.face = angLerp(s.face, s.order.face, dt * 5);
+      break;
+    }
+    case "man": {
+      const t = s.order.turret;
+      if (!t || (t.manned && t.manned !== s)) { s.order = { type: "hold", face: s.face }; break; }
+      if (!s.turret) {
+        if (dist(s.x, s.y, t.x, t.y) > 20) squadMove(s, t.x, t.y, TUNE.squadRun, dt);
+        else mountTurret(s, t);
+      } else if (!threat) {
+        s.face = angLerp(s.face, t.face0, dt * 4);   // covering the arc he was given
+      }
       break;
     }
     // Tactical combat casualty care. He moves to the casualty, kneels, and
@@ -5346,6 +5466,7 @@ function render() {
   for (const cam of level.cameras) {
     drawCamera(cam);
   }
+  for (const t of level.turrets) drawTurret(t);
 
   // corpses (visible under normal rules, but keep once seen — they don't move)
   for (const e of [...game.enemies, ...game.civilians, ...game.hostages]) {
@@ -5746,6 +5867,29 @@ function deadSettle(e) {
   if (!e.deadAt && e.deadAt !== 0) return { k: 1, scale: 0.85, spin: 0 };
   const k = clamp(((game.stats ? game.stats.time : 0) - e.deadAt) / 0.35, 0, 1);
   return { k, scale: 1 - 0.15 * k, spin: (e.deadSpin || 0) * k };
+}
+
+function drawTurret(t) {
+  if (!seen.grid[t.ty] || !seen.grid[t.ty][t.tx]) return;
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  if (!t.manned) {
+    const g2 = ctx.createRadialGradient(0, 0, 10, 0, 0, 130);
+    g2.addColorStop(0, "rgba(207,214,221,0.07)"); g2.addColorStop(1, "rgba(207,214,221,0)");
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 130, t.face0 - TUNE.turretArc / 2, t.face0 + TUNE.turretArc / 2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = "#242b31"; ctx.strokeStyle = "#14181c"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, TAU); ctx.fill(); ctx.stroke();
+  const fa = t.manned ? t.manned.face : t.face0;
+  ctx.rotate(fa);
+  ctx.strokeStyle = "#14181c"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(24, 0); ctx.stroke();
+  ctx.strokeStyle = "#5a6570"; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(23, 0); ctx.stroke();
+  ctx.restore();
 }
 
 function drawCamera(cam) {
@@ -6707,6 +6851,8 @@ function initGame() {
   game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.peel = null; game.tq = null;
   game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
   game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
+  game.enemies.forEach(e => e.original = true);
+  game.qrfState = game.mission.qrf ? { phase: "waiting", t: 0 } : null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -6736,6 +6882,7 @@ function update(dt) {
   updateCameras(dt);
   updateFireMission(dt);
   updatePeel(dt);
+  updateQRF(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -6799,8 +6946,13 @@ const OBJECTIVES = {
     },
   },
   neutralize: {
-    label() { return "THREATS " + threatsLeft(); },
-    done() { return threatsLeft() === 0; },
+    label() {
+      const inbound = game.qrfState && game.qrfState.phase !== "landed" ? " (+QRF)" : "";
+      return "THREATS " + threatsLeft() + inbound;
+    },
+    // the quiet minute between the last defender and the counterattack is not
+    // a completed mission — it is for reloading
+    done() { return threatsLeft() === 0 && !(game.qrfState && game.qrfState.phase !== "landed"); },
     failed() { return null; },
   },
   capture: {
@@ -7775,6 +7927,23 @@ requestAnimationFrame(frame);
     the bound applies: covering element dies, survivors hold. Retreat (v0.23)
     remains the mission-level surrender; the peel is how you leave one FIGHT
     without leaving the map.
+  v0.35 (2026-08-14): FIELD TEST — THE EMPLACED GUN AND THE COUNTERATTACK,
+    Sam's "ability to mount turrets" and "sometimes you are the QRF" asks,
+    paired on purpose: take the pillbox, get on its gun, and hold it against
+    the men coming to take it back.
+    New glyph M: an emplaced M2 that faces its firing slit if one is near, else
+    away from its wall. [E] mounts it — you are pinned to the mount, clamped to
+    a 110-degree arc (drag the cursor behind the mount and the gun simply stops
+    at the edge), trading everything for a belt-fed that goes through brick
+    (2.2x penetration). [E] again comes off it; getting hit slumps you off it.
+    Right-click a free gun and the nearest selected squaddie runs over, mounts,
+    and holds the arc — any new order pulls him off. One gun in THE PILLBOX
+    bunker, two in THE LANDING's.
+    QRF: THE PILLBOX now declares { size: 6, delay: 6 } with two Q entry points
+    behind the position. When the original garrison falls, radio chatter — and
+    six fresh guns arrive alerted, converging on you. The neutralize objective
+    refuses to complete during the quiet minute in between: that minute is for
+    reloading, turning the gun around, and choosing your arc.
 -->
 </body>
 </html>

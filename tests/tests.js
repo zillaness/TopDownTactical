@@ -2796,3 +2796,73 @@ console.log('  and it ended holding, facing the threat: ' +
 game.mapIndex = 0; initGame();
 console.log('PEEL TEST DONE');
 })();
+
+(function turretQrfTests(){
+console.log('--- FIELD TEST: the emplaced gun, and the counterattack ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE PILLBOX'); initGame(); game.state = 'play';
+
+const t = level.turrets[0];
+console.log('  THE PILLBOX mounts ' + level.turrets.length + ' gun, facing its slit: ' +
+            (Math.abs(angDiff(t.face0, Math.PI)) < 0.1 ? 'west (the approach)' : t.face0.toFixed(2)),
+            level.turrets.length === 1 && Math.abs(angDiff(t.face0, Math.PI)) < 0.1 ? 'CORRECT' : 'WRONG');
+
+// mount: pinned, clamped, belt-fed
+const P = game.player;
+P.x = t.x + 12; P.y = t.y;
+playerInteract(P);
+console.log('  [E]: mounted=' + (P.turret === t) + ', weapon=' + P.weapon.name,
+            P.turret === t && P.weapon.name === 'EMPLACED M2' ? 'CORRECT' : 'WRONG');
+input.mouse.wx = t.x - 300; input.mouse.wy = t.y;      // into the arc
+for (let i = 0; i < 30; i++) updatePlayer(P, 1 / 30);
+const inArc = Math.abs(angDiff(t.face0, P.face)) < TUNE.turretArc / 2 + 0.01;
+input.mouse.wx = t.x + 300;                             // directly behind the mount
+for (let i = 0; i < 60; i++) updatePlayer(P, 1 / 30);
+const clamped = Math.abs(angDiff(t.face0, P.face)) <= TUNE.turretArc / 2 + 0.01;
+console.log('  aim into the arc ok=' + inArc + '; dragged behind the mount, face stays clamped=' + clamped,
+            inArc && clamped ? 'CORRECT (it only points where the mount points)' : 'WRONG');
+playerInteract(P);
+console.log('  [E] again: off the gun, carbine back: ' + P.weapon.name,
+            !P.turret && P.weapon.name !== 'EMPLACED M2' ? 'CORRECT' : 'WRONG');
+
+// squaddie on the gun via right-click
+const gnr = game.squad[0];
+game.selected.clear();
+input.mouse.wx = t.x; input.mouse.wy = t.y;
+input.mouse.rx = 0; input.mouse.ry = 0;
+input.mouse.x = 0; input.mouse.y = 0;      // no stale flick: this is a plain release
+input.justPressed.add('rmb'); issueOrders();
+input.justPressed.clear(); input.justReleased.add('rmb'); issueOrders(); input.justReleased.clear();
+const manOrder = game.squad.find(s2 => s2.order.type === 'man');
+console.log('  right-click the gun: ' + (manOrder ? manOrder.name + ' ordered to MAN it' : 'nobody'),
+            manOrder ? 'CORRECT' : 'WRONG');
+let tm = 0;
+while (!manOrder.turret && tm < 15) { updateSquaddie(manOrder, 1 / 30); tm += 1 / 30; }
+console.log('  he walked over and mounted in ' + tm.toFixed(1) + 's: ' + (manOrder.turret === t) +
+            ', on the belt: ' + manOrder.weapon.name,
+            manOrder.turret === t && manOrder.weapon.name === 'EMPLACED M2' ? 'CORRECT' : 'WRONG');
+manOrder.order = { type: 'follow' };
+updateSquaddie(manOrder, 1 / 30);
+console.log('  new order pulls him off: dismounted=' + !manOrder.turret + ', gun free=' + !t.manned,
+            !manOrder.turret && !t.manned ? 'CORRECT' : 'WRONG');
+
+// QRF: the quiet minute is not a win
+console.log('  QRF declared: ' + JSON.stringify(MAPS[game.mapIndex].qrf) + ', Q points=' + level.spawns.qrf.length,
+            MAPS[game.mapIndex].qrf.size === 6 && level.spawns.qrf.length === 2 ? 'CORRECT' : 'WRONG');
+const before2 = game.enemies.length;
+game.enemies.forEach(e => { e.alive = false; });        // the garrison falls
+updateQRF(1 / 30);
+console.log('  garrison down: phase=' + game.qrfState.phase + ', neutralize done=' + OBJECTIVES.neutralize.done(),
+            game.qrfState.phase === 'inbound' && !OBJECTIVES.neutralize.done()
+              ? 'CORRECT (the quiet minute is for reloading)' : 'WRONG');
+for (let i = 0; i < 8 * 30; i++) updateQRF(1 / 30);
+console.log('  counterattack: ' + (game.enemies.length - before2) + ' fresh guns, all alerted: ' +
+            game.enemies.slice(before2).every(e => e.alerted),
+            game.enemies.length - before2 === 6 && game.enemies.slice(before2).every(e => e.alerted)
+              ? 'CORRECT' : 'WRONG');
+game.enemies.forEach(e => { e.alive = false; });
+console.log('  wave destroyed: neutralize done=' + OBJECTIVES.neutralize.done(),
+            OBJECTIVES.neutralize.done() ? 'CORRECT (NOW it is over)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('TURRET+QRF TEST DONE');
+})();
