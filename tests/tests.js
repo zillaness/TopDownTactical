@@ -2546,3 +2546,63 @@ console.log('  extraction back at the treeline: ' + level.extraction.length + ' 
             level.extraction.length >= 2 && level.extraction.every(e => e.tx < 10) ? 'CORRECT' : 'WRONG');
 console.log('LONG WALK TEST DONE');
 })();
+
+(function droneTests(){
+console.log('--- FIELD TEST: the drones ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'RAMADI ROW');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+initGame(); game.state = 'play';
+
+// ISR: reveals the street, never the rooms
+seen.init();
+const yard = { x: 23 * TILE, y: 12 * TILE };          // mid-street
+launchISR(yard.x, yard.y);
+console.log('  launched: on station=' + !!game.isr + ', remaining=' + game.isrLeft,
+            game.isr && game.isrLeft === 0 ? 'CORRECT (one per mission, field-test tuning)' : 'WRONG');
+updateISR(0.5);
+let ext = 0, int = 0;
+for (let ty = 0; ty < level.h; ty++) for (let tx = 0; tx < level.w; tx++) {
+  if (!seen.grid[ty][tx]) continue;
+  const cx = tx * TILE + 16, cy = ty * TILE + 16;
+  if (dist(yard.x, yard.y, cx, cy) > TUNE.isrRadius) continue;
+  if (level.interior[ty][tx] && !level.wall[ty][tx]) int++;
+  else if (!level.interior[ty][tx]) ext++;
+}
+console.log('  revealed: ' + ext + ' exterior tiles, ' + int + ' interior floor tiles',
+            ext > 30 && int === 0 ? 'CORRECT (intel, not a wallhack)' : 'WRONG');
+// paints men in the open, not men indoors
+const outside = game.enemies.find(e => { const t2 = tileAt(e.x, e.y); return !level.interior[t2.ty][t2.tx]; })
+             || game.enemies[0];
+outside.x = yard.x + 40; outside.y = yard.y; outside.lastSeen = null;
+const inside = game.enemies.find(e => e !== outside);
+const it = tileAt(inside.x, inside.y);
+inside.x = 8 * TILE + 16; inside.y = 6 * TILE + 16; inside.lastSeen = null;   // in a house
+game.isr.tick = 0; updateISR(0.01);
+console.log('  painted: man in the street=' + !!outside.lastSeen + ', man indoors=' + !!inside.lastSeen,
+            outside.lastSeen && !inside.lastSeen ? 'CORRECT' : 'WRONG');
+let t = 0; while (game.isr && t < 40) { updateISR(0.5); t += 0.5; }
+console.log('  bingo after ' + t.toFixed(1) + 's', Math.abs(t - TUNE.isrTime) < 1.5 ? 'CORRECT' : 'WRONG');
+
+// FPV: the man is a statue, the bird flies over walls, the blast is real
+initGame(); game.state = 'play';
+const P = game.player, px0 = P.x;
+launchFPV();
+console.log('  FPV up: ' + !!game.fpv + ', remaining=' + game.fpvLeft,
+            game.fpv && game.fpvLeft === 0 ? 'CORRECT' : 'WRONG');
+input.keys.add('d');
+game.noises.length = 0;
+for (let i = 0; i < 120; i++) { updatePlayer(P, 1 / 60); }
+input.keys.delete('d');
+const flew = game.fpv.x - px0;
+console.log('  two seconds of D: bird +' + flew.toFixed(0) + 'px, man +' + (P.x - px0).toFixed(0) + 'px',
+            flew > 300 && P.x === px0 ? 'CORRECT (goggles down, statue)' : 'WRONG');
+console.log('  the world heard it: ' + game.noises.filter(n => n.side === 'player').length + ' buzz noises',
+            game.noises.filter(n => n.side === 'player').length >= 3 ? 'CORRECT' : 'WRONG');
+const foe2 = game.enemies.find(e => e.alive);
+foe2.x = game.fpv.x + 15; foe2.y = game.fpv.y; const hp0 = foe2.hp; const alive0 = foe2.alive;
+input.justPressed.add('lmb'); updatePlayer(P, 1 / 60); input.justPressed.clear();
+console.log('  LMB: detonated=' + !game.fpv + ', man beside it ' + (foe2.alive ? (hp0 - foe2.hp).toFixed(0) + ' dmg' : 'killed'),
+            !game.fpv && (!foe2.alive || foe2.hp < hp0) ? 'CORRECT (a frag with a camera)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('DRONE TEST DONE');
+})();

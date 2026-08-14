@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.29.html
-  version: 0.29
+  file: top_down_tactical_v0.30.html
+  version: 0.30
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.29 (working title)</title>
+<title>Top-Down Tactical v0.30 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.29 prototype &mdash; working title &mdash; seventeen missions</h2>
+  <h2>v0.30 prototype &mdash; working title &mdash; seventeen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -67,6 +67,7 @@
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">V</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
+      <tr><td class="key">U</td><td>ISR drone to the cursor &mdash; paints open ground and anyone on it, never through a roof</td><td class="key">K</td><td>FPV drone &mdash; WASD flies it, LMB detonates; you stand still and the world hears it</td></tr>
       <tr><td class="key">Esc</td><td>menu</td><td class="key">&nbsp;</td><td>&nbsp;</td></tr>
       <tr><td class="key">&larr; &rarr;</td><td colspan="3">after a failure the lights come on &mdash; step through what happened, [Space] for the debrief</td></tr>
     </table>
@@ -471,6 +472,11 @@ const TUNE = {
   // over him holding [E], and it does not put him back in the fight — it keeps
   // him, and every hour of experience he carries, alive to the debrief.
   bleedOut: 24, tqTime: 3.0, tqReach: 44,
+  // FIELD TEST — drones. ISR is intel, not a wallhack: it sees streets and
+  // rooftops, never through one. The FPV is a frag with a camera: you fly it,
+  // the world hears it, and while the goggles are down you are a statue.
+  isrRadius: 180, isrTime: 24, isrOrbit: 48,
+  fpvSpeed: 240, fpvFuel: 20, fpvSee: 110, fpvBuzz: 200,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
 
   // surrender / compliance
@@ -2056,6 +2062,13 @@ function doorwayAssist(p, dx, dy) {
 
 function updatePlayer(p, dt) {
   if (!p.alive) return;
+  if (game.fpv) {                       // goggles down: keys fly the bird, not the man
+    p.moving = false;
+    updateFPV(dt);
+    return;
+  }
+  if (pressed("u")) launchISR(input.mouse.wx, input.mouse.wy);
+  if (pressed("k")) launchFPV();
   p.blind = Math.max(0, p.blind - dt);
   p.stagger = Math.max(0, p.stagger - dt);
   p.shoutCd = Math.max(0, p.shoutCd - dt);
@@ -2209,6 +2222,93 @@ function throwSelected(p, kind, wx, wy) {
   p.nadeKind = T.key;
   throwNade(p, wx, wy, T.key);
   game.hint = T.name + " out";
+}
+
+// ---- FIELD TEST: the drones.
+// ISR orbits a point and paints INTEL: exterior ground into the explored map,
+// and last-known marks for anyone standing in the open. It cannot see into a
+// building, which is what keeps it a tool instead of a wallhack.
+function launchISR(wx, wy) {
+  if (game.isrLeft <= 0) { game.hint = "No ISR left"; return; }
+  if (game.isr) { game.hint = "ISR already on station"; return; }
+  game.isrLeft--;
+  game.isr = { x: wx, y: wy, t: TUNE.isrTime, ang: 0, tick: 0 };
+  game.hint = "ISR on station — " + TUNE.isrTime + "s of eyes on the open ground";
+  sfxAt("click", game.player.x, game.player.y);
+}
+
+function updateISR(dt) {
+  const d = game.isr; if (!d) return;
+  d.t -= dt; d.ang += dt * 1.5; d.tick -= dt;
+  if (d.t <= 0) { game.isr = null; game.hint = "ISR bingo — it is gone"; return; }
+  if (d.tick > 0) return;
+  d.tick = 0.4;
+  const R = TUNE.isrRadius, t0 = tileAt(d.x - R, d.y - R), t1 = tileAt(d.x + R, d.y + R);
+  for (let ty = t0.ty; ty <= t1.ty; ty++) for (let tx = t0.tx; tx <= t1.tx; tx++) {
+    if (!inBounds(tx, ty)) continue;
+    const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+    if (dist(d.x, d.y, cx, cy) > R) continue;
+    // exterior ground, and the walls that border it (building outlines) — never interiors
+    if (!level.interior[ty][tx]) seen.grid[ty][tx] = 1;
+    else if (level.wall[ty][tx]) {
+      const openNeighbor = [[1,0],[-1,0],[0,1],[0,-1]].some(([ox,oy]) =>
+        inBounds(tx+ox, ty+oy) && !level.interior[ty+oy][tx+ox] && !level.wall[ty+oy][tx+ox]);
+      if (openNeighbor) seen.grid[ty][tx] = 1;
+    }
+  }
+  const now = game.stats.time;
+  for (const e of game.enemies) {
+    if (!e.alive || dist(d.x, d.y, e.x, e.y) > R) continue;
+    const et = tileAt(e.x, e.y);
+    if (!level.interior[et.ty][et.tx]) e.lastSeen = { x: e.x, y: e.y, t: now, face: e.face };
+  }
+}
+
+// The kamikaze: a frag with a camera. While the goggles are down you fly with
+// WASD, see a small circle around the bird, and stand exactly where you are —
+// a statue holding a controller. LMB or empty fuel detonates. The world hears
+// the buzz the whole way in.
+function launchFPV() {
+  if (game.fpvLeft <= 0) { game.hint = "No FPV left"; return; }
+  if (game.fpv) return;
+  game.fpvLeft--;
+  const p = game.player;
+  game.fpv = { x: p.x, y: p.y, t: TUNE.fpvFuel, buzzT: 0 };
+  game.hint = "FPV up — WASD flies it, LMB puts it in. You are standing still.";
+}
+
+function updateFPV(dt) {
+  const f = game.fpv; if (!f) return;
+  f.t -= dt; f.buzzT -= dt;
+  let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
+  let dy = (held("s") ? 1 : 0) - (held("w") ? 1 : 0);
+  if (dx || dy) {
+    const len = Math.hypot(dx, dy);
+    f.x += dx / len * TUNE.fpvSpeed * dt;                  // it flies OVER walls
+    f.y += dy / len * TUNE.fpvSpeed * dt;
+    f.x = clamp(f.x, 8, level.w * TILE - 8); f.y = clamp(f.y, 8, level.h * TILE - 8);
+  }
+  if (f.buzzT <= 0) { f.buzzT = 0.5; addNoise(f.x, f.y, TUNE.fpvBuzz, "steps", "player"); }
+  // reveal the small circle it can actually see
+  const R = TUNE.fpvSee, t0 = tileAt(f.x - R, f.y - R), t1 = tileAt(f.x + R, f.y + R);
+  for (let ty = t0.ty; ty <= t1.ty; ty++) for (let tx = t0.tx; tx <= t1.tx; tx++) {
+    if (inBounds(tx, ty) && dist(f.x, f.y, tx * TILE + 16, ty * TILE + 16) < R) seen.grid[ty][tx] = 1;
+  }
+  const boom = pressed("lmb") || f.t <= 0;
+  if (boom) {
+    detonateHE40({ x: f.x, y: f.y, side: "player", armed: true });
+    game.fpv = null;
+    game.hint = "FPV impact";
+  }
+}
+
+function circlePoly(x, y, r, n) {
+  const pts = [];
+  for (let i = 0; i < (n || 24); i++) {
+    const a2 = (i / (n || 24)) * TAU;
+    pts.push({ x: x + Math.cos(a2) * r, y: y + Math.sin(a2) * r });
+  }
+  return pts;
 }
 
 // The tourniquet. Same shape as the demolition hold: stand on him, hold [E],
@@ -5036,6 +5136,7 @@ function render() {
     punch(game.visPoly);
     (game.squadPolys || []).forEach(punch);
     if (game.snake && game.snake.t > 0) punch(game.snakePoly);
+    if (game.fpv) punch(circlePoly(game.fpv.x, game.fpv.y, TUNE.fpvSee));
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(fog, 0, 0, viewW, viewH);
@@ -5056,6 +5157,26 @@ function render() {
   // light emitters and information rings go ON TOP of the fog: a muzzle flash
   // that is dimmed 86% is not a muzzle flash
   drawFx("post");
+
+  // the drones, above the fog — they are information, like the muzzle flash
+  if (game.isr) {
+    const d = game.isr, k = 1 / game.zoom;
+    ctx.strokeStyle = "rgba(232,181,58,0.4)"; ctx.lineWidth = 1.5 * k; ctx.setLineDash([6 * k, 6 * k]);
+    ctx.beginPath(); ctx.arc(d.x, d.y, TUNE.isrRadius, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    const bx2 = d.x + Math.cos(d.ang) * TUNE.isrOrbit, by2 = d.y + Math.sin(d.ang) * TUNE.isrOrbit;
+    ctx.fillStyle = COLORS.accent;
+    ctx.beginPath(); ctx.arc(bx2, by2, 3.2 * k, 0, TAU); ctx.fill();
+    ctx.font = (10 / game.zoom).toFixed(1) + "px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("ISR " + Math.ceil(d.t), d.x, d.y - TUNE.isrRadius - 6 * k);
+  }
+  if (game.fpv) {
+    const f = game.fpv, k = 1 / game.zoom;
+    ctx.fillStyle = COLORS.danger;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 3.4 * k, 0, TAU); ctx.fill();
+    ctx.strokeStyle = "rgba(255,85,85,0.6)"; ctx.lineWidth = 1.5 * k;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 7 * k, 0, TAU); ctx.stroke();
+  }
 
   // tourniquet in progress: the ring closing is the three seconds
   if (game.tq) {
@@ -6227,6 +6348,7 @@ const game = {
   wheel: null, nadeWheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
   cam: { x: 0, y: 0, shakeX: 0, shakeY: 0 }, camKick: 0, minimap: true, formation: "wedge",
+  isr: null, isrLeft: 0, fpv: null, fpvLeft: 0,
   visPoly: null,
   stats: null,
   playerDeadT: 0, endReason: "",
@@ -6277,6 +6399,7 @@ function initGame() {
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
   game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.tq = null;
+  game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
 }
@@ -6302,6 +6425,7 @@ function update(dt) {
   trackVelocities(dt);
   updateSmokes(dt);
   updateGasEffects(dt);
+  updateISR(dt);
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -6528,7 +6652,7 @@ function glassing() {
 }
 
 function updateCamera(dt) {
-  const p = game.player;
+  const p = game.fpv || game.player;   // goggles down: you see what the bird sees
   if (!glassing() && game.zoom < 1) game.zoom = 1;   // the glass goes back in the pocket
   const toCursor = { x: input.mouse.wx - p.x, y: input.mouse.wy - p.y };
   const lead = Math.min(TUNE.camLeadMax * (glassing() ? 2.2 : 1), Math.hypot(toCursor.x, toCursor.y) * TUNE.camLead);
@@ -7280,6 +7404,21 @@ requestAnimationFrame(frame);
     vehicle types, furniture and barricades, seamless ground textures, the
     integration contract (data-URI PNGs, nose-right like every sprite, size
     budgets), and a batch order for limited credits.
+  v0.30 (2026-08-14): FIELD TEST — THE DRONES, first unit of the build-not-ship
+    night. Built to Sam's playtest, tuning deliberately open (one of each per
+    mission, flat, no kit integration yet).
+    ISR on [U]: launches to the cursor, orbits 24s, and paints INTEL — exterior
+    ground and building outlines into the explored map, last-known marks for
+    anyone standing in the open, refreshed while it loiters. It cannot see
+    through a roof: the test asserts 96 street tiles revealed against exactly 0
+    interior floor tiles, and a man indoors stays unpainted. Intel, not a
+    wallhack.
+    KAMIKAZE FPV on [K]: a frag with a camera. WASD flies the bird over walls,
+    the camera follows it, a small circle of fog opens around it, and the world
+    hears the buzz the whole way in. LMB or empty fuel detonates a 40mm-class
+    blast. While the goggles are down YOU ARE A STATUE — the man stands exactly
+    where he knelt, unable to move or shoot, which is the whole risk of the
+    tool.
 -->
 </body>
 </html>
