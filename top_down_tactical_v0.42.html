@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.41.html
-  version: 0.41
+  file: top_down_tactical_v0.42.html
+  version: 0.42
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.41 (working title)</title>
+<title>Top-Down Tactical v0.42 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,14 +54,14 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.41 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.42 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
       <tr><td class="key">W A S D</td><td>move</td><td class="key">Mouse</td><td>aim &middot; LMB shoot</td></tr>
       <tr><td class="key">Shift</td><td>sprint &mdash; fast and loud, 17&deg; cone so you can barely hit anything, and armour limits how long</td><td class="key">Space</td><td>steady &mdash; slow, silent, tightest cone</td></tr>
       <tr><td class="key">R</td><td>reload</td><td class="key">Tab</td><td>tactical pause (orders still work)</td></tr>
-      <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">Q</td><td>snake cam &mdash; under a door or over a sill</td></tr>
+      <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">X</td><td>cycle the primary's ammunition &mdash; buck / slug / bird, ball / AP; costs most of a reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
       <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
@@ -1394,7 +1394,7 @@ const MAPS = [
 "#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,#",
 "#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,@%,,,,,,,,,,,,,,,,,,,,,,,,%@,,,,,#",
+"#,,,,,@%M,,,,,,,,,,,,,,,,,,,,,,,%@,,,,,#",
 "#,,,,,,,,,,,,,P,,s,,s,,s,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "########################################",
@@ -1519,7 +1519,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,@%,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,w,,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
 "#,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,,,,,ttt,#",
-"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,%@,,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
+"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,%@M,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
 "#,,,,,######D######,,,,,,,,,,,,,,,,,,,,,,,######D#######,,,,,#",
 "#,,,,,#...........#,,,,,,,,,,w,,,,,,,,,,,,#............#,,,,,#",
 "#,,,,,#........g..#,,,,,,,,,,@%,,,,,,,,,,,#............#,,,,,#",
@@ -1680,7 +1680,15 @@ function parseLevel() {
           if (rr && "#=-%@t".includes(rr[x + ox])) { face = Math.atan2(-oy, -ox); found = true; break; }
         }
       }
-      level.turrets.push({ x: cx, y: cy, tx: x, ty: y, face0: face, manned: null });
+      // a gun bolted to a VEHICLE (engine block or sheet metal beside it) is a
+      // ring mount: near-full traverse, per Sam's Humvee ask
+      let ring = false;
+      for (const [ox, oy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+        const rr = rows[y + oy];
+        if (rr && (rr[x + ox] === "@" || rr[x + ox] === "%")) ring = true;
+      }
+      level.turrets.push({ x: cx, y: cy, tx: x, ty: y, face0: face, manned: null,
+                          arc: ring ? deg(300) : TUNE.turretArc, ring });
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
@@ -2258,6 +2266,23 @@ function updateShoulder(s, dt) {
 
 // Swap primary <-> sidearm. The magazine state of each gun is remembered, so
 // going to the pistol and back does not conjure rounds.
+// [X] cycles the PRIMARY's ammunition mid-mission — buck to slug to bird on
+// the shotgun, ball to AP on a rifle. It answers Sam's question ("does scroll
+// change shot type?") the way it should have been answered: scroll changes
+// GUNS, X changes what the gun is loaded with, and the change costs a slow
+// deliberate reload of the tube or a fresh magazine.
+function cycleAmmo(p) {
+  if (p.gunIndex !== 0 || !p.guns) { game.hint = "The sidearm feeds what it feeds"; return; }
+  const prim = PRIMARIES[game.loadout.primary] || PRIMARIES.carbine;
+  if (prim.ammo.length < 2) { game.hint = "Nothing else in the pouch"; return; }
+  const i = (prim.ammo.indexOf(p.ammoType) + 1) % prim.ammo.length;
+  p.ammoType = prim.ammo[i];
+  p.guns[0].ammoType = p.ammoType;
+  p.reloading = Math.max(p.reloading, p.weapon.reload * 0.7);   // swapping loads is most of a reload
+  sfxAt("click", p.x, p.y);
+  game.hint = "Loading " + AMMO[p.ammoType].name + " — " + (AMMO_NOTES[p.ammoType] || "");
+}
+
 function swapGun(p, idx) {
   if (!p.guns || idx === p.gunIndex || p.swapT > 0) return;
   const cur = p.guns[p.gunIndex];
@@ -2366,6 +2391,7 @@ function updatePlayer(p, dt) {
     tryFire(p, fa);
   }
   if (pressed("r")) tryReload(p);
+  if (pressed("x")) cycleAmmo(p);
 
   // interactions
   updateDemo(p, dt);
@@ -2645,7 +2671,8 @@ function dismountTurret(ent) {
   ent.cooldown = Math.max(ent.cooldown, 0.4);
 }
 function clampToArc(t, want) {
-  return t.face0 + clamp(angDiff(t.face0, want), -TUNE.turretArc / 2, TUNE.turretArc / 2);
+  const arc2 = t.arc || TUNE.turretArc;
+  return t.face0 + clamp(angDiff(t.face0, want), -arc2 / 2, arc2 / 2);
 }
 
 // FIELD TEST: the counterattack. Take the position and someone gets on a radio:
@@ -6261,7 +6288,7 @@ function deadSettle(e) {
 function sectorOf(s) {
   if (!s.alive || s.downed) return null;
   const o = s.order || {};
-  if (s.turret) return { ang: s.turret.face0, arc: TUNE.turretArc, col: "232,181,58" };
+  if (s.turret) return { ang: s.turret.face0, arc: s.turret.arc || TUNE.turretArc, col: "232,181,58" };
   if (o.type === "suppress") return { ang: angleTo(s.x, s.y, o.x, o.y), arc: deg(26), col: "255,85,85" };
   if (o.type === "hold" && o.face !== undefined) return { ang: o.face, arc: o.sector || deg(90), col: "63,194,126" };
   if (o.type === "move" && o.face !== undefined && o.sector) return { ang: o.face, arc: o.sector, col: "63,194,126" };
@@ -6308,7 +6335,7 @@ function drawTurret(t) {
     g2.addColorStop(0, "rgba(207,214,221,0.07)"); g2.addColorStop(1, "rgba(207,214,221,0)");
     ctx.fillStyle = g2;
     ctx.beginPath(); ctx.moveTo(0, 0);
-    ctx.arc(0, 0, 130, t.face0 - TUNE.turretArc / 2, t.face0 + TUNE.turretArc / 2);
+    ctx.arc(0, 0, 130, t.face0 - (t.arc || TUNE.turretArc) / 2, t.face0 + (t.arc || TUNE.turretArc) / 2);
     ctx.closePath(); ctx.fill();
   }
   ctx.fillStyle = "#242b31"; ctx.strokeStyle = "#14181c"; ctx.lineWidth = 2;
@@ -8575,6 +8602,18 @@ requestAnimationFrame(frame);
     inside one build. Two integration bugs the existing suite caught: upper-
     floor density spawns were being placed against ground-floor geometry, and
     the briefing survey counted one floor of a two-floor house.
+  v0.42 (2026-08-14): SHELLS ON [X], AND THE RING MOUNT. Sam asked whether the
+    scroll wheel changes shot type on the shotgun — it did not (scroll swaps
+    GUNS; the load was locked at the briefing). Now [X] cycles the primary's
+    ammunition mid-mission — buck to slug to bird, ball to HP to AP — at 70% of
+    a reload's cost, because swapping what is in the tube is most of a reload.
+    The sidearm feeds what it feeds. And per the Humvee ask: an emplaced gun
+    bolted BESIDE A VEHICLE (engine block or sheet-metal body adjacent) is now
+    a RING MOUNT — near-full 300-degree traverse instead of the pintle's 110 —
+    with one on BROKEN ARROW's middle wreck (fight back to the convoy and turn
+    its own gun on the block) and one on THE STANDOFF's police truck (a support
+    gunner covering the yard while the stack works). The pillbox slit guns keep
+    their narrow arcs; concrete does not swivel.
 -->
 </body>
 </html>

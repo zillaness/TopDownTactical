@@ -3181,3 +3181,44 @@ console.log('  threats left counts the whole house: ' + threatsLeft(),
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('FLOOR TWO TEST DONE');
 })();
+
+(function shellsAndRingsTests(){
+console.log('--- shells on X, and the ring mount on the wreck ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.loadout.primary = 'shotgun'; game.loadout.ammo = 'buck'; initGame(); game.state = 'play';
+const P = game.player;
+
+// the answer to Sam's question, made true: X walks the shell types
+const seq = [P.ammoType];
+for (let i = 0; i < 3; i++) { P.reloading = 0; cycleAmmo(P); seq.push(P.ammoType); }
+console.log('  shotgun shells: ' + seq.join(' -> '),
+            seq[0] === 'buck' && seq.includes('slug') && seq.includes('bird') && seq[3] === seq[0]
+              ? 'CORRECT (cycles and wraps)' : 'WRONG');
+console.log('  the swap costs most of a reload: ' + P.reloading.toFixed(2) + 's',
+            P.reloading > 1.5 ? 'CORRECT (deliberate, not free)' : 'WRONG');
+const spreadByShell = {};
+for (const k of ['buck', 'slug', 'bird']) spreadByShell[k] = AMMO[k].pellets || 1;
+console.log('  and the load genuinely changes the gun: pellets buck=' + spreadByShell.buck +
+            ' slug=' + spreadByShell.slug + ' bird=' + spreadByShell.bird,
+            spreadByShell.buck === 6 && spreadByShell.slug === 1 && spreadByShell.bird === 9 ? 'CORRECT' : 'WRONG');
+P.gunIndex = 1; P.reloading = 0; cycleAmmo(P);
+console.log('  sidearm out: "' + game.hint.slice(0, 30) + '"',
+            /sidearm/i.test(game.hint) ? 'CORRECT (only the primary cycles)' : 'WRONG');
+
+// the wreck gun swings nearly full circle
+game.loadout.primary = 'carbine'; game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+initGame(); game.state = 'play';
+const ringGun = level.turrets.find(t => t.ring);
+console.log('  BROKEN ARROW wreck gun: ring=' + !!ringGun + ', arc=' +
+            (ringGun ? (ringGun.arc * 180 / Math.PI).toFixed(0) : '—') + '°',
+            ringGun && Math.abs(ringGun.arc - deg(300)) < 0.01 ? 'CORRECT (a Humvee ring mount)' : 'WRONG');
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE STANDOFF'); initGame();
+console.log('  THE STANDOFF police truck: ' + level.turrets.filter(t => t.ring).length + ' ring mount',
+            level.turrets.filter(t => t.ring).length === 1 ? 'CORRECT' : 'WRONG');
+// and the pillbox gun still holds its narrow slit arc
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE PILLBOX'); initGame();
+console.log('  THE PILLBOX slit gun stays narrow: ' + (level.turrets[0].arc * 180 / Math.PI).toFixed(0) + '°',
+            Math.abs(level.turrets[0].arc - TUNE.turretArc) < 0.01 ? 'CORRECT' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('SHELLS+RINGS TEST DONE');
+})();
