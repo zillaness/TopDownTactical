@@ -75,8 +75,21 @@ polished. Committed and pushed anyway (checkpoint discipline is the skill).
 1. ☑ v0.30 — drones: ISR paints exterior only (96 street tiles vs 0 interior in test); FPV flies over walls, buzzes, LMB = 40mm-class blast, pilot is a statue
 2. ☑ v0.31 — cameras: k glyph, wall-derived facing, 1.2s dwell then a 3-man call every 4s; shoot it loud or [E]-snip silent; mounted on STANDOFF + LONG WALK
 3. ☑ v0.32 — fire missions: [B], 2 per outdoor map, 4s flight no recall, 5 rounds/70px scatter, DANGER CLOSE warns then fires anyway, all casualties attributed
-   ▶ NEXT: v0.33 house variants
-4. ☐ v0.33 — two more house layouts for the STANDOFF rotation
+4. ☑ v0.33 — THE SPLIT (L-shape, elbow owns both wings, garage entry) and THE RANCH (hallway kill zone), both on the STANDOFF contract
+
+### Handoff — night 3
+Four for four, built and pushed through v0.33 for tomorrow's playtest. All
+flagged FIELD TEST — tuning deliberately open on: drone counts and kit
+integration, camera dwell/recall and older-map placement, mortar sheaf size
+and which maps carry a battery. Usage: Sam reported 59% at night start; the
+two prior nights cost ~3% each.
+WHAT TO PLAYTEST TOMORROW, in order of what I most need judged:
+1. v0.23/0.26 casualties end to end — let a man bleed, order a medic under
+   fire, drag someone across a street. Is 24s the right fear?
+2. THE STANDOFF with the camera: does the snip-or-shoot choice read?
+3. THE LONG WALK with ISR + one fire mission: does intel-then-thunder feel
+   like a decision or a win button?
+4. FPV: is a statue-pilot too harsh, or exactly right?
 - deferred tonight, with reasons: 9-line medevac (its own ledger note says
   after Sam playtests v0.23), two-story (a full engine session), mounted +
   turrets (deserves better than a night slot), muzzle-point split (small,

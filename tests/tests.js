@@ -2716,3 +2716,32 @@ console.log('  battery dry: "' + game.hint.slice(0, 40) + '"',
 game.mapIndex = 0; initGame();
 console.log('FIRE SUPPORT TEST DONE');
 })();
+
+(function houseVariantTests(){
+console.log('--- the standoff rotation: three houses, three problems ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+for (const nm of ['THE SPLIT', 'THE RANCH']) {
+  const mi = MAPS.findIndex(m => m.name === nm);
+  game.mapIndex = mi; initGame(); game.state = 'play';
+  const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
+  const unreachable = level.spawns.enemies.filter(es => {
+    const et = tileAt(es.x, es.y);
+    return !astar(st0.tx, st0.ty, et.tx, et.ty, passForPath, pathCostSquad);
+  });
+  const locked = level.doors.filter(d => d.locked).length;
+  const patrols = game.enemies.filter(e => e.kind === 'patrol').length;
+  console.log('  ' + nm + ': ' + game.enemies.length + ' suspects (' + patrols + ' patrols), ' +
+              locked + ' barricaded doors, ' + level.cameras.length + ' camera, all reachable: ' +
+              (unreachable.length === 0),
+              unreachable.length === 0 && locked >= 1 && patrols === 0 && level.cameras.length === 1
+                ? 'CORRECT (holds and waits, like the first one)' : 'WRONG');
+}
+// the ranch's corridor is real: the hallway row is open end to end
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE RANCH'); initGame();
+let hall = 0;
+for (let x = 7; x <= 38; x++) if (!level.wall[9][x]) hall++;
+console.log('  THE RANCH hallway: ' + hall + '/32 tiles open',
+            hall >= 30 ? 'CORRECT (a shooting gallery both ways)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('HOUSE VARIANT TEST DONE');
+})();

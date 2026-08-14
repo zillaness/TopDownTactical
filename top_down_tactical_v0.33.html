@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.32.html
-  version: 0.32
+  file: top_down_tactical_v0.33.html
+  version: 0.33
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.32 (working title)</title>
+<title>Top-Down Tactical v0.33 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.32 prototype &mdash; working title &mdash; seventeen missions</h2>
+  <h2>v0.33 prototype &mdash; working title &mdash; nineteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -1403,6 +1403,62 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,,,,,,,,,,,,,,,,,,,,=#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,=======================#",
 "########################################################################",
+] },
+{ name: "THE SPLIT", advice: "An L-shaped house fights differently: the wings cannot see each other, so what you clear stays clear — but the elbow room between them belongs to whoever holds it first. The garage is the soft way in.",
+  brief: "Barricaded suspects — an L-shaped house, a garage, and an elbow that owns both wings",
+  type: "BARRICADED SUSPECTS", objectives: ["neutralize"], src: [
+"########################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,,#",
+"#,,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,,#",
+"#,,%%%%%%#####W#########W######,,t,,,,,#",
+"#,,%....%........#............#,,,,,,,,#",
+"#,,%....%........#.........E..#,,,,,,,,#",
+"#,,D.g..%..g.....D....g.......W,,,,,,,,#",
+"#,,%....%........#............#,,,,,,,,#",
+"#,,%....%........#............#,,,,,,,,#",
+"#,,%%%%%%###L###########.######,,,,,,,,#",
+"#,,,,,,,,,,,k,,,,,,,#.........#,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,#.........#,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,#..g......#,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,#.........W,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,######D####,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,W.........#,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,#......g..#,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,#.........#,,,,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,#####L#####,,,,,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,t,,@%,,,,,,,,,,,,,,,,,,,,,%@,,,,,,,#",
+"#,,,,,,,,,,,,,,P,,s,,s,,s,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"########################################",
+] },
+{ name: "THE RANCH", advice: "One long hallway and every door opens onto it. The corridor is a shooting gallery in both directions — do not live in it. Take rooms through windows and walls, and treat every trip across the hall as a bound.",
+  brief: "Barricaded suspects — a long ranch house where the hallway is the kill zone",
+  type: "BARRICADED SUSPECTS", objectives: ["neutralize"], src: [
+"##############################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,#",
+"#,,,t,######W##############W########W###t,,,,#",
+"#,,,,,#.......#.......#.......#........#,,,,,#",
+"#,@,,,#...g...#....g..#.......#..E.....#,,,,,#",
+"#,%,,,#.......#.......#.......#........#,,,,,#",
+"#,,,,,####D#######D#######D#######D#####,,,,,#",
+"#,,,,,L.k..............................D,,,,,#",
+"#,,s,,#####D#########D##########D#######,,,,,#",
+"#,,,,,#.........#.........#............#,,,,,#",
+"#,P,,,#.....g...#.........#...g......g.#,,,,,#",
+"#,,,,,#.........#.........#............#,,,,,#",
+"#,,s,,######W##################W########,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,s,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,#",
+"#,,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,ttt,,,#",
+"#,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,t,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##############################################",
 ] },
 ];
 let MAP_SRC = MAPS[0].src;
@@ -7597,6 +7653,17 @@ requestAnimationFrame(frame);
     anyway, because the grid was your call. Airstrike and artillery variants
     are the same system with different sheafs — deferred until this one has
     been felt in play.
+  v0.33 (2026-08-14): TWO MORE HOUSES for the barricaded-suspect rotation, per
+    Sam's "multiple home layouts" — cheap now that maps are grid-generated, and
+    each is a different tactical problem rather than a reskin. THE SPLIT is an
+    L: the wings cannot see each other, so cleared stays cleared, but the elbow
+    between them owns both approaches; the garage is the soft way in, and the
+    camera watches the front the way you would expect. THE RANCH is one long
+    hallway with every door opening onto it — a shooting gallery in both
+    directions that you cross like a danger area instead of living in. Both
+    keep the STANDOFF contract: the garrison holds its rooms and waits, front
+    door barricaded, one camera, six suspects. Verified: all reachable, no
+    patrols, the ranch hallway genuinely open end to end.
 -->
 </body>
 </html>
