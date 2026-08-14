@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.8
+version: 1.9
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-12
@@ -12,8 +12,8 @@ ai_update: Update last_updated and bump version in frontmatter (filename stays R
 
 A top-down Door Kickers 2-style tactical game where you directly control the
 point man — WASD to move, **Shift** to sprint, **Space** to steady, mouse to aim
-and shoot, or a controller if you prefer — while commanding a 3-man AI
-squad through stacks, synchronized breaches, and hostage rescues. Twelve
+and shoot, or a controller if you prefer — while commanding a 3-man AI squad — or a nine-man
+rifle squad in two fireteams — through stacks, synchronized breaches, and hostage rescues. Twelve
 missions across five objective types — including a training shoot house and a
 straight assault on a fortified position — three difficulty tiers, and best
 grades saved per mission.
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.18.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.20.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.18.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.20.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.0.md` | Six-chapter genre/doctrine research + synthesis |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -72,3 +72,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.6 (2026-08-12): Synced to v0.16 — trigger discipline, squad veterancy, and the art brief for an outside graphical pass.
 - v1.7 (2026-08-13): Synced to v0.17 — readability pass ported from the outside art work onto the current build.
 - v1.8 (2026-08-13): Synced to v0.18 — full controller support with rumble.
+- v1.9 (2026-08-13): Synced to v0.20 — 40mm grenadier and the nine-man rifle squad.

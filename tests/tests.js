@@ -1876,8 +1876,13 @@ console.log('  executing a surrendered suspect pays ' + (shooter.mxp - before) +
 game.squad.forEach(s => { s.alive = true; s.mxp = 100; });
 let rowsA = settleVeterancy(true);
 let saved = JSON.parse(localStorage.getItem('tdt_vets'));
-console.log('  after a win with +100 each: ' + SQUAD_NAMES.map(n => n + '=' + saved[n].xp).join(' '),
-            SQUAD_NAMES.every(n => saved[n].xp === 100 + XP.win) ? 'CORRECT' : 'WRONG');
+// only the men who DEPLOYED bank XP — the bench does not level from home
+const deployed = game.squad.map(s => s.name);
+const bench = SQUAD_NAMES.filter(n => !deployed.includes(n));
+console.log('  after a win with +100 each: ' + deployed.map(n => n + '=' + saved[n].xp).join(' ') +
+            ' | bench ' + bench.map(n => saved[n].xp).join(','),
+            deployed.every(n => saved[n].xp === 100 + XP.win) &&
+            bench.every(n => saved[n].xp === 0) ? 'CORRECT (bench stays at 0)' : 'WRONG');
 console.log('  and it survives a new mission: ' +
             (initGame(), game.squad.map(s => s.name + ' ' + s.rank.name).join(', ')),
             game.squad.every(s => s.rank.name === 'OPERATOR') ? 'CORRECT (promoted)' : 'WRONG');
@@ -2052,4 +2057,67 @@ console.log('  ' + d0.toFixed(0) + 'px flight took ' + t.toFixed(2) + 's',
 console.log('  GRENADIER role exists with launcher flag:',
             ROLES.grenadier && ROLES.grenadier.launcher ? 'CORRECT' : 'WRONG');
 console.log('GRENADIER TEST DONE');
+})();
+
+(function rifleSquadTests(){
+console.log('--- the rifle squad: nine guns in two fireteams ---');
+localStorage.clear();
+game.mapIndex = 0; game.loadout.squad = 'rifle9'; initGame(); game.state = 'play';
+
+console.log('  squad size: ' + game.squad.length,
+            game.squad.length === 8 ? 'CORRECT (you are the ninth)' : 'WRONG');
+const A = game.squad.filter(s => s.team === 'A'), B = game.squad.filter(s => s.team === 'B');
+console.log('  fireteams: A=' + A.length + ' B=' + B.length,
+            A.length === 4 && B.length === 4 ? 'CORRECT' : 'WRONG');
+const count = r => game.squad.filter(s => s.role === r).length;
+console.log('  TO&E: ' + count('rifleman') + ' riflemen, ' + count('grenadier') + ' grenadiers, ' +
+            count('support') + ' ARs',
+            count('rifleman') === 4 && count('grenadier') === 2 && count('support') === 2
+              ? 'CORRECT (TL/GRN/AR/RFLM x2)' : 'WRONG');
+console.log('  team leads flagged: ' + game.squad.filter(s => s.lead).map(s => s.team + '-' + s.name).join(', '),
+            game.squad.filter(s => s.lead).length === 2 ? 'CORRECT' : 'WRONG');
+const names = new Set(game.squad.map(s => s.name));
+console.log('  eight distinct names, all on the veterancy books: ' + names.size + '/' +
+            Object.keys(loadVets()).length,
+            names.size === 8 && Object.keys(loadVets()).length >= 8 ? 'CORRECT' : 'WRONG');
+
+// every man spawned somewhere he can stand
+const stuck = game.squad.filter(s => solidForMove(Math.floor(s.x / TILE), Math.floor(s.y / TILE)));
+console.log('  spawn overflow ringed onto passable ground: ' + (8 - stuck.length) + '/8',
+            stuck.length === 0 ? 'CORRECT' : 'WRONG');
+
+// formation: eight distinct stations, none downrange of the player
+game.player.face = 0;
+const bearings = game.squad.map(s => { s._wedgeAng = undefined; const st = wedgeStation(s, 10); return angleTo(game.player.x, game.player.y, st.x, st.y); });
+const inBore = bearings.filter(b => Math.abs(angDiff(0, b)) < deg(35)).length;
+console.log('  stations inside ±35° of the bore: ' + inBore,
+            inBore === 0 ? 'CORRECT (nobody downrange)' : 'WRONG');
+const uniq = new Set(bearings.map(b => b.toFixed(1)));
+console.log('  distinct bearings: ' + uniq.size + '/8', uniq.size >= 7 ? 'CORRECT' : 'WRONG');
+
+// BOUND splits by fireteam, not by list order
+const play = WHEEL.find(w => w.name === 'BOUND');
+play.run(game.squad.filter(s => s.alive), { point: { x: game.player.x + 200, y: game.player.y } });
+const aElems = new Set(A.map(s => s.order.element)), bElems = new Set(B.map(s => s.order.element));
+console.log('  BOUND: team A elements ' + [...aElems].join(',') + ', team B ' + [...bElems].join(','),
+            aElems.size === 1 && bElems.size === 1 && [...aElems][0] !== [...bElems][0]
+              ? 'CORRECT (bounds by fireteam)' : 'WRONG');
+
+// T cycles team selection
+game.selected.clear(); game._teamSel = null;
+input.justPressed.add('t'); issueOrders(); input.justPressed.clear();
+const selA = [...game.selected].every(i => game.squad[i].team === 'A') && game.selected.size === 4;
+input.justPressed.add('t'); issueOrders(); input.justPressed.clear();
+const selB = [...game.selected].every(i => game.squad[i].team === 'B') && game.selected.size === 4;
+input.justPressed.add('t'); issueOrders(); input.justPressed.clear();
+console.log('  [T]: team A (' + selA + ') -> team B (' + selB + ') -> everyone (' + (game.selected.size === 0) + ')',
+            selA && selB && game.selected.size === 0 ? 'CORRECT' : 'WRONG');
+
+// the three-man templates are untouched
+game.loadout.squad = 'standard'; initGame();
+console.log('  STANDARD still fields ' + game.squad.length + ', teamless: ' +
+            game.squad.every(s => !s.team),
+            game.squad.length === 3 && game.squad.every(s => !s.team) ? 'CORRECT' : 'WRONG');
+localStorage.clear();
+console.log('RIFLE SQUAD TEST DONE');
 })();

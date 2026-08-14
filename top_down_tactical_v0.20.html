@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.19.html
-  version: 0.19
+  file: top_down_tactical_v0.20.html
+  version: 0.20
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.19 (working title)</title>
+<title>Top-Down Tactical v0.20 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.19 prototype &mdash; working title &mdash; twelve missions</h2>
+  <h2>v0.20 prototype &mdash; working title &mdash; twelve missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -3261,7 +3261,7 @@ function processNoises() {
 }
 
 // ---------------------------------------------------------------- S10 squad
-const SQUAD_NAMES = ["REYES", "OKAFOR", "DANE"];
+const SQUAD_NAMES = ["REYES", "OKAFOR", "DANE", "VASQUEZ", "KOWALSKI", "IBRAHIM", "CHO", "MERCER"];
 
 // ---- veterancy. The men get better at this, and the only way to lose that is
 // to get one killed. A dead operator is replaced by a boot, and every hour his
@@ -3395,16 +3395,27 @@ const SQUAD_TEMPLATES = {
   weight:   { name: "WEIGHT OF FIRE", roles: ["support", "support", "rifleman"], note: "two belts — suppress and bound" },
   assault:  { name: "ASSAULT",  roles: ["rifleman", "rifleman", "breacher"], note: "rifles forward" },
   overwatch:{ name: "OVERWATCH",roles: ["marksman", "rifleman", "support"],  note: "one man reaching, one man suppressing" },
+  // The US Army rifle squad, per Sam: you are the squad leader, and behind you
+  // are two identical four-man fireteams — team leader, grenadier with the
+  // underbarrel, automatic rifleman on the SAW, rifleman. Nine guns is a
+  // different game: it exists for the big outdoor maps and long engagements,
+  // and BOUND splits it by fireteam instead of by halves.
+  rifle9:   { name: "RIFLE SQUAD (9)", teams: "AAAABBBB", leads: [0, 4],
+              roles: ["rifleman", "grenadier", "support", "rifleman",
+                      "rifleman", "grenadier", "support", "rifleman"],
+              note: "you + two 4-man fireteams — TL / GRN / AR / RFLM" },
 };
 
 function makeSquaddie(sp, i) {
   const tmpl = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
-  const role = tmpl.roles[i % 3];
+  const role = tmpl.roles[i % tmpl.roles.length];
   const w = { ...TUNE.rifle, spreadBase: deg(0.9), rpm: 480, ...ROLES[role].w };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = SQUAD_NAMES[i] || "OP" + i;
   s.slot = i;
   s.role = role;
+  s.team = tmpl.teams ? tmpl.teams[i] : null;
+  s.lead = !!(tmpl.leads && tmpl.leads.includes(i));
   const rec = (game.vets && game.vets[s.name]) || { xp: 0, missions: 0, kia: 0 };
   s.xp = rec.xp; s.mxp = 0;
   s.rank = rankFor(rec.xp);
@@ -3432,10 +3443,25 @@ const WEDGE = [
   { bear: deg(180),  d: 112, sector: deg(180) },  // #4 — trail, watches the way you came
 ];
 
+// Nine men: two team wedges echeloned off the squad leader, A right, B left.
+// Same rule as the 3-man wedge — no slot inside ±35° of your bore, so nobody
+// is ever downrange of you, and each fireteam owns its own flank.
+const WEDGE9 = [
+  { bear: deg(42),   d: 74,  sector: deg(30)   },  // A TL — forward right
+  { bear: deg(88),   d: 96,  sector: deg(90)   },  // A GRN — right flank
+  { bear: deg(134),  d: 92,  sector: deg(110)  },  // A AR — base of fire, rear right
+  { bear: deg(110),  d: 140, sector: deg(150)  },  // A RFLM — deep right
+  { bear: deg(-42),  d: 74,  sector: deg(-30)  },  // B TL — forward left
+  { bear: deg(-88),  d: 96,  sector: deg(-90)  },  // B GRN — left flank
+  { bear: deg(-134), d: 92,  sector: deg(-110) },  // B AR — base of fire, rear left
+  { bear: deg(-110), d: 140, sector: deg(-150) },  // B RFLM — deep left
+];
+
 // The station bearing eases rather than snapping, or whipping the mouse would
 // send three men sprinting a lap around you.
 function wedgeStation(s, dt) {
-  const p = game.player, w = WEDGE[s.slot % 3];
+  const F = game.squad.length > 3 ? WEDGE9 : WEDGE;
+  const p = game.player, w = F[s.slot % F.length];
   const want = p.face + w.bear;
   if (s._wedgeAng === undefined) s._wedgeAng = want;
   else s._wedgeAng = angLerp(s._wedgeAng, want, clamp((dt || 0) * 2.2, 0, 1));
@@ -3560,9 +3586,18 @@ function issueOrders() {
     return;                                  // the wheel owns the button
   }
 
+  // T cycles fireteam selection when the org has fireteams: A, B, everyone.
+  if (pressed("t") && game.squad.some(s => s.team)) {
+    const cur = game._teamSel || null;
+    const next = cur === null ? "A" : cur === "A" ? "B" : null;
+    game._teamSel = next;
+    game.selected.clear();
+    if (next) game.squad.forEach((s, i) => { if (s.team === next && s.alive) game.selected.add(i); });
+    game.hint = next ? "TEAM " + next + " — right-click where to go" : "whole squad";
+  }
   // Selection by number still works for anyone who wants it, but nothing
   // requires it any more.
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < Math.min(game.squad.length, 8); i++) {
     if (pressed(String(i + 1))) {
       if (game.selected.size === 1 && game.selected.has(i)) game.selected.clear();
       else { game.selected.clear(); game.selected.add(i); }
@@ -3616,7 +3651,7 @@ function orderStack(sel, d) {
 // between commanding a squad and operating three puppets. Individual orders
 // (RMB, Z, V) still work on top; a play is a composition of them, not a
 // replacement.
-function opNumber(s) { return (s.slot % 3) + 2; }
+function opNumber(s) { return s.slot + 2; }   // you are #1; the squad runs #2 upward
 
 const PLAYS = [
   {
@@ -3666,9 +3701,11 @@ const PLAYS = [
       const to = ctx.point;
       // split the team in two elements; odd man rides with the first
       const half = Math.ceil(team.length / 2);
+      const byTeam = team.some(s => s.team);   // a rifle squad bounds by fireteam
       team.forEach((s, i) => {
         removeFromPlans(s);
-        s.order = { type: "bound", x: to.x, y: to.y, element: i < half ? 0 : 1,
+        s.order = { type: "bound", x: to.x, y: to.y,
+                    element: byTeam ? (s.team === "B" ? 1 : 0) : (i < half ? 0 : 1),
                     face: angleTo(s.x, s.y, to.x, to.y) };
         s.path = null;
       });
@@ -5156,28 +5193,33 @@ function drawHud() {
     ctx.fillStyle = COLORS.danger; ctx.fillText(word, viewW / 2, viewH / 2 + 84);
     ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
   }
-  // squad panel (top left)
+  // squad panel (top left) — a rifle squad folds into two columns of four,
+  // Team A left, Team B right, which is also just what the org chart looks like
   game.squad.forEach((s, i) => {
-    const sy = 18 + i * 44;
+    const px = 14 + Math.floor(i / 4) * 198;
+    const sy = 18 + (i % 4) * 44;
     const sel = game.selected.has(i);
-    ctx.fillStyle = sel ? "#1d4ed855" : "#0009"; ctx.fillRect(14, sy, 190, 38);
-    if (sel) { ctx.strokeStyle = COLORS.player; ctx.strokeRect(14.5, sy + 0.5, 189, 37); }
+    ctx.fillStyle = sel ? "#1d4ed855" : "#0009"; ctx.fillRect(px, sy, 190, 38);
+    if (sel) { ctx.strokeStyle = COLORS.player; ctx.strokeRect(px + 0.5, sy + 0.5, 189, 37); }
     ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
-    // #2/#3/#4 are the entry numbers the plays assign roles by. You are #1.
-    ctx.fillText("[" + (i + 1) + "] #" + opNumber(s) + " " + s.name + (s.alive ? "" : " ✝"), 22, sy + 15);
+    // #2..#9 are the entry numbers the plays assign roles by. You are #1.
+    const label = game.squad.length > 3
+      ? "#" + opNumber(s) + (s.team || "") + " " + s.name
+      : "[" + (i + 1) + "] #" + opNumber(s) + " " + s.name;
+    ctx.fillText(label + (s.alive ? "" : " ✝"), px + 8, sy + 15);
     if (s.alive) {
-      ctx.fillStyle = "#333"; ctx.fillRect(22, sy + 22, 110, 6);
-      ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(22, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
+      ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
+      ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(px + 8, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
       // Rank rides on the ROE line rather than after the name: appended to the
       // name it ran straight into the order column and drew "REYES BTENGAGING".
       if (s.rank) {
         ctx.fillStyle = s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent;
-        ctx.fillText(s.rank.tag, 176, sy + 30);
+        ctx.fillText(s.rank.tag, px + 162, sy + 30);
       }
       ctx.fillStyle = COLORS.hudDim;
-      ctx.fillText(orderLabel(s), 140, sy + 15);
+      ctx.fillText(orderLabel(s), px + 126, sy + 15);
       ctx.fillStyle = s.roe === "free" ? COLORS.danger : s.roe === "hold" ? COLORS.hud : COLORS.accent;
-      ctx.fillText(s.roe === "free" ? "FREE" : s.roe === "hold" ? "HOLD-F" : "RTN", 140, sy + 30);
+      ctx.fillText(s.roe === "free" ? "FREE" : s.roe === "hold" ? "HOLD-F" : "RTN", px + 126, sy + 30);
     }
   });
   // objectives (top center; clamped clear of the squad panel on narrow windows)
@@ -5609,7 +5651,18 @@ function initGame() {
   parseLevel(); seen.init();
   game.player = makePlayer(level.spawns.player);
   game.vets = loadVets();          // the men remember the last one
-  game.squad = level.spawns.squad.slice(0, 3).map((sp, i) => makeSquaddie(sp, i));
+  // Maps author three squad spawn points; a nine-man squad rings the overflow
+  // around them deterministically rather than demanding every map be re-drawn.
+  const tmplSq = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
+  const basePts = level.spawns.squad;
+  const sqPts = [];
+  for (let i = 0; i < tmplSq.roles.length; i++) {
+    const sp = basePts[i % basePts.length];
+    const ring = Math.floor(i / basePts.length);
+    sqPts.push(ring === 0 ? sp
+      : nearestPassable(sp.x + Math.cos(i * 2.4) * 30 * ring, sp.y + Math.sin(i * 2.4) * 30 * ring));
+  }
+  game.squad = sqPts.map((sp, i) => makeSquaddie(sp, i));
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
   game.demo = level.spawns.demo.map(sp => ({ x: sp.x, y: sp.y, armed: false, t: 0 }));
@@ -6052,13 +6105,18 @@ function renderBriefing() {
   drawFloorPlan(document.getElementById("planCanvas"), map.src, s);
   const lines = briefingLines(map, s, game.diffIndex);
   const v = loadVets();
-  const roster = SQUAD_NAMES.map(n => {
+  const tmplBr = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
+  const roster = SQUAD_NAMES.slice(0, tmplBr.roles.length).map((n, bi) => {
+    const teamTag = tmplBr.teams ? tmplBr.teams[bi] + " · " : "";
+    return teamTag + rosterLine(n, v);
+  }).join("<br>");
+  function rosterLine(n, v) {
     const rec = v[n] || { xp: 0, missions: 0, kia: 0 };
     const r = rankFor(rec.xp), nx = nextRank(rec.xp);
     return n + " " + r.name + " (" + rec.xp + " XP" +
            (nx ? ", " + (nx.xp - rec.xp) + " to " + nx.name : ", max") + ")" +
            (rec.kia ? " · " + rec.kia + " predecessor" + (rec.kia > 1 ? "s" : "") + " lost" : "");
-  }).join("<br>");
+  }
   lines.push(["YOUR TEAM", roster + "<br><span style=\"color:#7f8b96\">Anyone who goes down loses every hour he has put in.</span>"]);
   document.getElementById("briefText").innerHTML =
     lines.map(([k, v2]) => `<div class="row"><span class="k">${k}</span>${v2}</div>`).join("");
@@ -6449,6 +6507,23 @@ requestAnimationFrame(frame);
     frag), and he will not fire with the player, the squad, a hostage, a
     civilian, or a surrendered suspect near the impact point. Smaller charge
     than a hand frag: kills inside 26px, wounds to 84.
+  v0.20 (2026-08-13): RIFLE SQUAD (9), per Sam's TO&E. A new squad organization
+    at the briefing: you are the squad leader, and behind you are two identical
+    four-man fireteams — team leader, grenadier with the underbarrel, automatic
+    rifleman on the SAW, rifleman. Team A takes your right flank, Team B your
+    left, in a doubled wedge that keeps all eight stations outside ±35 degrees of
+    your bore, so nobody is ever downrange of you no matter how the mouse whips.
+    BOUND splits by fireteam instead of by halves — one team moves while the
+    other's two automatics cover — and [T] cycles command between TEAM A, TEAM B,
+    and everyone. Five new names on the veterancy books: VASQUEZ, KOWALSKI,
+    IBRAHIM, CHO, MERCER; the bench does not level from home, and each man's XP
+    still dies with him. Maps keep their three authored spawn points — overflow
+    rings around them onto passable ground. The squad panel folds into two
+    columns of four, which is also just what the org chart looks like. Breach
+    stacks still cap at three; the other five hold security, which is what the
+    other five are for. Built for THE LANDING, SEAWALL and SWARM density, where
+    four guns was never the right count. Also fixed opNumber wrapping at #4 —
+    eight men now run #2 through #9 instead of repeating.
 -->
 </body>
 </html>
