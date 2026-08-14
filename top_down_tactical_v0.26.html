@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.25.html
-  version: 0.25
+  file: top_down_tactical_v0.26.html
+  version: 0.26
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-13
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.25 (working title)</title>
+<title>Top-Down Tactical v0.26 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.25 prototype &mdash; working title &mdash; fifteen missions</h2>
+  <h2>v0.26 prototype &mdash; working title &mdash; fifteen missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -2025,7 +2025,7 @@ function updatePlayer(p, dt) {
   // will not hit anything with, and cannot hold forever. Nothing held is the
   // honest middle.
   p.steady = held(" ");
-  const wantSprint = held("shift") && !p.steady;
+  const wantSprint = held("shift") && !p.steady && !p.dragging;   // you cannot sprint hauling a man
   updateStamina(p, dt, wantSprint);
   p.sprinting = wantSprint && p.stamOk;
   p.walking = p.steady;
@@ -2033,7 +2033,7 @@ function updatePlayer(p, dt) {
   if (p.moving && p.stagger <= 0) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
     const gait = p.sprinting ? TUNE.playerSprint : p.walking ? TUNE.playerWalk : TUNE.playerRun;
-    const spd = gait * armorSpeed(p) * gunSpeed(p);
+    const spd = gait * armorSpeed(p) * gunSpeed(p) * (p.dragging ? 0.55 : 1);
     // Threading a 32px doorway with a 20px body catches on the jamb constantly.
     // Getting hung up on a frame is realistic; being welded to it is not, so a
     // body squeezes when it is actually in a doorway and nowhere else.
@@ -2059,7 +2059,7 @@ function updatePlayer(p, dt) {
   if (pressed("n")) swapShoulder(p);
   // scroll or [1] to change guns — the sidearm is faster than a reload
   if (pressed("scrollup") || pressed("scrolldown")) swapGun(p, p.gunIndex + 1);
-  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0) {
+  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging) {
     tryFire(p, aimAngle(p, input.mouse.wx, input.mouse.wy));
   }
   if (pressed("r")) tryReload(p);
@@ -2158,19 +2158,35 @@ function throwSelected(p, kind, wx, wy) {
 // stay there. It does not put him back in the fight — it stops the clock, and
 // with it the loss of every mission he has ever come back from.
 function updateTourniquet(p, dt) {
-  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach,
-                            s => s.alive && s.downed && !s.stabilized);
-  if (!cas) { game.tq = null; return; }
   if (!held("e") || p.stagger > 0) {
     if (game.tq) game.tq.t = Math.max(0, game.tq.t - dt * 2);
-    game.tq = null; return;
+    game.tq = null; p.dragging = null; return;
   }
+  // One hold, two verbs: stand STILL over him and you are treating; MOVE and
+  // you are dragging him out of the line of fire instead. Weapon slung either
+  // way — hands do not hold rifles and harnesses at the same time.
+  const cas = (p.dragging && p.dragging.alive && p.dragging.downed) ? p.dragging
+            : nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed);
+  if (!cas) { game.tq = null; p.dragging = null; return; }
+  if (p.moving) {
+    p.dragging = cas;
+    if (game.tq) game.tq.t = Math.max(0, game.tq.t - dt * 2);   // the wrap slips while you haul
+    const d = dist(p.x, p.y, cas.x, cas.y);
+    if (d > 18) {
+      const k = Math.min(1, (d - 18) / d);
+      const res = moveCircle(cas.x, cas.y, cas.r, (p.x - cas.x) * k, (p.y - cas.y) * k, solidForMove);
+      cas.x = res.x; cas.y = res.y;
+      cas.face = angleTo(cas.x, cas.y, p.x, p.y);
+    }
+    return;
+  }
+  p.dragging = null;
+  if (cas.stabilized) { game.tq = null; return; }               // stable: nothing left to tie
   game.tq = game.tq && game.tq.cas === cas ? game.tq : { cas, t: 0 };
   game.tq.t += dt;
   if (game.tq.t >= TUNE.tqTime) {
     cas.stabilized = true;
     game.tq = null;
-    creditXp(p === game.player ? null : p, 0);
     bark(cas, "...still here");
     game.hint = cas.name + " is stable — he is out of the fight, but he is coming home";
     sfxAt("surrender", cas.x, cas.y);
@@ -3895,6 +3911,27 @@ function issueOrders() {
   // anywhere else and either release (go there) or flick a direction (a play).
   if (pressed("rmb")) {
     const man = squaddieUnder(input.mouse.wx, input.mouse.wy);
+    // A downed man is not someone you select — he is someone you send help to.
+    // Right-click on him assigns a medic: the selected man if there is exactly
+    // one, otherwise the nearest able squaddie. TCCC is a two-man cost by
+    // design: the casualty is out of the fight and now so is his buddy.
+    if (man && man.downed) {
+      if (!man.stabilized) {
+        const sel = selectedSquaddies().filter(x => x.alive && !x.downed && x !== man);
+        const medic = sel.length === 1 ? sel[0]
+          : nearestEntity(game.squad, man.x, man.y, 1e9, x => x.alive && !x.downed && x !== man);
+        if (medic) {
+          removeFromPlans(medic);
+          medic.order = { type: "aid", target: man };
+          medic.path = null;
+          bark(medic, "I'M ON HIM!");
+          game.hint = medic.name + " moving to " + man.name + " — he is out of the fight while he works";
+          game.lastOrderMark = { x: man.x, y: man.y, t: 2.2 };
+        } else game.hint = "Nobody left to send";
+      } else game.hint = man.name + " is already stable";
+      game.wheel = null;
+      return;
+    }
     if (man) {
       const i = game.squad.indexOf(man);
       if (game.selected.has(i)) game.selected.delete(i); else game.selected.add(i);
@@ -4485,7 +4522,8 @@ function updateSquaddie(s, dt) {
     const mayFire = executingEntry || s.roe === "free"
       || (s.roe === "return" && (threat.state === "combat" || game.underFireT > 0 || game.alarm));
     const canShoot = clearShot(s, threat);
-    if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0) {
+    const handsInWound = s.order.type === "aid" && s._aidT > 0;   // mid-treatment: he is a medic, not a gun
+    if (mayFire && canShoot && s.reactT <= 0 && s.stagger <= 0 && !handsInWound) {
       tryFire(s, aimAngle(s, threat.x, threat.y));
       s._sidestep = 0;
     }
@@ -4602,6 +4640,30 @@ function updateSquaddie(s, dt) {
     }
     case "hold": {
       if (!threat && s.order.face !== undefined) s.face = angLerp(s.face, s.order.face, dt * 5);
+      break;
+    }
+    // Tactical combat casualty care. He moves to the casualty, kneels, and
+    // works — three seconds during which he is a gun the team does not have.
+    // He does not return fire while his hands are in the wound.
+    case "aid": {
+      const cas = s.order.target;
+      if (!cas || !cas.alive || !cas.downed || cas.stabilized) {
+        s.order = { type: "hold", face: s.face }; s._aidT = 0; break;
+      }
+      if (dist(s.x, s.y, cas.x, cas.y) > TUNE.tqReach - 6) {
+        s._aidT = 0;
+        squadMove(s, cas.x, cas.y, TUNE.squadRun, dt);
+      } else {
+        s.face = angLerp(s.face, angleTo(s.x, s.y, cas.x, cas.y), dt * 8);
+        s._aidT = (s._aidT || 0) + dt;
+        if (s._aidT >= TUNE.tqTime) {
+          cas.stabilized = true; s._aidT = 0;
+          s.order = { type: "hold", face: s.face };
+          bark(s, "HE'S STABLE!");
+          sfxAt("surrender", cas.x, cas.y);
+          game.hint = cas.name + " is stable — " + s.name + " is back in the fight";
+        }
+      }
       break;
     }
     case "stack": {
@@ -7026,6 +7088,15 @@ requestAnimationFrame(frame);
     rim and the whole 64/centre-pivot/#TEAMCOLOR contract stay. Because it is a
     generator, the entire set is still swappable wholesale between the BEGIN and
     END SPRITES markers.
+  v0.26 (2026-08-14): BUDDY AID AND THE DRAG, per Sam — a wounded man now takes
+    TWO people out of the fight. Right-click a downed man and a medic is
+    assigned (your selected man if exactly one, else the nearest able gun): he
+    moves to the casualty, kneels, and works for three seconds during which he
+    does not return fire — his hands are in the wound. The player's [E] hold
+    now has two verbs: stand STILL over a casualty and you are treating him;
+    MOVE and you are dragging him out of the line of fire instead, at 55%
+    speed, sprint denied, trigger dead, with the tourniquet progress slipping
+    while you haul. He trails at arm's length and slides around geometry.
 -->
 </body>
 </html>

@@ -2410,3 +2410,62 @@ game.loadout.primary = 'carbine'; initGame();
 console.log('  carbine never glasses: ' + glassing(), !glassing() ? 'CORRECT' : 'WRONG');
 console.log('NEW MAPS TEST DONE');
 })();
+
+(function buddyAidTests(){
+console.log('--- buddy aid and the drag: a wounded man costs two guns ---');
+localStorage.clear();
+game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
+game.loadout.squad = 'standard'; initGame(); game.state = 'play';
+
+// right-click a downed man assigns the nearest able squaddie as medic
+const cas = game.squad[0], medic = game.squad[1];
+cas.hp = 1; cas.armor = 0; killEntity(cas, 'enemy', null);
+medic.x = cas.x + 60; medic.y = cas.y;
+game.selected.clear();
+input.mouse.wx = cas.x; input.mouse.wy = cas.y;
+input.justPressed.add('rmb'); issueOrders(); input.justPressed.clear(); input.justReleased.clear();
+console.log('  right-click on the casualty: ' + medic.name + ' order=' + medic.order.type,
+            medic.order.type === 'aid' && medic.order.target === cas ? 'CORRECT (medic assigned)' : 'WRONG');
+
+// he walks over, works for tqTime, and the casualty comes out stable
+let t = 0;
+while (!cas.stabilized && t < 20) { updateSquaddie(medic, 1 / 30); t += 1 / 30; }
+console.log('  stabilized after ' + t.toFixed(1) + 's (travel + ' + TUNE.tqTime + 's of work): ' + cas.stabilized,
+            cas.stabilized && t > TUNE.tqTime ? 'CORRECT' : 'WRONG');
+console.log('  and the medic went back to the fight: order=' + medic.order.type,
+            medic.order.type === 'hold' ? 'CORRECT' : 'WRONG');
+
+// mid-treatment he does not shoot — that is the two-gun cost
+initGame(); game.state = 'play';
+const cas2 = game.squad[0], medic2 = game.squad[1];
+cas2.hp = 1; cas2.armor = 0; killEntity(cas2, 'enemy', null);
+medic2.x = cas2.x + 10; medic2.y = cas2.y;
+medic2.order = { type: 'aid', target: cas2 };
+updateSquaddie(medic2, 0.5);                       // hands in the wound now
+const busy = medic2.order.type === 'aid' && medic2._aidT > 0;
+console.log('  mid-treatment state: aidT=' + (medic2._aidT || 0).toFixed(2) + 's — a gun the team does not have',
+            busy ? 'CORRECT' : 'WRONG');
+
+// the drag: hold E while moving hauls him; still treats
+initGame(); game.state = 'play';
+const cas3 = game.squad[0], P = game.player;
+cas3.hp = 1; cas3.armor = 0; killEntity(cas3, 'enemy', null);
+P.x = cas3.x + 14; P.y = cas3.y;
+input.keys.add('e'); P.moving = true;
+const from = { x: cas3.x, y: cas3.y };
+updateTourniquet(P, 1 / 60);                      // grab him first, within reach
+for (let i = 0; i < 40; i++) { P.x += 4; updateTourniquet(P, 1 / 60); }   // then haul
+const dragged = dist(cas3.x, cas3.y, from.x, from.y);
+console.log('  moving with [E] held: casualty dragged ' + dragged.toFixed(0) + 'px behind, dragging=' + (P.dragging === cas3),
+            dragged > 80 && P.dragging === cas3 ? 'CORRECT (haul him out)' : 'WRONG');
+console.log('  he trails at arm\'s length: ' + dist(P.x, P.y, cas3.x, cas3.y).toFixed(0) + 'px',
+            dist(P.x, P.y, cas3.x, cas3.y) < 30 ? 'CORRECT' : 'WRONG');
+P.moving = false;
+let held3 = 0;
+while (!cas3.stabilized && held3 < 5) { updateTourniquet(P, 1 / 60); held3 += 1 / 60; }
+input.keys.delete('e');
+console.log('  then stood still ' + held3.toFixed(1) + 's: stabilized=' + cas3.stabilized + ', dragging cleared=' + !P.dragging,
+            cas3.stabilized && !P.dragging ? 'CORRECT (one hold, two verbs)' : 'WRONG');
+localStorage.clear(); initGame();
+console.log('BUDDY AID TEST DONE');
+})();
