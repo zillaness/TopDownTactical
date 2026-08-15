@@ -1,6 +1,6 @@
 ---
 file: assets/README.md (TopDownTactical)
-version: 1.1
+version: 1.2
 author: Sam Cao
 created: 2026-08-15
 last_updated: 2026-08-15
@@ -53,6 +53,32 @@ Batch 1's numbers are in `assets/source/environment_sprites_batch1.qa.json` as
 the worked example. That batch is also the reason step 1 of the checks exists:
 the oak arrived with native alpha but the pine, bush and hedge silently fell
 back to the magenta key, and only the QA pass caught the difference.
+
+## When an edit bakes in a checkerboard
+
+Fresh generations do transparency well. **Edits of an existing image do not** —
+asked to take the intact sedan and blow the glass out, the model returns an
+opaque PNG with a drawn grey checkerboard where the transparency belongs. A
+damage ladder is an edit chain by construction, so this recurs on every stage.
+
+`tools/alpha_repair.py` fixes it without a regeneration, because a ladder
+deliberately keeps the exterior silhouette identical — which makes the intact
+render's alpha the correct mask for every stage beneath it:
+
+```
+python3 tools/alpha_repair.py --edited glass_out_raw.png \
+                             --reference sedan_grey.png \
+                             --out sedan_grey_glass.png
+```
+
+It refuses rather than guesses when the repair would be wrong: if the edit
+moved or reshaped the vehicle the mask is not its mask, and if the edit punched
+the windows through to the backdrop the mask would make that backdrop *opaque*
+and ship a car with a checkerboard windscreen. It also takes the outer 2px of
+the rim from the reference, because the edited image's edge pixels are
+anti-aliased against the checkerboard and would otherwise leave a pale halo.
+
+Its own fixtures run as part of `tests/run.sh`.
 
 As of the v1.1 prompts the ask is **alpha first, magenta as the named
 fallback** — the model does real transparency now and mostly gets it right.
