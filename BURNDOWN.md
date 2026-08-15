@@ -123,6 +123,8 @@ night built points at that one mission.
 - ☐ batch 3 interior furniture (THE STANDOFF / SPLIT / RANCH are bare rooms)
 - ☐ batch 4 street furniture, ☐ batch 5 roof props, ☐ batch 6 ground textures
   (needs engine work first — the engine fills flat colour, it does not tile)
+- ☐ ALL 66 remaining prompts written out self-contained in
+  ART_PROMPTS_ALL_BATCHES_v1.0.md so Sam can run batches in parallel
 - ☐ doors/windows: NOT plain props. Already vector sprites with three states
   (closed/open/breached) driving sound loss, sightlines and penetration; a
   replacement must ship a matched state SET per material, not one image.
