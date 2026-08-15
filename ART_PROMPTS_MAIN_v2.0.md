@@ -1,10 +1,10 @@
 ---
-file: ART_PROMPTS_ALL_BATCHES_v1.0.md (top-down-tactical)
-version: 1.0
+file: ART_PROMPTS_MAIN_v2.0.md (top-down-tactical)
+version: 2.0
 author: Sam Cao
 created: 2026-08-15
 last_updated: 2026-08-15
-description: Every remaining environment-art prompt, each one fully self-contained so batches can be generated in parallel sessions that share no context. Companion to ART_PROMPT_environment_v1.2.md, which holds the reasoning; this file holds only the paste-ready text.
+description: The main parallel art batch — everything except vehicles and effects, which have their own threads. Every prompt is fully self-contained. Companion to ART_PROMPT_environment_v1.2.md, which holds the reasoning.
 ai_update: Update last_updated and bump version in frontmatter. Rename file to match. Append changelog at bottom. Strike through assets as they are generated and integrated.
 ---
 
@@ -40,131 +40,18 @@ at 2x, so one tile = 64 pixels in the delivered PNG.
 
 ---
 
-# BATCH 2 — VEHICLES
+# Two things are NOT in this file
 
-Highest return per asset in the game. DOWNTOWN EXCHANGE is a lane of cars, RAMADI ROW has you crossing at the cars, BROKEN ARROW is an ambushed convoy — all three are `@` and `%` character pairs today. EVERY vehicle must point NOSE RIGHT; the engine rotates them at draw time and consistency matters far more than pose variety.
+Vehicles and effects each have their own thread, so nothing here overlaps them:
 
-**12 assets.** All independent — generate them in parallel.
+- **Cars** — all twelve vehicles, the battle-damage ladder and the damage
+  overlays live in `ART_PROMPTS_CARS_v1.0.md`.
+- **Explosions and animation** — the nine sprite sheets live in
+  `ART_PROMPTS_EFFECTS_v1.0.md`.
 
-### `sedan_grey` &nbsp;·&nbsp; save as `sedan_grey.png` &nbsp;·&nbsp; generate at 1536x1024
+Everything else is below.
 
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A civilian four-door sedan seen from directly above, nose pointing RIGHT: roof, hood and trunk clearly distinguishable, windscreen and rear window readable as darker glass, muted grey-blue paint, slightly weathered.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `sedan_red` &nbsp;·&nbsp; save as `sedan_red.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A civilian four-door sedan seen from directly above, nose pointing RIGHT: an older boxier body than a modern car, faded red paint, dull chrome trim, some rust at the edges.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `hatchback` &nbsp;·&nbsp; save as `hatchback.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A small civilian hatchback seen from directly above, nose pointing RIGHT: short body, steeply raked rear, dull white paint.
-
-Footprint: 1.5 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `pickup` &nbsp;·&nbsp; save as `pickup.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A civilian pickup truck seen from directly above, nose pointing RIGHT: cab roof at the front, then an open cargo bed with a visible ribbed bed floor and side walls.
-
-Footprint: 2.25 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `panel_van` &nbsp;·&nbsp; save as `panel_van.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A white panel van seen from directly above, nose pointing RIGHT: a short cab roof and then one long flat unbroken cargo roof, blank sides, no windows behind the cab.
-
-Footprint: 2.5 tiles wide by 1.25 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `suv` &nbsp;·&nbsp; save as `suv.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A civilian SUV seen from directly above, nose pointing RIGHT: long roof with roof rails running front to back, dark green paint.
-
-Footprint: 2.25 tiles wide by 1.15 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `taxi` &nbsp;·&nbsp; save as `taxi.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A yellow city taxi seen from directly above, nose pointing RIGHT: a small rectangular roof sign near the front of the roof, slightly scuffed paint.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `police_cruiser` &nbsp;·&nbsp; save as `police_cruiser.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A police cruiser seen from directly above, nose pointing RIGHT: black-and-white livery, a lightbar mounted across the roof at the midline.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `car_wreck` &nbsp;·&nbsp; save as `car_wreck.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A burned-out car wreck seen from directly above, nose pointing RIGHT: scorched black-brown shell, no glass left in any opening, rusted and buckled panels, one door missing.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `car_overturned` &nbsp;·&nbsp; save as `car_overturned.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-An overturned car seen from directly above showing its UNDERCARRIAGE: axles, differential, exhaust line and fuel tank readable, wheels pointing up at the camera, dirt and rust.
-
-Footprint: 2 tiles wide by 1 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `box_truck` &nbsp;·&nbsp; save as `box_truck.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-A flatbed box truck seen from directly above, nose pointing RIGHT: a cab roof at the front and a long plain rectangular cargo box roof behind it.
-
-Footprint: 3.5 tiles wide by 1.5 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
-
-### `humvee` &nbsp;·&nbsp; save as `humvee.png` &nbsp;·&nbsp; generate at 1536x1024
-
-```
-Strict 90-degree top-down orthographic game asset, camera pointing straight down at the ground — NOT isometric, NOT angled, no perspective, no horizon, no vanishing point, no visible side faces of the object. One single object, centered, filling most of the frame, isolated on a FLAT SOLID MAGENTA #FF00FF field with no texture, no gradient and no shadow falling on the field, and no magenta or pink anywhere in the object itself — I will key this colour out. Grounded semi-realistic military-sim style: muted desaturated palette, painterly but clean-edged, no black outline, no cartoon or cel shading, no text, no labels, no watermark. Neutral overhead lighting with a soft contact shadow directly beneath the object only, never a long directional shadow. The asset must still read clearly at 10% size against a dark floor. Palette anchors: floor #303b46, wall #46545f, brick #845345, wood #80623a, metal #788792, foliage #3b5238, accent #e8b53a.
-
-An up-armored military truck, Humvee-like, seen from directly above, nose pointing RIGHT: flat sand-tan roof, a circular turret ring at the centre rear of the roof, stowage racks at the back.
-
-Footprint: 2.5 tiles wide by 1.25 tiles deep, where one tile is 32 world pixels and a human body is 20 world pixels across.
-```
+---
 
 # BATCH 3 — INTERIOR FURNITURE
 
@@ -740,18 +627,23 @@ Seen from directly above: the SAME window in the same frame, BROKEN — jagged g
 | Batch | Assets |
 |---|---:|
 | 1 vegetation (done — oak, pine, bush, hedge) | 4 ✅ |
-| 2 VEHICLES | 12 |
+| 2 vehicles — *separate thread, see `ART_PROMPTS_CARS_v1.0.md`* | 25 |
 | 3 INTERIOR FURNITURE | 15 |
 | 4 STREET FURNITURE | 7 |
 | 5 ROOFS AND SMALL STRUCTURES | 11 |
 | 1b VEGETATION — THE REMAINDER | 3 |
 | 6 GROUND TEXTURES | 7 |
 | 7 DOORS AND WINDOWS | 11 |
-| **Remaining total** | **66** |
+| **This file** | **54** |
+| cars thread | 25 |
+| effects thread | 9 |
+| **Everything remaining** | **88** |
 
 At batch 1's measured rate (~4KB per asset after processing, ~37% more once
-base64-inlined), the whole remaining programme is roughly 350-400KB added to a
-500KB build. Comfortably inside budget.
+base64-inlined), plus heavier sprite sheets in the effects thread, the whole
+remaining programme is roughly 700-800KB added to a 500KB build. Still fine for
+a local single-file game.
 
 ## CHANGELOG
 - v1.0 (2026-08-15): Split out of ART_PROMPT_environment_v1.2.md so every prompt could be made fully self-contained for parallel generation. Adds the vegetation remainder, all four prop batches, ground textures, and the door/window state sets.
+- v2.0 (2026-08-15): Renamed from ART_PROMPTS_ALL_BATCHES. Sam runs cars in a dedicated thread and effects in another, so BATCH 2 VEHICLES was removed to ART_PROMPTS_CARS_v1.0.md and the effects sheets to ART_PROMPTS_EFFECTS_v1.0.md. This file is now the main parallel batch and nothing in it overlaps the other two.

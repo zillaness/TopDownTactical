@@ -123,9 +123,10 @@ night built points at that one mission.
 - ☐ batch 3 interior furniture (THE STANDOFF / SPLIT / RANCH are bare rooms)
 - ☐ batch 4 street furniture, ☐ batch 5 roof props, ☐ batch 6 ground textures
   (needs engine work first — the engine fills flat colour, it does not tile)
-- ☐ ALL 66 remaining prompts written out self-contained in
-  ART_PROMPTS_ALL_BATCHES_v1.0.md so Sam can run batches in parallel
-- ☐ batch 8 ANIMATION + car damage ladder (ART_PROMPTS_ANIMATION_v1.1.md).
+- ☐ prompts now split into THREE threads Sam runs in parallel, no overlap:
+  ART_PROMPTS_CARS_v1.0.md (25), ART_PROMPTS_EFFECTS_v1.0.md (9),
+  ART_PROMPTS_MAIN_v2.0.md (54). 88 assets outstanding.
+- ☐ effects + car damage (now CARS and EFFECTS threads).
   Every explosion in the game is currently ONE orange circle shared by six
   systems (frag, 40mm, mortar, breach, wall charge, FPV) and the flashbang is
   the same circle in white. Sprite sheets must be generated as one gridded
