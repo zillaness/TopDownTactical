@@ -1,9 +1,9 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.42
+version: 1.43
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-14
+last_updated: 2026-08-15
 description: Index and quickstart for the top-down-tactical project (game title TBD).
 ai_update: Update last_updated and bump version in frontmatter (filename stays README.md). Append changelog at bottom.
 ---
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.47.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.48.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.47.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.48.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -112,3 +112,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.40 (2026-08-15): Art prompts split into three threads Sam runs in parallel — CARS, EFFECTS, MAIN.
 - v1.41 (2026-08-15): Added index.html for GitHub Pages, with a test asserting it points at the build that exists.
 - v1.42 (2026-08-15): Moved to its own repository (zillaness/TopDownTactical). art/ became assets/, with incoming/ for raw drops and source/ for processed masters.
+- v1.43 (2026-08-15): Synced to v0.48 — BROKEN ARROW's exfil now counts the casualties on the tile, not just the point man.

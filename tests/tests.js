@@ -3081,6 +3081,62 @@ console.log('  both tied off: stabilize done=' + OBJECTIVES.stabilize.done() +
             ', extract still pending=' + !OBJECTIVES.extract.done(),
             OBJECTIVES.stabilize.done() && !OBJECTIVES.extract.done() ? 'CORRECT (now walk home)' : 'WRONG');
 
+// the whole premise: tourniquets are not the mission, the MEN are. Walking out
+// alone with both of them tied off and lying in the wreckage is not a win.
+const bez = level.extraction[0];
+game.player.x = bez.tx * TILE + 16; game.player.y = bez.ty * TILE + 16;
+console.log('  you stand on the exfil, both of them still at the wrecks: extract=' + OBJECTIVES.extract.done() +
+            ', reads "' + OBJECTIVES.extract.label() + '"',
+            !OBJECTIVES.extract.done() && /0\/2 HAULED/.test(OBJECTIVES.extract.label())
+              ? 'CORRECT (you do not leave them where they fell)' : 'WRONG');
+
+// and it has to be the real verb that gets them there: hold [E] and MOVE drags
+// a man who is ALREADY stable — the wrap is done, the haul is not
+const hauled = wounded[0];
+const startAway = { x: bez.tx * TILE + 16 + 200, y: bez.ty * TILE + 16 };
+hauled.x = startAway.x - 14; hauled.y = startAway.y;
+game.player.x = startAway.x; game.player.y = startAway.y;
+input.keys.add('e'); game.player.moving = true;
+updateTourniquet(game.player, 1 / 60);                                    // grab
+for (let i = 0; i < 80; i++) { game.player.x -= 3; updateTourniquet(game.player, 1 / 60); }
+input.keys.delete('e'); game.player.moving = false;
+console.log('  a stabilized man still drags: moved ' + dist(hauled.x, hauled.y, startAway.x, startAway.y).toFixed(0) +
+            'px, still stable=' + hauled.stabilized,
+            dist(hauled.x, hauled.y, startAway.x, startAway.y) > 150 && hauled.stabilized
+              ? 'CORRECT (the wrap is done, the carry is not)' : 'WRONG');
+
+// one on the tile, one still out: short a man is short a man
+wounded[0].x = bez.tx * TILE + 16; wounded[0].y = bez.ty * TILE + 16;
+console.log('  one hauled in, one still out: extract=' + OBJECTIVES.extract.done() +
+            ', reads "' + OBJECTIVES.extract.label() + '"',
+            !OBJECTIVES.extract.done() && /1\/2 HAULED/.test(OBJECTIVES.extract.label()) ? 'CORRECT' : 'WRONG');
+
+// both of them on the exfil with you: NOW it is over
+const bez2 = level.extraction[level.extraction.length - 1];
+wounded[1].x = bez2.tx * TILE + 16; wounded[1].y = bez2.ty * TILE + 16;
+game.player.x = bez.tx * TILE + 16; game.player.y = bez.ty * TILE + 16;
+console.log('  everyone on the tile: extract=' + OBJECTIVES.extract.done() +
+            ', reads "' + OBJECTIVES.extract.label() + '"',
+            OBJECTIVES.extract.done() && /ALL IN/.test(OBJECTIVES.extract.label())
+              ? 'CORRECT (everyone comes home)' : 'WRONG');
+
+// and the gate is BROKEN ARROW's alone — a map with no casualties still exfils
+// on the point man and nothing else
+const savedMap = game.mapIndex;
+game.mapIndex = MAPS.findIndex(m => m.objectives.join() === 'demolish,extract');
+initGame(); game.state = 'play';
+game.demo.forEach(d => { d.armed = true; });
+const dez = level.extraction[0];
+game.player.x = dez.tx * TILE + 16; game.player.y = dez.ty * TILE + 16;
+console.log('  a map with no casualties is unchanged: extract=' + OBJECTIVES.extract.done() +
+            ', reads "' + OBJECTIVES.extract.label() + '"',
+            OBJECTIVES.extract.done() && /AT POINT/.test(OBJECTIVES.extract.label())
+              ? 'CORRECT (the haul gate is BROKEN ARROW\'s alone)' : 'WRONG');
+game.mapIndex = savedMap; initGame(); game.state = 'play';
+const wounded2 = game.squad.filter(s2 => s2.qrfCasualty);
+wounded2.forEach(s2 => s2.stabilized = true);
+wounded.length = 0; wounded.push(...wounded2);
+
 // lose one and the mission is lost with him
 wounded[0].stabilized = false; wounded[0].bleedT = 0.01;
 updateSquaddie(wounded[0], 0.1);

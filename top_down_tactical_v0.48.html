@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.47.html
-  version: 0.47
+  file: top_down_tactical_v0.48.html
+  version: 0.48
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-14
+  last_updated: 2026-08-15
   description: Playable prototype — top-down Door Kickers 2-style tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.47 (working title)</title>
+<title>Top-Down Tactical v0.48 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.47 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.48 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -2482,6 +2482,7 @@ function updatePlayer(p, dt) {
 
   // interactions
   updateDemo(p, dt);
+  updateExfilNag(p);
   if (pressed("e") && !game.planting && !game.tq) playerInteract(p);
   updateTourniquet(p, dt);
   if (pressed("f")) {
@@ -2979,9 +2980,27 @@ function updateTourniquet(p, dt) {
     cas.stabilized = true;
     game.tq = null;
     bark(cas, "...still here");
-    game.hint = cas.name + " is stable — he is out of the fight, but he is coming home";
+    // stopping the clock is half of it. On a mission that is measured on these
+    // men, the hint has to name the other half or the player never finds it.
+    game.hint = (cas.qrfCasualty && game.mission.objectives.includes("extract"))
+      ? cas.name + " is stable — now haul him out: hold [E] and MOVE"
+      : cas.name + " is stable — he is out of the fight, but he is coming home";
     sfxAt("surrender", cas.x, cas.y);
   }
+}
+
+// You can stand on the exfil tile all day; it does not end the mission while
+// the men you came for are still lying where you found them. Say it on the way
+// in, rather than letting the objective line be the only thing that knows.
+function updateExfilNag(p) {
+  if (!game.mission.objectives.includes("extract")) return;
+  const inZone = inExtraction(p);
+  if (inZone && !p._wasInExfil) {
+    const out = qrfCasualties().filter(c => c.alive && !inExtraction(c));
+    if (out.length === 1) game.hint = "Not without " + out[0].name + " — go back and haul him out";
+    else if (out.length > 1) game.hint = out.length + " of them are still out there. Nobody leaves without them.";
+  }
+  p._wasInExfil = inZone;
 }
 
 // Charges take time and you have to stay on them. Walking off cancels it, which
@@ -7161,7 +7180,11 @@ function drawHud() {
       ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
       ctx.fillRect(px + 8, sy + 22, 110 * (s.stabilized ? 1 : clamp(s.bleedT / (s.bleedMax || TUNE.bleedOut), 0, 1)), 6);
       ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), px + 126, sy + 15);
-      if (!s.stabilized) { ctx.fillStyle = COLORS.hud; ctx.fillText("[E] hold", px + 126, sy + 30); }
+      // the same key does both jobs, so the row has to keep asking for it: tie
+      // him off, then haul him — a stable man still on the ground is unfinished
+      const cue = !s.stabilized ? "[E] hold"
+        : (s.qrfCasualty && game.mission.objectives.includes("extract") && !inExtraction(s)) ? "[E] haul" : "";
+      if (cue) { ctx.fillStyle = COLORS.hud; ctx.fillText(cue, px + 126, sy + 30); }
     } else if (s.alive) {
       ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
       ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(px + 8, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
@@ -7817,6 +7840,9 @@ function inExtraction(ent) {
   const t = tileAt(ent.x, ent.y);
   return level.extraction.some(z => z.tx === t.tx && z.ty === t.ty);
 }
+// The men BROKEN ARROW sent you for. They are squaddies, but they are not your
+// squad — the mission is measured on them and nothing else.
+function qrfCasualties() { return game.squad.filter(s2 => s2.qrfCasualty); }
 
 const OBJECTIVES = {
   rescue: {
@@ -7886,12 +7912,22 @@ const OBJECTIVES = {
     done() { return game.demo.length > 0 && game.demo.every(d => d.armed); },
     failed() { return null; },
   },
+  // Walking out is not the same as coming home. On a mission with casualties
+  // the exfil counts bodies on the tile, not just yours — a man you tied off
+  // and left in the wreckage is a man you left in the wreckage.
   extract: {
-    label() { return "EXFIL " + (inExtraction(game.player) ? "AT POINT" : "PENDING"); },
+    label() {
+      const cas = qrfCasualties();
+      if (!cas.length) return "EXFIL " + (inExtraction(game.player) ? "AT POINT" : "PENDING");
+      const home = cas.filter(c => c.alive && inExtraction(c)).length;
+      return "EXFIL " + home + "/" + cas.length + " HAULED"
+           + (home === cas.length ? (inExtraction(game.player) ? " — ALL IN" : " — GET ON THE TILE") : "");
+    },
     done() {
       // exfil is only meaningful once the rest of the task is finished
       const others = game.mission.objectives.filter(k => k !== "extract");
       if (!others.every(k => OBJECTIVES[k].done())) return false;
+      if (!qrfCasualties().every(c => c.alive && inExtraction(c))) return false;
       return inExtraction(game.player);
     },
     failed() { return null; },
@@ -9050,6 +9086,30 @@ requestAnimationFrame(frame);
     first frame is a plain tile and never a missing one. Bush and hedge are
     loaded and waiting on a map glyph — a bush is concealment without cover,
     which is a gameplay decision, not an art one.
+  v0.48 (2026-08-15): YOU DO NOT LEAVE THEM WHERE THEY FELL. BROKEN ARROW's
+    extract objective only ever asked whether the POINT MAN was standing on the
+    exfil tile, so the mission it advertised — fight to an ambushed convoy, tie
+    both men off, bring everyone home — could be won by tourniqueting two
+    strangers, stepping over them, and walking out alone. The tourniquet was
+    the whole mission and the carry was decoration. Now extract counts bodies
+    on the tile: every casualty the mission is measured on has to be alive and
+    standing in the extraction zone before the point man's own position is even
+    checked. The objective line stops saying PENDING and starts keeping score —
+    EXFIL 0/2 HAULED, then 1/2, then 2/2 HAULED — ALL IN — so the requirement
+    is legible from the first frame rather than discovered by standing on the
+    tile and wondering why nothing happened. The gate is scoped to the men the
+    mission is about, so a demolition map with no casualties exfils on the
+    point man exactly as before.
+    The verb was already in the game and nothing pointed at it: hold [E] and
+    stand still to treat, hold [E] and MOVE to haul, weapon slung either way.
+    Three cues now teach it. Tying a man off on a mission that wants him home
+    says so — "now haul him out: hold [E] and MOVE" instead of the old, and now
+    premature, "he is coming home". His squad row keeps asking for the key
+    after the wrap is done, swapping [E] hold for [E] haul, and drops the cue
+    only once he is actually on the exfil, so the panel shows at a glance which
+    man is still out. And walking into the extraction zone without them names
+    the man you left behind. A stable man on the ground is an unfinished
+    mission, and the HUD now says which one he is.
 -->
 </body>
 </html>
