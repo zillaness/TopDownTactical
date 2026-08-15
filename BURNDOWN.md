@@ -109,7 +109,7 @@ night built points at that one mission.
    is what made THE TREELINE a chessboard. Now: ground under the tree, small
    dark trunk core, canopy in its own pass after all tiles so crowns overlap;
    species/rotation/size hashed off the tile so 184 stamps of one PNG read as a
-   wood and read the same every replay. Source PNGs vendored in art/environment/.
+   wood and read the same every replay. Source PNGs vendored in assets/source/.
    Bush + hedge loaded but unused — they want a map glyph (a bush is
    concealment without cover), which is a gameplay call for Sam.
    ▶ NEXT: Sam's playtest continues — nothing in flight

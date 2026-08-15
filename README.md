@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.41
+version: 1.42
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-14
@@ -53,6 +53,7 @@ real browser with Playwright.
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
+| `assets/` | Art pipeline — drop raw generations in `assets/incoming/<thread>/` |
 | `index.html` | GitHub Pages entry point — redirects to the current build |
 | `ART_PROMPTS_CARS_v1.0.md` | Cars thread — 12 vehicles, damage ladder, damage overlays |
 | `ART_PROMPTS_EFFECTS_v1.0.md` | Effects thread — 9 sprite-sheet animations |
@@ -110,3 +111,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.39 (2026-08-15): Added batch 8 — sprite-sheet animation and the car damage ladder.
 - v1.40 (2026-08-15): Art prompts split into three threads Sam runs in parallel — CARS, EFFECTS, MAIN.
 - v1.41 (2026-08-15): Added index.html for GitHub Pages, with a test asserting it points at the build that exists.
+- v1.42 (2026-08-15): Moved to its own repository (zillaness/TopDownTactical). art/ became assets/, with incoming/ for raw drops and source/ for processed masters.
