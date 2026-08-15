@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.36
+version: 1.37
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-14
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.46.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.47.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,12 +48,12 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.46.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.47.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
-| `ART_PROMPT_environment_v1.1.md` | Paste-ready prompts for generating top-down environment art with an image model |
+| `ART_PROMPT_environment_v1.2.md` | Paste-ready prompts for generating top-down environment art with an image model |
 | `ART_BRIEF_v1.2.md` | Self-contained art brief for an external pass — contract, assets, palette, and the mechanics the art serves |
 | `art/` | Sprite contact sheet + an honest gameplay frame, the other half of the art brief |
 | `improvement_plan_v1.1.md` | Ranked plan from the eight-agent audit-and-research study |
@@ -101,3 +101,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.34 (2026-08-14): Environment art prompt to v1.1 — raster decision, GPT transparency workaround, buildings section.
 - v1.35 (2026-08-14): Synced to v0.45 — playtest fixes: frozen squad vision cones, bleed clock on the body.
 - v1.36 (2026-08-14): Synced to v0.46 — utility kits now name every grenade they carry.
+- v1.37 (2026-08-15): Synced to v0.47 — first environment art integrated (vegetation batch 1); art prompt doc to v1.2.

@@ -102,7 +102,30 @@ night built points at that one mission.
    list full contents with wheel arrows (←3 FLASHBANG · ↑2 FRAG · ...), the
    help row points at the kit, and a test locks label==bag, no false
    advertising, and every throwable reachable from some kit.
+9. ☑ v0.47 — environment art batch 1 integrated. Sam's GPT pass returned oak,
+   pine, bush and hedge against the v1.1 contract, and they came back clean:
+   true top-down, transparent corners, right footprints, 17KB for four. Trees
+   were being painted with the WALL treatment (flat fill + lit top edge), which
+   is what made THE TREELINE a chessboard. Now: ground under the tree, small
+   dark trunk core, canopy in its own pass after all tiles so crowns overlap;
+   species/rotation/size hashed off the tile so 184 stamps of one PNG read as a
+   wood and read the same every replay. Source PNGs vendored in art/environment/.
+   Bush + hedge loaded but unused — they want a map glyph (a bush is
+   concealment without cover), which is a gameplay call for Sam.
    ▶ NEXT: Sam's playtest continues — nothing in flight
+
+### Art programme status (ART_PROMPT_environment_v1.2.md)
+- ☑ batch 1 vegetation — generated + integrated
+- ☐ batch 2 VEHICLES — the next one to generate. Highest return per asset in
+  the game: DOWNTOWN EXCHANGE, RAMADI ROW and BROKEN ARROW are all built
+  around cars currently drawn as @ and % character pairs. Six assets, three
+  maps fixed.
+- ☐ batch 3 interior furniture (THE STANDOFF / SPLIT / RANCH are bare rooms)
+- ☐ batch 4 street furniture, ☐ batch 5 roof props, ☐ batch 6 ground textures
+  (needs engine work first — the engine fills flat colour, it does not tile)
+- ☐ doors/windows: NOT plain props. Already vector sprites with three states
+  (closed/open/breached) driving sound loss, sightlines and penetration; a
+  replacement must ship a matched state SET per material, not one image.
 
 ### Open design question raised by the playtest (Sam's call, NOT coded)
 A downed man is a valid bullet target for everyone, and any second hit while

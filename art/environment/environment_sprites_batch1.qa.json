@@ -1,0 +1,146 @@
+{
+  "oak_tree": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_bbox": [
+      2,
+      2,
+      126,
+      125
+    ],
+    "visible_fraction": 0.6899,
+    "opaque_fraction": 0.6058,
+    "partial_alpha_fraction": 0.0841,
+    "transparent_corners": true,
+    "opaque_rgb_average": [
+      66,
+      80,
+      49
+    ],
+    "indexed_palette_colors": 128,
+    "file_bytes": 8021,
+    "world_size": [
+      64,
+      64
+    ],
+    "tiles": [
+      2,
+      2
+    ]
+  },
+  "pine_tree": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "output_size": [
+      96,
+      96
+    ],
+    "alpha_source": "magenta-key-helper",
+    "alpha_bbox": [
+      3,
+      2,
+      93,
+      94
+    ],
+    "visible_fraction": 0.6238,
+    "opaque_fraction": 0.5237,
+    "partial_alpha_fraction": 0.1002,
+    "transparent_corners": true,
+    "opaque_rgb_average": [
+      44,
+      64,
+      29
+    ],
+    "indexed_palette_colors": 128,
+    "file_bytes": 4275,
+    "world_size": [
+      48,
+      48
+    ],
+    "tiles": [
+      1.5,
+      1.5
+    ]
+  },
+  "bush": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "alpha_source": "magenta-key-helper",
+    "alpha_bbox": [
+      2,
+      9,
+      62,
+      54
+    ],
+    "visible_fraction": 0.5249,
+    "opaque_fraction": 0.4604,
+    "partial_alpha_fraction": 0.0645,
+    "transparent_corners": true,
+    "opaque_rgb_average": [
+      79,
+      96,
+      44
+    ],
+    "indexed_palette_colors": 128,
+    "file_bytes": 1901,
+    "world_size": [
+      32,
+      32
+    ],
+    "tiles": [
+      1,
+      1
+    ]
+  },
+  "hedge_segment": {
+    "source_size": [
+      1536,
+      1024
+    ],
+    "output_size": [
+      128,
+      32
+    ],
+    "alpha_source": "magenta-key-helper",
+    "alpha_bbox": [
+      1,
+      1,
+      127,
+      31
+    ],
+    "visible_fraction": 0.9031,
+    "opaque_fraction": 0.7891,
+    "partial_alpha_fraction": 0.114,
+    "transparent_corners": true,
+    "opaque_rgb_average": [
+      52,
+      81,
+      37
+    ],
+    "indexed_palette_colors": 128,
+    "file_bytes": 2880,
+    "world_size": [
+      64,
+      16
+    ],
+    "tiles": [
+      2,
+      0.5
+    ]
+  }
+}

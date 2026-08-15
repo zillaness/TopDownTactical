@@ -1,14 +1,37 @@
 ---
-file: ART_PROMPT_environment_v1.1.md (top-down-tactical)
-version: 1.1
+file: ART_PROMPT_environment_v1.2.md (top-down-tactical)
+version: 1.2
 author: Sam Cao
 created: 2026-08-14
-last_updated: 2026-08-14
+last_updated: 2026-08-15
 description: Ready-to-paste prompts for generating top-down environment art (trees, bushes, cars, buildings, furniture, ground textures) with an image model, plus the raster-vs-vector decision, GPT-specific output mechanics, and the integration contract that makes the output usable in the engine.
 ai_update: Update last_updated and bump version in frontmatter. Rename file to match. Append changelog at bottom.
 ---
 
 # Environment art prompts — Top-Down Tactical
+
+## STATUS — what is already in the game (as of v0.47)
+
+**Batch 1 (vegetation) is generated, keyed, and integrated.** Oak, pine, bush
+and hedge came back from GPT following this contract exactly — true top-down,
+no isometric drift, transparent corners, correct tile footprints, 17KB for all
+four. Oak and pine now render on every `t` tree tile: the flat green square and
+its wall-style lit top edge are gone, replaced by a small dark trunk core and a
+canopy drawn in its own pass so neighbouring crowns overlap the way real ones
+do. Each canopy takes its species, rotation and size from a hash of its tile,
+so a forest is varied but identical on every replay. THE TREELINE and THE LONG
+WALK stop being fields of green squares.
+
+**Bush and hedge are loaded but unused** — they need a map glyph before they
+can appear, which is a gameplay decision (a bush that is concealment but not
+cover) rather than an art one.
+
+**Still to generate, in priority order: vehicles, interior furniture, street
+furniture, roof props, ground textures.** Prompts for all of them are below.
+
+**Doors and windows are NOT in this document's scope** — see §7. They are
+stateful game entities already drawn as vector sprites, and replacing them
+means supplying a full state set, not a single prop.
 
 ## 0. Raster or vector? Raster, with one exception
 
@@ -262,20 +285,63 @@ where one baked asset is simpler than tiling.
 
 ---
 
+## 7. Doors, windows, and the other stateful things
+
+Sam asked about doors alongside cars and furniture. They are a different kind
+of asset and need saying plainly: **a door is not a prop, it is a state
+machine.** The engine already draws doors as vector sprites in three states —
+`door_closed`, `door_open`, `door_breached` — and swaps between them as the
+door is opened, kicked, or blown. `door_open` is drawn as a leaf swung on its
+hinge, and the door's tile also drives sound loss, sightline blocking, and
+whether a round passes through.
+
+So a single "top-down door" PNG cannot replace what is there. If you want
+better doors, generate a **matched set of three per material**, same canvas,
+same hinge position, same frame:
+
+- "A wooden interior door seen from directly above, CLOSED: the door leaf
+  fills a doorway 1 tile wide by a quarter tile deep, hinges visible on the
+  left end, handle on the right, plain painted timber." *(64 × 16 world px)*
+- "The same wooden door OPEN: the frame empty, the leaf swung ninety degrees
+  and standing perpendicular, hinged at the same left end, so it reads as the
+  same door in a different position." *(same canvas)*
+- "The same wooden door BREACHED: frame intact, leaf destroyed — splintered
+  fragments hanging from the hinge and scattered across the threshold."
+- Repeat the set for: a **steel security door** (flat grey, riveted, no
+  panels) and a **reinforced/barricaded door** (timber planks nailed across a
+  door in its frame).
+
+The same warning applies to **windows**: the engine tracks broken vs unbroken
+per pane, and an unbroken pane halves an outsider's vision into the room. Any
+window art needs both states.
+
+Everything else Sam listed — cars, benches, furniture, buildings — is a plain
+prop and belongs in §3.
+
 ## 6. Batch order (if generating with limited credits)
 
-1. **Oak, pine, bush, hedge** — THE TREELINE stops being green squares.
-2. **Sedan ×2, pickup, wreck** — streets stop being `@%` pairs. Biggest
-   visual return per asset on the urban maps.
-3. **Table, overturned table, sofa, bed, counter** — THE STANDOFF and the
-   house-layout variants get interiors.
-4. **Bench, jersey barrier, sandbags, drums, dumpster** — map dressing.
-5. **Roof scatter props** — only matters once background buildings read as
-   buildings.
-6. **Ground textures** — engine work needed first, see §5.
+1. ~~**Oak, pine, bush, hedge**~~ — DONE. Batch 1, integrated in v0.47.
+2. **BATCH 2 — vehicles: sedan ×2, pickup, panel van, wreck, overturned.**
+   Do this next. It is the biggest visual return per asset in the game:
+   DOWNTOWN EXCHANGE is a lane of cars, RAMADI ROW has you crossing at the
+   cars, and BROKEN ARROW is an ambushed convoy — all currently drawn as `@`
+   and `%` character pairs. Six assets fixes three maps.
+3. **BATCH 3 — interiors: table, overturned table, sofa, bed, kitchen
+   counter, bookshelf.** THE STANDOFF, THE SPLIT, THE RANCH and every house
+   variant are bare rooms right now.
+4. **BATCH 4 — street furniture: bench, jersey barrier, sandbags, drums,
+   dumpster.** Map dressing; nice, not load-bearing.
+5. **BATCH 5 — roof scatter props.** Only matters once background buildings
+   read as buildings.
+6. **BATCH 6 — ground textures.** Engine work needed first, see §5.
+7. **Doors and windows** — only as full state sets, see §7.
+
+Batch 1's four assets cost 17KB all in. On that evidence the entire remaining
+programme lands comfortably inside the payload budget from §0.
 
 ---
 
 ## CHANGELOG
 - v1.0 (2026-08-14): Written against build v0.29 for Sam's Codex image-generation pass.
+- v1.2 (2026-08-15): Batch 1 (vegetation) generated by GPT against the v1.1 contract and integrated into the engine — status section added at the top. Added §7 for doors and windows, which Sam asked about and which are stateful game entities needing matched state SETS rather than single props. Batch order rewritten as a numbered programme with batch 1 struck through and vehicles promoted to next, with the reasoning (three maps fixed by six assets).
 - v1.1 (2026-08-14): Answered raster-vs-vector explicitly with payload math (§0); added GPT-specific output mechanics including the magenta-key workaround for unreliable UI transparency (§1); added the buildings section Sam asked for, split into roof scatter props and complete small structures (§3); expanded vehicles from 6 to 12 and furniture from 6 to 15; added palm, hedge, and forest-floor entries; native GPT generation sizes replace the 512px guidance; authoring scale set to 2× game size.
