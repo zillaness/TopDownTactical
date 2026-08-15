@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.43
+version: 1.44
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-15
@@ -55,9 +55,9 @@ real browser with Playwright.
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
 | `assets/` | Art pipeline — drop raw generations in `assets/incoming/<thread>/` |
 | `index.html` | GitHub Pages entry point — redirects to the current build |
-| `ART_PROMPTS_CARS_v1.0.md` | Cars thread — 12 vehicles, damage ladder, damage overlays |
-| `ART_PROMPTS_EFFECTS_v1.0.md` | Effects thread — 9 sprite-sheet animations |
-| `ART_PROMPTS_MAIN_v2.0.md` | Main art batch — everything except cars and effects |
+| `ART_PROMPTS_CARS_v1.1.md` | Cars thread — 12 vehicles, damage ladder, damage overlays |
+| `ART_PROMPTS_EFFECTS_v1.1.md` | Effects thread — 9 sprite-sheet animations |
+| `ART_PROMPTS_MAIN_v2.1.md` | Main art batch — everything except cars and effects |
 | `ART_PROMPT_environment_v1.2.md` | Paste-ready prompts for generating top-down environment art with an image model |
 | `ART_BRIEF_v1.2.md` | Self-contained art brief for an external pass — contract, assets, palette, and the mechanics the art serves |
 | `art/` | Sprite contact sheet + an honest gameplay frame, the other half of the art brief |
@@ -113,3 +113,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.41 (2026-08-15): Added index.html for GitHub Pages, with a test asserting it points at the build that exists.
 - v1.42 (2026-08-15): Moved to its own repository (zillaness/TopDownTactical). art/ became assets/, with incoming/ for raw drops and source/ for processed masters.
 - v1.43 (2026-08-15): Synced to v0.48 — BROKEN ARROW's exfil now counts the casualties on the tile, not just the point man.
+- v1.44 (2026-08-15): Art prompts flipped to alpha-first (CARS v1.1, EFFECTS v1.1, MAIN v2.1) — GPT does real transparency now; magenta stays as the named fallback.
