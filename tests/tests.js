@@ -2637,6 +2637,54 @@ console.log('  and a second hit while down is final: alive=' + x.alive,
 console.log('CASUALTY CLOCK TEST DONE');
 })();
 
+(function kitLabelTests(){
+console.log('--- the kit button must name every grenade the kit actually carries ---');
+// Sam, playtesting: "I don't see a way to get concussion and frag grenades and
+// smoke grenades in the loadout." They were always there — the button just said
+// "N bangs / N charges" and never named the other four throwables, so the whole
+// grenade half of the kit was invisible on the screen where you choose it.
+// This asserts the label can never drift from the bag again.
+const NAMEOF = { bang: 'bangs', frag: 'frag', conc: 'conc', smoke: 'smoke', gas: 'gas' };
+let liars = [], silent = [];
+for (const [key, v] of Object.entries(UTILITY_KITS)) {
+  const label = kitContents(v);
+  for (const t of THROW_ORDER) {
+    const n = v[NAMEOF[t]] || 0;
+    const named = label.includes(THROWABLES[t].name);
+    if (n > 0 && !named) silent.push(key + ' carries ' + n + ' ' + t + ' but never says so');
+    if (n === 0 && named) liars.push(key + ' advertises ' + t + ' it does not carry');
+    if (n > 0 && !label.includes(WHEEL_ARROW[THROWABLES[t].dir] + n))
+      silent.push(key + ':' + t + ' missing its count or wheel arrow');
+  }
+  if ((v.charges || 0) > 0 && !/CHARGE/.test(label)) silent.push(key + ' hides its charges');
+}
+console.log('  every carried grenade is named on the button:',
+            silent.length ? 'WRONG -> ' + silent.join('; ') : 'CORRECT');
+console.log('  no kit advertises something it does not have:',
+            liars.length ? 'WRONG -> ' + liars.join('; ') : 'CORRECT');
+
+// and the label must match what actually lands in your hands
+let drift = [];
+for (const key of Object.keys(UTILITY_KITS)) {
+  game.loadout.kit = key; game.mapIndex = 0; initGame();
+  const bag = game.player.nades;
+  for (const t of THROW_ORDER) {
+    const want = UTILITY_KITS[key][NAMEOF[t]] || 0;
+    if ((bag[t] || 0) !== want) drift.push(key + ':' + t + ' label ' + want + ' vs bag ' + (bag[t] || 0));
+  }
+}
+console.log('  the bag matches the kit it came from:',
+            drift.length ? 'WRONG -> ' + drift.join('; ') : 'CORRECT');
+// at least one kit must reach each throwable, or it is unobtainable content
+const reachable = THROW_ORDER.filter(t =>
+  Object.values(UTILITY_KITS).some(v => (v[NAMEOF[t]] || 0) > 0));
+console.log('  every throwable is reachable from some kit: ' + reachable.join(','),
+            reachable.length === THROW_ORDER.length ? 'CORRECT'
+              : 'WRONG — unobtainable: ' + THROW_ORDER.filter(t => !reachable.includes(t)).join(','));
+game.loadout.kit = 'entry'; game.mapIndex = 0; initGame();
+console.log('KIT LABEL TEST DONE');
+})();
+
 (function longWalkTests(){
 console.log('--- the long walk: infil, snatch, exfil ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';

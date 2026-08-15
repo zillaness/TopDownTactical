@@ -94,6 +94,14 @@ night built points at that one mission.
      runs out and kills). The countdown just lived in the roster panel in the
      top-left corner. Now on the body: draining bar + seconds, white pulse
      under 8s, HOLD [E] when in reach.
+8. ☑ v0.46 — playtest report 3: "I don't see a way to get concussion and frag
+   grenades and smoke grenades in the loadout." Not missing — INVISIBLE. The
+   UTILITY KIT button rendered only "N bangs / N charges" and never named frag,
+   concussion, smoke or CS, so five of six kits looked interchangeable and the
+   grenade system looked absent from the screen that chooses it. Labels now
+   list full contents with wheel arrows (←3 FLASHBANG · ↑2 FRAG · ...), the
+   help row points at the kit, and a test locks label==bag, no false
+   advertising, and every throwable reachable from some kit.
    ▶ NEXT: Sam's playtest continues — nothing in flight
 
 ### Open design question raised by the playtest (Sam's call, NOT coded)

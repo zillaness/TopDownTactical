@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.45.html
-  version: 0.45
+  file: top_down_tactical_v0.46.html
+  version: 0.46
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-14
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.45 (working title)</title>
+<title>Top-Down Tactical v0.46 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.45 prototype &mdash; working title &mdash; twenty-one missions</h2>
+  <h2>v0.46 prototype &mdash; working title &mdash; twenty-one missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -63,7 +63,7 @@
       <tr><td class="key">R</td><td>reload</td><td class="key">Tab</td><td>tactical pause (orders still work)</td></tr>
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">X</td><td>cycle the primary's ammunition &mdash; buck / slug / bird, ball / AP; costs most of a reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
-      <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke, release to throw</td><td class="key">C</td><td>shout "hands up!"</td></tr>
+      <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke or CS, release to throw. <b>What is in the bag is the UTILITY KIT you picked at the briefing</b> &mdash; ASSAULT carries the frags, SCREENING carries the smoke</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">Z</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
@@ -8200,8 +8200,27 @@ Object.entries(ARMOR).forEach(([k, v]) =>
   mkBtn(armorPickEl, k, v.name,
         (v.hp ? "rating " + v.rating + " · " + (v.sprint ? v.sprint + "s of sprint" : "unlimited sprint") + " — " : "") + v.note,
         () => { game.loadout.armor = k; refreshMenu(); }));
+// Sam, playtesting: "I don't see a way to get concussion and frag grenades and
+// smoke grenades in the loadout." They were always in there — ASSAULT carries
+// three frags and two smokes, SCREENING carries four smokes — but the button
+// said only "N bangs / N charges" and never named the other four throwables at
+// all, so the entire grenade half of the kit was invisible at the one screen
+// where you choose it. The label now lists everything the kit actually holds,
+// each with the wheel direction that throws it, so the briefing teaches the
+// hold-MMB-and-flick idiom instead of hiding it.
+const WHEEL_ARROW = { up: "↑", down: "↓", left: "←", right: "→" };
+function kitContents(v) {
+  const parts = THROW_ORDER
+    .filter(k => (v[k === "bang" ? "bangs" : k] || 0) > 0)
+    .map(k => {
+      const n = v[k === "bang" ? "bangs" : k];
+      return WHEEL_ARROW[THROWABLES[k].dir] + n + " " + THROWABLES[k].name;
+    });
+  if (v.charges) parts.push(v.charges + " CHARGE" + (v.charges > 1 ? "S" : ""));
+  return parts.join(" · ") + " — " + v.note;
+}
 Object.entries(UTILITY_KITS).forEach(([k, v]) =>
-  mkBtn(kitPickEl, k, v.name, v.bangs + " bangs / " + v.charges + " charges", () => { game.loadout.kit = k; refreshMenu(); }));
+  mkBtn(kitPickEl, k, v.name, kitContents(v), () => { game.loadout.kit = k; refreshMenu(); }));
 mkBtn(suppPickEl, "loud", "LOUD", "full noise and flash — nothing on the muzzle slows your swing",
       () => { game.loadout.can = false; refreshMenu(); });
 mkBtn(suppPickEl, "can", "SUPPRESSED", "one wall usually swallows the report, no flash, heard shots are hard to place — the longer gun traverses slower, whole team",
@@ -8931,6 +8950,20 @@ requestAnimationFrame(frame);
     with HOLD [E] under him once you are close enough for it to be an offer.
     Recorded while confirming: a downed man stays a valid bullet target for
     everyone, and a second hit while he is down is final.
+  v0.46 (2026-08-14): THE BAG YOU COULD NOT SEE. Sam, playtesting: "I don't
+    see a way to get concussion and frag grenades and smoke grenades in the
+    loadout." They have been in there since v0.21 — ASSAULT carries three frags
+    and two smokes, SCREENING carries four smokes, RIOT CONTROL carries the CS —
+    but the UTILITY KIT button described itself as "N bangs / N charges" and
+    never named the other four throwables at all. The entire grenade half of
+    the kit was invisible on the one screen where you choose it. Each kit now
+    lists everything it actually holds, with the wheel direction that throws
+    each one: "←1 FLASHBANG · ↑3 FRAG · ↓1 CONCUSSION · →2 SMOKE — nobody in
+    there to save". The arrows are deliberate — the briefing now teaches the
+    hold-MMB-and-flick idiom instead of leaving it to the help screen. A test
+    asserts the label can never drift from the bag again, that no kit
+    advertises what it does not carry, and that every throwable in the game is
+    reachable from at least one kit.
 -->
 </body>
 </html>
