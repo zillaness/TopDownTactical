@@ -125,6 +125,15 @@ night built points at that one mission.
   (needs engine work first — the engine fills flat colour, it does not tile)
 - ☐ ALL 66 remaining prompts written out self-contained in
   ART_PROMPTS_ALL_BATCHES_v1.0.md so Sam can run batches in parallel
+- ☐ batch 8 ANIMATION + car damage ladder (ART_PROMPTS_ANIMATION_v1.1.md).
+  Every explosion in the game is currently ONE orange circle shared by six
+  systems (frag, 40mm, mortar, breach, wall charge, FPV) and the flashbang is
+  the same circle in white. Sprite sheets must be generated as one gridded
+  image, never frame by frame. Smoke/CS volumes stay procedural — their radius
+  IS the vision mechanic — but get a drifting texture loop on top.
+  Car damage ladder is built on the fact that a car is two materials: @ engine
+  block resist 999 vs % sheet metal resist 11, so the art must make the engine
+  end read heavy and teach the player which end of a car saves him.
 - ☐ doors/windows: NOT plain props. Already vector sprites with three states
   (closed/open/breached) driving sound loss, sightlines and penetration; a
   replacement must ship a matched state SET per material, not one image.

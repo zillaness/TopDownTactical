@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.38
+version: 1.39
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-14
@@ -53,6 +53,7 @@ real browser with Playwright.
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
 | `BURNDOWN.md` | Ranked backlog + checkpoint ledger (`/burndown` command reads this) |
+| `ART_PROMPTS_ANIMATION_v1.1.md` | Sprite-sheet animation prompts + the car battle-damage ladder |
 | `ART_PROMPTS_ALL_BATCHES_v1.0.md` | All 66 remaining art prompts, each self-contained for parallel generation |
 | `ART_PROMPT_environment_v1.2.md` | Paste-ready prompts for generating top-down environment art with an image model |
 | `ART_BRIEF_v1.2.md` | Self-contained art brief for an external pass — contract, assets, palette, and the mechanics the art serves |
@@ -104,3 +105,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.36 (2026-08-14): Synced to v0.46 — utility kits now name every grenade they carry.
 - v1.37 (2026-08-15): Synced to v0.47 — first environment art integrated (vegetation batch 1); art prompt doc to v1.2.
 - v1.38 (2026-08-15): Added ART_PROMPTS_ALL_BATCHES_v1.0.md — 66 paste-ready prompts for parallel generation.
+- v1.39 (2026-08-15): Added ART_PROMPTS_ANIMATION_v1.1.md — batch 8: sprite-sheet animation and the car damage ladder.
