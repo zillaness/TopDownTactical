@@ -1495,6 +1495,26 @@ const cmp = (a, b) => {
 console.log('  changelog is in order: ' + logged.join(' -> '),
             logged.length > 1 && logged.every((v, i) => i === 0 || cmp(v, logged[i - 1]) > 0)
               ? 'CORRECT' : 'WRONG');
+// The Pages entry point must point at the build that actually exists. Without
+// this, the published URL silently serves a 404 the first time a version bump
+// forgets to update the redirect — and the person who notices is whoever opened
+// the link, not us.
+{
+  const idxPath = path.join(dir, 'index.html');
+  if (!fs.existsSync(idxPath)) {
+    console.log('  index.html present for GitHub Pages:', 'WRONG — missing');
+  } else {
+    const idx = fs.readFileSync(idxPath, 'utf8');
+    const targets = [...idx.matchAll(/top_down_tactical_v[\d.]+\.html/g)].map(m => m[0]);
+    const uniq = [...new Set(targets)];
+    console.log('  index.html redirect target: ' + (uniq.join(', ') || 'NONE'),
+                uniq.length === 1 && uniq[0] === name
+                  ? 'CORRECT (points at the one build that exists)'
+                  : 'WRONG — should be ' + name);
+    console.log('  and every link in it agrees: ' + targets.length + ' reference(s)',
+                targets.length >= 2 && uniq.length === 1 ? 'CORRECT' : 'WRONG');
+  }
+}
 console.log('VERSION TEST DONE');
 })();
 
