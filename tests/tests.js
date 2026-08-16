@@ -3893,3 +3893,42 @@ console.log('  the engine block is untouched by any of this: ' +
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('VEHICLE ARMOR TEST DONE');
 })();
+
+(function multiSideDamageTests(){
+console.log('--- damage from a second direction must not heal the first ---');
+localStorage.clear();
+game.mapIndex = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const v = level.vehicles[0]; v.body = 'sedan_grey';
+const L = v.tiles.find(t => t.side === 'left' && !t.engine);
+const R = v.tiles.find(t => t.side === 'right' && !t.engine);
+for (let i = 0; i < 10; i++)
+  damageVehicle(L.tx, L.ty, { pen: 30, dmg: 30, side: 'player', ang: Math.PI/2 }, 1);
+const s1 = v.stage, h1 = v.hotSide;
+for (let i = 0; i < 10; i++)
+  damageVehicle(R.tx, R.ty, { pen: 30, dmg: 30, side: 'player', ang: -Math.PI/2 }, 1);
+console.log('  shot left to stage ' + s1 + ' (' + h1 + '), then shot right: stage ' +
+            v.stage + ' (' + v.hotSide + ')',
+            v.stage >= s1 ? 'CORRECT (the ladder only goes one way)' : 'WRONG');
+console.log('  a second face drags it further down, not sideways: ' + (v.stage > s1),
+            v.stage > s1 ? 'CORRECT' : 'WRONG');
+// the picture must not flip on a near-tie
+const before = v.hotSide;
+damageVehicle(R.tx, R.ty, { pen: 4, dmg: 4, side: 'player', ang: -Math.PI/2 }, 1);
+console.log('  and a near-tie does not flip the sprite: ' + before + ' -> ' + v.hotSide,
+            v.hotSide === before ? 'CORRECT (hysteresis)' : 'WRONG');
+// monotonic under any order of fire
+const v2 = level.vehicles[1]; v2.body = 'sedan_grey';
+let worst = 0, ok = true;
+const ts = v2.tiles.filter(t => !t.engine);
+for (let i = 0; i < 60; i++) {
+  const t = ts[i % ts.length];
+  damageVehicle(t.tx, t.ty, { pen: 22, dmg: 22, side: 'player', ang: i * 1.3 }, 1);
+  if (v2.stage < worst) ok = false;
+  worst = Math.max(worst, v2.stage);
+}
+console.log('  60 rounds from every angle, stage never regressed: ' + ok + ' (ended ' + v2.stage + ')',
+            ok ? 'CORRECT' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('MULTI-SIDE DAMAGE TEST DONE');
+})();

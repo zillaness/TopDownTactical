@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.54.html
-  version: 0.54
+  file: top_down_tactical_v0.55.html
+  version: 0.55
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-16
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.54 (working title)</title>
+<title>Top-Down Tactical v0.55 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.54 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.55 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -803,6 +803,9 @@ const TUNE = {
   // The art ladder has five rungs where the material ladder has four; these are
   // the fractions of total damage at which the picture steps.
   vehStages: [0.12, 0.34, 0.58, 1.0],
+  // What counts as a face having been marked at all, and how far a rival face
+  // must exceed the shown one before the picture turns to it.
+  vehFaceMark: 0.06, vehFaceSwap: 0.35,
 
   // hand throwables
   fragLethal: 34, fragWound: 96, fragDmg: 98, noiseFrag: 700,
@@ -4543,12 +4546,28 @@ function setVehicleState(v, side) {
           : f >= TUNE.vehShotUp   ? "shot_up"
           : f >= TUNE.vehGlassOut ? "glass_out" : "intact";
   // The picture answers two questions at once: how far gone (the stage, from
-  // total damage) and from WHERE (the worst-hit face). One sprite, both facts.
+  // total damage) and from WHERE (the worst-hit face). One sprite, both facts —
+  // and one sprite is exactly the problem, because a car shot from a SECOND
+  // direction used to swap to that direction's art, which shows only that
+  // direction's damage. The first side's holes visibly healed.
+  //
+  // Two rules fix it. Damage taken from more faces drags the car further down
+  // the ladder, so a second direction reads as MORE damage rather than
+  // different damage; and the stage never goes backwards, so nothing a car has
+  // already suffered can be undone by where the next round comes from.
   let stage = 0;
   for (let i = 0; i < TUNE.vehStages.length; i++) if (f >= TUNE.vehStages[i]) stage = i + 1;
-  v.stage = stage;
-  let worst = "front";
-  for (const k of ["rear", "left", "right"]) if (v.side[k] > v.side[worst]) worst = k;
+  let faces = 0;
+  for (const k of ["front", "rear", "left", "right"])
+    if (v.side[k] >= v.hpMax * TUNE.vehFaceMark) faces++;
+  if (faces > 1) stage = Math.max(stage, Math.min(TUNE.vehStages.length, faces));
+  v.stage = Math.max(v.stage || 0, stage);
+  // The face that shows is the worst-hit one, and it only changes when the new
+  // one clearly beats it. Without the margin two sides trading fire flip the
+  // sprite back and forth every few rounds.
+  let worst = v.hotSide || "front";
+  for (const k of ["front", "rear", "left", "right"])
+    if (v.side[k] > v.side[worst] * (1 + TUNE.vehFaceSwap)) worst = k;
   v.hotSide = worst;
   if (v.state === was) return;
   // Individual rounds stay silent — the tile is already sparking. What the
@@ -10156,6 +10175,21 @@ requestAnimationFrame(frame);
     placement tweak, so the maps go back to hand-authored until it is done.
     Everything else from v0.53 stays: ten bodies with armour live, the nine
     authored effects, and the grenades.
+  v0.55 (2026-08-16): A SECOND DIRECTION NO LONGER HEALS THE FIRST. Directional
+    damage picked the worst-hit face and drew that face's art, so a car shot
+    from the left and then harder from the right swapped to the right-hand
+    picture — which shows only right-hand damage. The left side's holes visibly
+    closed up. One sprite cannot show two directions, and pretending otherwise
+    was the bug.
+    Sam's answer is the right one: a second direction means MORE damage, not
+    different damage. Every face marked beyond a threshold now drags the car
+    further down the ladder, so a car worked over from two sides sits at least
+    at stage two and from three sides at stage three, regardless of the total.
+    And the stage is monotonic — nothing a car has already suffered can be
+    undone by where the next round comes from.
+    The face that shows also needs hysteresis, or two sides trading fire flip
+    the sprite back and forth every few rounds; a rival face has to beat the
+    shown one by a clear margin before the picture turns to it.
 -->
 </body>
 </html>
