@@ -1,0 +1,633 @@
+{
+  "sandbags": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.5244,
+    "file_bytes": 2780
+  },
+  "oil_drums": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.5911,
+    "file_bytes": 2546
+  },
+  "jersey_barrier": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.0625,
+    "file_bytes": 298
+  },
+  "dumpster": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.498,
+    "file_bytes": 1064
+  },
+  "pallets": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.8464,
+    "file_bytes": 1662
+  },
+  "bookshelf": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.249,
+    "file_bytes": 588
+  },
+  "bookshelf_toppled": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.4751,
+    "file_bytes": 2092
+  },
+  "wardrobe": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.92,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.4944,
+    "file_bytes": 692
+  },
+  "refrigerator": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.88,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.7036,
+    "file_bytes": 744
+  },
+  "kitchen_counter": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5303,
+    "file_bytes": 820
+  },
+  "desk_office": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5356,
+    "file_bytes": 1258
+  },
+  "market_stall": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.4758,
+    "file_bytes": 2348
+  },
+  "roof_hvac": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5925,
+    "file_bytes": 1038
+  },
+  "roof_vents": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.9,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.7529,
+    "file_bytes": 1688
+  },
+  "roof_dish": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 0.85,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5779,
+    "file_bytes": 1344
+  },
+  "roof_bulkhead": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.7188,
+    "file_bytes": 736
+  },
+  "roof_water_tank": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "fit",
+    "inset": 0.9,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.7916,
+    "file_bytes": 3444
+  },
+  "roof_parapet": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.2794,
+    "file_bytes": 1498
+  },
+  "guard_shack": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 1.0,
+    "file_bytes": 6650
+  },
+  "pillbox": {
+    "tiles": [
+      3,
+      3
+    ],
+    "output_size": [
+      192,
+      192
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.9652,
+    "file_bytes": 7830
+  },
+  "shed": {
+    "tiles": [
+      3,
+      3
+    ],
+    "output_size": [
+      192,
+      192
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.75,
+    "file_bytes": 3826
+  },
+  "garage": {
+    "tiles": [
+      3,
+      3
+    ],
+    "output_size": [
+      192,
+      192
+    ],
+    "mode": "fit",
+    "inset": 1.0,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.6615,
+    "file_bytes": 7760
+  },
+  "chair_dining": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.52,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.2495,
+    "file_bytes": 582
+  },
+  "armchair": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.66,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.4282,
+    "file_bytes": 796
+  },
+  "sofa": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.88,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.7515,
+    "file_bytes": 1388
+  },
+  "table_dining": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.85,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5806,
+    "file_bytes": 1128
+  },
+  "table_overturned": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.85,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.1,
+    "file_bytes": 1358
+  },
+  "bed_single": {
+    "tiles": [
+      1,
+      2
+    ],
+    "output_size": [
+      64,
+      128
+    ],
+    "mode": "inset",
+    "inset": 0.9,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.769,
+    "file_bytes": 1566
+  },
+  "bed_double": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "inset",
+    "inset": 0.9,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5207,
+    "file_bytes": 2852
+  },
+  "tv_stand": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.72,
+    "alpha_source": "native-alpha",
+    "visible_fraction": 0.0762,
+    "file_bytes": 326
+  },
+  "bench": {
+    "tiles": [
+      2,
+      1
+    ],
+    "output_size": [
+      128,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.85,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.5228,
+    "file_bytes": 2604
+  },
+  "street_light": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.55,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.054,
+    "file_bytes": 476
+  },
+  "dead_tree": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "inset",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.399,
+    "file_bytes": 13304
+  },
+  "palm_tree": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "inset",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.4884,
+    "file_bytes": 9442
+  },
+  "shrub_cluster": {
+    "tiles": [
+      1,
+      1
+    ],
+    "output_size": [
+      64,
+      64
+    ],
+    "mode": "inset",
+    "inset": 0.92,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.6045,
+    "file_bytes": 2708
+  },
+  "rug": {
+    "tiles": [
+      2,
+      2
+    ],
+    "output_size": [
+      128,
+      128
+    ],
+    "mode": "inset",
+    "inset": 0.95,
+    "alpha_source": "magenta-key",
+    "visible_fraction": 0.6307,
+    "file_bytes": 3534
+  },
+  "ground_asphalt": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 12828
+  },
+  "ground_concrete": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 4294
+  },
+  "ground_dirt": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 14900
+  },
+  "ground_forest": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 21974
+  },
+  "ground_roof": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 21804
+  },
+  "ground_sand": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 4706
+  },
+  "ground_wood": {
+    "tiles": [
+      4,
+      4
+    ],
+    "output_size": [
+      256,
+      256
+    ],
+    "mode": "tile",
+    "alpha_source": "magenta-key",
+    "file_bytes": 5876
+  }
+}
