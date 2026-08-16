@@ -1,20 +1,20 @@
 ---
 file: ART_PROMPTS_NEW_BODIES_v1.0.md (top-down-tactical)
-version: 1.0
+version: 1.1
 author: Sam Cao
 created: 2026-08-16
 last_updated: 2026-08-16
-description: Damage ladders for the five vehicle bodies that shipped intact-only — hatchback, SUV, taxi, humvee, box truck. Edit-from-master workflow, three damage states each, matching the four bodies already in the build. Self-contained; this is the whole thread.
+description: Damage ladders for the six vehicle bodies that shipped intact-only — hatchback, SUV, taxi, humvee, box truck, police cruiser. Edit-from-master workflow, three damage states each, matching the four bodies already in the build. Self-contained; this is the whole thread.
 ai_update: Update last_updated and bump version in frontmatter. Rename file to match. Append changelog at bottom. Strike assets through as they are generated and integrated.
 ---
 
-# Damage ladders — the five new bodies
+# Damage ladders — the six new bodies
 
-Five vehicles arrived intact-only. The engine already draws four bodies across a
-four-rung ladder, and these five currently have no damaged art at all, so they
-would show a pristine car at every rung. This thread closes that gap.
+Six vehicles are in the build with an intact frame and four directional frames
+each, but no damage LADDER — so they show a pristine car at every rung until the
+directional art takes over. This thread closes that gap.
 
-**15 images: 5 bodies × 3 damage states.** The intact frame already exists and
+**18 images: 6 bodies × 3 damage states.** The intact frame already exists and
 is not regenerated.
 
 ## Why this is an EDIT thread, not a generation thread
@@ -40,6 +40,7 @@ assets/incoming/cars/new-bodies-v1/suv/suv_00_intact.png
 assets/incoming/cars/new-bodies-v1/taxi/taxi_00_intact.png
 assets/incoming/cars/new-bodies-v1/humvee/humvee_00_intact.png
 assets/incoming/cars/new-bodies-v1/box_truck/box_truck_00_intact.png
+assets/incoming/cars/new-bodies-v1/police_cruiser/police_cruiser_00_intact.png
 ```
 
 These are the magenta-keyed originals with the background already removed and
@@ -155,6 +156,15 @@ panels. At stage 03 it is scorched and gutted but still structurally square: it
 does not sag the way a unibody car does. This vehicle should look like the worst
 thing on the map to shoot at, because in the engine it will be.
 
+### `police_cruiser`
+Livery and light bar are the identity. Keep the door markings readable through
+stage 02 even as they scorch, and let the light bar survive as a cracked, dark
+stub at stage 03 rather than disappearing — a burned-out cruiser is still
+obviously a cruiser. **This body is IIIA-armoured in the engine**: its doors
+stop 9mm and buckshot and only rifle gets through, so at stage 02 the door
+panels should show pockmarks, craters and spalling rather than clean
+punctures, with real perforation on the wings and roof instead.
+
 ### `box_truck`
 Two materials in one silhouette: a cab and a large thin-walled cargo box. The
 box is sheet aluminium over an empty volume — it should perforate *freely* and
@@ -195,3 +205,4 @@ is the most legible — rather than doing them all.
 
 ## CHANGELOG
 - v1.0 (2026-08-16): Written for the five bodies that arrived intact-only in the second drop. Edit-from-master rather than generate-from-description, because that is what kept the sedan ladders reading as one car. Includes keyed starting masters, per-body notes, and the budget arithmetic for the optional directional phase.
+- v1.1 (2026-08-16): Added the police cruiser, which did not exist when this was written. Notes its IIIA armour so the art shows spalling rather than clean punctures on the doors.

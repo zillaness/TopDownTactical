@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.49
+version: 1.50
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-16
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.52.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.53.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.52.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.53.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -119,3 +119,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.47 (2026-08-16): Synced to v0.50 — vehicle damage is directional: a car shows which side you shot it from, and panels degrade unevenly to match.
 - v1.48 (2026-08-16): Synced to v0.51 — props in all three tiers, one derived glyph table, ground textures, armoured bodies, and the breached-wall material bug.
 - v1.49 (2026-08-16): Synced to v0.52 — vehicles and props draw above the fog so you can actually see them; panel van toned to the palette.
+- v1.50 (2026-08-16): Synced to v0.53 — ten vehicle bodies with armour live, nine authored effects on their own frame timings, grenades with a shape, and 373 props and shrubs across nineteen maps.
