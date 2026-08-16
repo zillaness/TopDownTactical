@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.55.html
-  version: 0.55
+  file: top_down_tactical_v0.56.html
+  version: 0.56
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-16
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.55 (working title)</title>
+<title>Top-Down Tactical v0.56 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.55 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.56 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -617,6 +617,15 @@ function vehSprite(v) {
   if (v.stage >= 3) {
     const rung = vehImage(v.body + "__" + (v.stage >= 4 ? "wreck" : "shot_up"));
     if (rung) return rung;
+  }
+  // Shot from more than one side, and no full ladder for this body? Then no
+  // single bearing is the truth any more. An all-round frame — holed from
+  // everywhere, no side favoured — is one image per body instead of the sixteen
+  // a full directional ladder costs, and it is the honest picture of a car that
+  // has been worked over from two directions.
+  if ((v.faces || 0) > 1) {
+    const allround = vehImage(v.body + "__multi");
+    if (allround) return allround;
   }
   return vehImage(v.body + "__" + v.hotSide + "__d")
       || vehImage(v.body + "__" + v.state)
@@ -4574,6 +4583,7 @@ function setVehicleState(v, side) {
   for (const k of ["front", "rear", "left", "right"])
     if (v.side[k] >= v.hpMax * TUNE.vehFaceMark) faces++;
   if (faces > 1) stage = Math.max(stage, Math.min(TUNE.vehStages.length, faces));
+  v.faces = Math.max(v.faces || 0, faces);        // monotonic, like the stage
 
   // The face that shows is the worst-hit one, and it only turns when a rival
   // clearly beats it — without the margin two sides trading fire flip the
@@ -10214,6 +10224,23 @@ requestAnimationFrame(frame);
     The face that shows also needs hysteresis, or two sides trading fire flip
     the sprite back and forth every few rounds; a rival face has to beat the
     shown one by a clear margin before the picture turns to it.
+  v0.56 (2026-08-16): THE TURN COSTS A RUNG, AND HEAVY DAMAGE LOOKS HEAVY.
+    When a second side overtakes the first the picture must change face, and the
+    new face's art shows only the new face's damage — so the swap on its own
+    erased what the first side did. It now steps the car further down the ladder
+    at the same time, so it reads as more wrecked rather than differently
+    wrecked.
+    The sprite chain was hiding that on nine bodies out of ten. Only the grey
+    sedan has a full four-bearing four-stage ladder; every other body has one
+    directional frame per side and the chain reached it first at every stage, so
+    a burned-out van was drawn as a van with a few holes in it. The rung ladder
+    now takes over once a car is badly hurt, which fixes panel van, pickup and
+    red sedan outright.
+    And a new slot, per Sam: `<body>__multi`, an ALL-ROUND shot-up frame used
+    once a car has been marked on more than one side. When two directions have
+    hurt it, no single bearing is the truth any more — and one image per body is
+    a great deal cheaper than the sixteen a full directional ladder costs. The
+    slot is live and empty; the art is what ART_PROMPTS_VEHICLE_MULTI asks for.
 -->
 </body>
 </html>
