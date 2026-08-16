@@ -550,7 +550,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 12828
+    "file_bytes": 4528
   },
   "ground_concrete": {
     "tiles": [
@@ -563,7 +563,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 4294
+    "file_bytes": 1358
   },
   "ground_dirt": {
     "tiles": [
@@ -576,7 +576,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 14900
+    "file_bytes": 4792
   },
   "ground_forest": {
     "tiles": [
@@ -589,7 +589,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 21974
+    "file_bytes": 18102
   },
   "ground_roof": {
     "tiles": [
@@ -602,7 +602,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 21804
+    "file_bytes": 12540
   },
   "ground_sand": {
     "tiles": [
@@ -615,7 +615,7 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 4706
+    "file_bytes": 788
   },
   "ground_wood": {
     "tiles": [
@@ -628,6 +628,6 @@
     ],
     "mode": "tile",
     "alpha_source": "magenta-key",
-    "file_bytes": 5876
+    "file_bytes": 2448
   }
 }

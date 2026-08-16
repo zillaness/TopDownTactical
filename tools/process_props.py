@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # file: process_props.py (top-down-tactical/tools)
-# version: 1.0
+# version: 1.1
 # author: Sam Cao
 # created: 2026-08-16
 # last_updated: 2026-08-16
@@ -120,11 +120,39 @@ def prop_sprite(path, tw, th, inset):
     return Image.fromarray(arr, "RGBA"), src
 
 
-def ground_sprite(path):
+# Where each ground has to sit in the palette. The game is dark — flat outdoor
+# floor is #111a17 and interior is #303b46 — and the raw textures come back four
+# to seven times brighter than that. Dropped in untoned they wash the map out and
+# every unit on it loses contrast against its own ground.
+GROUND_TARGET = {
+    "ground_asphalt":  (42, 46, 44), "ground_dirt":   (46, 44, 38),
+    "ground_forest":   (34, 42, 34), "ground_sand":   (52, 48, 40),
+    "ground_roof":     (40, 44, 46),
+    "ground_concrete": (54, 60, 66), "ground_wood":   (52, 46, 38),   # interior, near floorIn
+}
+
+
+def tone(im, target):
+    """Scale to the target mean, keeping relative contrast.
+
+    A straight multiply rather than a curve: the textures already carry the right
+    internal contrast, they are simply exposed for a bright game and this is a
+    dark one. Every target is well below the source mean so the multiplier is
+    always < 1 and nothing can clip — the clamp below is a guard, not a step.
+    """
+    a = np.asarray(im.convert("RGB")).astype(np.float64)
+    mean = a.reshape(-1, 3).mean(axis=0)
+    a = a * (np.array(target, dtype=np.float64) / np.maximum(mean, 1e-6))
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
+
+
+def ground_sprite(path, name):
     """Tiling ground. No alpha crop — the edges have to meet."""
     im, src = load(path)
     n = GROUND_TILES * TILE_2X
-    return im.convert("RGBA").resize((n, n), Image.LANCZOS), src
+    im = im.convert("RGBA").resize((n, n), Image.LANCZOS)
+    t = GROUND_TARGET.get(name)
+    return (tone(im, t) if t else im), src
 
 
 def main():
@@ -156,7 +184,7 @@ def main():
         p = os.path.join(a.incoming, name + ".png")
         if not os.path.exists(p):
             missing.append(name); continue
-        im, src = ground_sprite(p)
+        im, src = ground_sprite(p, name)
         buf = io.BytesIO(); im.save(buf, "WEBP", quality=a.quality, method=6)
         open(os.path.join(a.out, name + ".webp"), "wb").write(buf.getvalue())
         total += len(buf.getvalue())
@@ -175,6 +203,9 @@ if __name__ == "__main__":
     main()
 
 # CHANGELOG
+# v1.1 (2026-08-16): Ground textures are toned to the palette. They came back four
+#   to seven times brighter than the game's own floor anchors and washed the map
+#   out; sand alone was 7x #111a17.
 # v1.0 (2026-08-16): Written for the second art drop. Carries the per-prop inset
 #   because a dining chair drawn to fill a 1.5m tile reads as furniture for
 #   giants, and ground textures cover 4x4 tiles so the repeat is not a 32px grid.

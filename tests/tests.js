@@ -3771,3 +3771,116 @@ console.log('  every body resolves to a real sprite at every stage: ' +
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('DIRECTIONAL DAMAGE TEST DONE');
 })();
+
+(function propTierTests(){
+console.log('--- props: three tiers, one glyph table ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+// ONE table. The glyph->material map used to be written out four times with a
+// comment begging them to agree; WALL_GLYPHS and the validator now derive.
+console.log('  WALL_GLYPHS derives from GLYPH_MAT: "' + WALL_GLYPHS + '"',
+            WALL_GLYPHS.includes('#') && WALL_GLYPHS.includes('n') &&
+            !WALL_GLYPHS.includes('*') && !WALL_GLYPHS.includes('~')
+              ? 'CORRECT (passable props are not wall)' : 'WRONG');
+console.log('  the map validator accepts every glyph the table knows: ' +
+            Object.keys(GLYPH_MAT).every(g => MAP_CHAR_RE.test(g)),
+            Object.keys(GLYPH_MAT).every(g => MAP_CHAR_RE.test(g)) ? 'CORRECT' : 'WRONG');
+console.log('  and still rejects one it does not: ' + !MAP_CHAR_RE.test('§'),
+            !MAP_CHAR_RE.test('§') ? 'CORRECT' : 'WRONG');
+
+// TIER 1 — a solid prop: body-blocking, with sight and bullets off the material.
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE PILLBOX'); initGame(); game.state = 'play';
+let sb = null;
+for (let y = 0; y < level.h && !sb; y++) for (let x = 0; x < level.w; x++)
+  if (level.mat[y][x] === 'sandbags') { sb = { x, y }; break; }
+console.log('  TIER 1 sandbags: opaque=' + opaque(sb.x, sb.y) + ' stops rounds=' +
+            blocksBullet(sb.x, sb.y) + ' resist=' + materialAt(sb.x, sb.y).resist +
+            ' blocks a body=' + solidForMove(sb.x, sb.y),
+            !opaque(sb.x, sb.y) && blocksBullet(sb.x, sb.y) && solidForMove(sb.x, sb.y)
+              ? 'CORRECT (a firing position: see over it, it stops a rifle round)' : 'WRONG');
+console.log('  a bookshelf is the opposite trade: opaque=' + MATERIALS.bookshelf.opaque +
+            ' resist=' + MATERIALS.bookshelf.resist,
+            MATERIALS.bookshelf.opaque && MATERIALS.bookshelf.resist < 12
+              ? 'CORRECT (hides you, barely slows a round)' : 'WRONG');
+
+// TIER 2 — a material with no body. Concealment without cover.
+const px = sb.x, py = sb.y + 3;
+level.mat[py][px] = 'shrub';
+console.log('  TIER 2 shrub: opaque=' + opaque(px, py) + ' stops rounds=' + blocksBullet(px, py) +
+            ' blocks a body=' + solidForMove(px, py),
+            opaque(px, py) && !blocksBullet(px, py) && !solidForMove(px, py)
+              ? 'CORRECT (blocks the eye and nothing else)' : 'WRONG');
+console.log('  and A* still routes through it: ' + !!astar(px - 1, py, px + 1, py, passForPath, pathCostSquad),
+            !!astar(px - 1, py, px + 1, py, passForPath, pathCostSquad) ? 'CORRECT' : 'WRONG');
+// the rule that makes tier 2 safe at all
+const passable = Object.keys(PROPS).filter(k => PROPS[k].solid === false);
+console.log('  every passable material has resist 0: ' + passable.join(','),
+            passable.every(k => MATERIALS[k].resist === 0)
+              ? 'CORRECT (resist on a standable tile makes a man unhittable)' : 'WRONG');
+level.mat[py][px] = null;
+
+// TIER 3 — ground and decals
+console.log('  TIER 3 ground keys: out=' + level.groundOut + ' in=' + level.groundIn,
+            level.groundOut === 'ground_dirt' && level.groundIn === 'ground_concrete'
+              ? 'CORRECT (the map says once, the rest is default)' : 'WRONG');
+console.log('  every ground key has art: ' +
+            [...new Set(MAPS.map(m => m.ground || 'ground_asphalt'))].every(k => !!PROP_SPRITES[k]),
+            [...new Set(MAPS.map(m => m.ground || 'ground_asphalt'))].every(k => !!PROP_SPRITES[k])
+              ? 'CORRECT' : 'WRONG');
+console.log('  decal list exists and parses: ' + Array.isArray(level.decalsFloor),
+            Array.isArray(level.decalsFloor) ? 'CORRECT' : 'WRONG');
+
+// every prop with art has art, and every art key is a real sprite
+const artOk = Object.values(PROPS).filter(p => p.art).every(p => !!PROP_SPRITES[p.art]);
+console.log('  every PROPS.art resolves to a sprite: ' + artOk, artOk ? 'CORRECT' : 'WRONG');
+
+// THE BUG THIS UNCOVERED: a breached wall kept its material and went on
+// blocking sight and stopping rounds while you walked through the hole.
+game.mapIndex = 0; initGame(); game.state = 'play';
+let wt = null;
+for (let y = 1; y < level.h - 1 && !wt; y++) for (let x = 1; x < level.w - 1; x++)
+  if (level.wall[y][x] && level.mat[y][x] === 'drywall') { wt = { x, y }; break; }
+if (wt) {
+  game.wallCharge = { tx: wt.x, ty: wt.y, fuse: 0 };
+  detonateWallCharge();
+  console.log('  a breached wall really is a hole: solid=' + solidForMove(wt.x, wt.y) +
+              ' opaque=' + opaque(wt.x, wt.y) + ' stops rounds=' + blocksBullet(wt.x, wt.y),
+              !solidForMove(wt.x, wt.y) && !opaque(wt.x, wt.y) && !blocksBullet(wt.x, wt.y)
+                ? 'CORRECT (level.mat is cleared too now)' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('PROP TIER TEST DONE');
+})();
+
+(function vehicleArmorTests(){
+console.log('--- armoured bodies: the exceptions to the engine-block rule ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const v = level.vehicles[0], door = v.tiles.find(t => !t.engine);
+const P = { buckshot: 8, pistol: 14, rifle: 26 };
+const thru = (pen, r) => pen > r;
+v.body = 'police_cruiser';
+const m = materialAt(door.tx, door.ty);
+console.log('  cruiser door is IIIA: resist ' + m.resist + ' — buck ' +
+            (thru(P.buckshot, m.resist) ? 'through' : 'stops') + ', pistol ' +
+            (thru(P.pistol, m.resist) ? 'through' : 'stops') + ', rifle ' +
+            (thru(P.rifle, m.resist) ? 'through' : 'stops'),
+            !thru(P.buckshot, m.resist) && !thru(P.pistol, m.resist) && thru(P.rifle, m.resist)
+              ? 'CORRECT (that is what IIIA means)' : 'WRONG');
+v.body = 'humvee';
+const h = materialAt(door.tx, door.ty);
+console.log('  humvee door: resist ' + h.resist + ', rifle ' +
+            (thru(P.rifle, h.resist) ? 'through' : 'stops'),
+            !thru(P.rifle, h.resist) ? 'CORRECT (a moving wall)' : 'WRONG');
+v.state = 'shot_up'; v.side.front = v.hpMax;
+const after = materialAt(door.tx, door.ty);
+console.log('  shot_up compromises the plate: ' + after.name,
+            after !== h ? 'CORRECT (armour you cannot degrade is just an engine block)' : 'WRONG');
+const hood = v.tiles.find(t => t.engine);
+console.log('  the engine block is untouched by any of this: ' +
+            (materialAt(hood.tx, hood.ty) === MATERIALS.engine),
+            materialAt(hood.tx, hood.ty) === MATERIALS.engine ? 'CORRECT' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('VEHICLE ARMOR TEST DONE');
+})();
