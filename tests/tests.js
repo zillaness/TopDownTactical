@@ -3574,6 +3574,9 @@ console.log('  THE STANDOFF has one of each: ' + facing.map(a => a === 0 ? 'righ
 // 3. The engine block is not on the ladder AT ALL.
 game.mapIndex = lane; initGame(); game.state = 'play';
 const car = level.vehicles[0];
+// Pin the body: the hash now picks from ten, two of which are ARMOURED, and
+// this block is about what plain sheet metal does.
+car.body = 'sedan_grey';
 const hood = car.tiles.find(t => t.engine), door = car.tiles.find(t => !t.engine);
 const identity = [];
 for (const s of VEH_STATES) {
@@ -3710,6 +3713,7 @@ game.mapIndex = keep; initGame(); game.state = 'play';
 
 // Shoot ONE door out. That door opens; the far side is untouched.
 const c = level.vehicles[0];
+c.body = 'sedan_grey';                       // unarmoured, for the same reason
 const leftTile = c.tiles.find(t => t.side === 'left' && !t.engine);
 const rightTile = c.tiles.find(t => t.side === 'right' && !t.engine);
 // A side carries a third of the car's life, so concentrated fire opens ONE
@@ -3757,6 +3761,11 @@ for (const body of VEH_BODIES) {
   chain.push(body + ':' + (VEHICLE_SPRITES[body + '__left__3'] ? 'full'
               : VEHICLE_SPRITES[body + '__left__d'] ? 'single' : 'rung'));
 }
+console.log('  ten bodies, two of them armoured: ' + VEH_BODIES.length + ' / ' +
+            Object.keys(VEH_ARMOR).join(','),
+            VEH_BODIES.length === 10 && VEH_ARMOR.humvee && VEH_ARMOR.police_cruiser
+              && Object.keys(VEH_ARMOR).every(b => VEH_BODIES.includes(b))
+              ? 'CORRECT (the armour tables are live now, not inert)' : 'WRONG');
 console.log('  art coverage per body: ' + chain.join(' '),
             chain.some(x => x.endsWith('full')) && chain.every(x => !x.endsWith('none'))
               ? 'CORRECT (uneven coverage degrades, never blanks)' : 'WRONG');
