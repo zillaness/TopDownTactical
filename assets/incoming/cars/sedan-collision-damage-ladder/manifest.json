@@ -1,0 +1,59 @@
+{
+  "assetSet": "sedan_collision_damage_ladder",
+  "label": "Frontal collision and fire damage",
+  "damageCause": "frontal_collision_followed_by_fire",
+  "preview": "sedan_collision_damage_ladder_preview.png",
+  "created": "2026-08-15",
+  "generationMode": "OpenAI built-in image generation with serial image edits",
+  "camera": "true_top_down_orthographic_90_degrees",
+  "orientation": "nose_right_positive_x",
+  "masterCanvas": {
+    "width": 1774,
+    "height": 887,
+    "format": "png",
+    "alpha": true
+  },
+  "spriteCanvas": {
+    "width": 128,
+    "height": 64,
+    "format": "png",
+    "alpha": true
+  },
+  "stages": [
+    {
+      "index": 0,
+      "state": "intact",
+      "derivedFrom": null,
+      "master": "masters/sedan_collision_00_intact.png",
+      "sprite": "sprites-128x64/sedan_collision_00_intact.png"
+    },
+    {
+      "index": 1,
+      "state": "light_collision_damage",
+      "derivedFrom": 0,
+      "master": "masters/sedan_collision_01_light.png",
+      "sprite": "sprites-128x64/sedan_collision_01_light.png"
+    },
+    {
+      "index": 2,
+      "state": "moderate_collision_damage",
+      "derivedFrom": 1,
+      "master": "masters/sedan_collision_02_moderate.png",
+      "sprite": "sprites-128x64/sedan_collision_02_moderate.png"
+    },
+    {
+      "index": 3,
+      "state": "severe_collision_and_fire_damage",
+      "derivedFrom": 2,
+      "master": "masters/sedan_collision_03_severe.png",
+      "sprite": "sprites-128x64/sedan_collision_03_severe.png"
+    },
+    {
+      "index": 4,
+      "state": "burned_wreck",
+      "derivedFrom": 3,
+      "master": "masters/sedan_collision_04_burned_wreck.png",
+      "sprite": "sprites-128x64/sedan_collision_04_burned_wreck.png"
+    }
+  ]
+}
