@@ -1,0 +1,308 @@
+{
+  "schemaVersion": "1.0",
+  "assetSet": "sedan_gunfight_damage_ladders",
+  "label": "Directional small-arms gunfire damage ladders",
+  "damageCause": "small_arms_gunfire",
+  "created": "2026-08-15",
+  "prompt": "ART_PROMPT_vehicle_gunfight_damage_ladders_v1.0.md",
+  "preview": "sedan_gunfight_damage_ladders_preview.png",
+  "generationMode": "serial_cumulative_image_edits",
+  "camera": "true_top_down_orthographic_90_degrees",
+  "orientation": "nose_right_positive_x",
+  "coordinateSystem": {
+    "xPositive": "screen_right",
+    "yPositive": "screen_down"
+  },
+  "masterCanvas": {
+    "width": 1774,
+    "height": 887,
+    "format": "png",
+    "colorMode": "RGBA",
+    "alpha": true
+  },
+  "spriteCanvas": {
+    "width": 128,
+    "height": 64,
+    "format": "png",
+    "colorMode": "RGBA",
+    "alpha": true
+  },
+  "sharedStage0": {
+    "id": "shared_stage_0",
+    "state": "intact",
+    "master": "shared/sedan_gunfire_00_intact.png",
+    "sha256": "a44f86697f927dc4b84d8e2b08cbf9f6760d66b2889dc4f731e5d807a37d3248"
+  },
+  "generationOrder": [
+    "east_to_west",
+    "west_to_east",
+    "north_to_south",
+    "south_to_north"
+  ],
+  "directions": [
+    {
+      "id": "east_to_west",
+      "label": "RIGHT → LEFT — front / nose entry",
+      "incomingFrom": {
+        "screenEdge": "right",
+        "vehicleRegion": "front_nose"
+      },
+      "travel": {
+        "screen": "right_to_left",
+        "vector": [
+          -1,
+          0
+        ],
+        "impactTailDirection": "left"
+      },
+      "stageChain": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "stages": [
+        {
+          "index": 0,
+          "state": "intact",
+          "label": "0  INTACT",
+          "derivedFrom": null,
+          "source": "shared_stage_0",
+          "master": "east-to-west/masters/sedan_gunfire_east_to_west_00_intact.png",
+          "sprite": "east-to-west/sprites-128x64/sedan_gunfire_east_to_west_00_intact.png"
+        },
+        {
+          "index": 1,
+          "state": "light_gunfire",
+          "label": "1  LIGHT",
+          "derivedFrom": 0,
+          "master": "east-to-west/masters/sedan_gunfire_east_to_west_01_light.png",
+          "sprite": "east-to-west/sprites-128x64/sedan_gunfire_east_to_west_01_light.png"
+        },
+        {
+          "index": 2,
+          "state": "sustained_gunfire",
+          "label": "2  SUSTAINED",
+          "derivedFrom": 1,
+          "master": "east-to-west/masters/sedan_gunfire_east_to_west_02_sustained.png",
+          "sprite": "east-to-west/sprites-128x64/sedan_gunfire_east_to_west_02_sustained.png"
+        },
+        {
+          "index": 3,
+          "state": "heavy_gunfire",
+          "label": "3  HEAVY",
+          "derivedFrom": 2,
+          "master": "east-to-west/masters/sedan_gunfire_east_to_west_03_heavy.png",
+          "sprite": "east-to-west/sprites-128x64/sedan_gunfire_east_to_west_03_heavy.png"
+        },
+        {
+          "index": 4,
+          "state": "critical_gunfire",
+          "label": "4  CRITICAL",
+          "derivedFrom": 3,
+          "master": "east-to-west/masters/sedan_gunfire_east_to_west_04_critical.png",
+          "sprite": "east-to-west/sprites-128x64/sedan_gunfire_east_to_west_04_critical.png"
+        }
+      ]
+    },
+    {
+      "id": "west_to_east",
+      "label": "LEFT → RIGHT — rear / tail entry",
+      "incomingFrom": {
+        "screenEdge": "left",
+        "vehicleRegion": "rear_tail"
+      },
+      "travel": {
+        "screen": "left_to_right",
+        "vector": [
+          1,
+          0
+        ],
+        "impactTailDirection": "right"
+      },
+      "stageChain": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "stages": [
+        {
+          "index": 0,
+          "state": "intact",
+          "label": "0  INTACT",
+          "derivedFrom": null,
+          "source": "shared_stage_0",
+          "master": "west-to-east/masters/sedan_gunfire_west_to_east_00_intact.png",
+          "sprite": "west-to-east/sprites-128x64/sedan_gunfire_west_to_east_00_intact.png"
+        },
+        {
+          "index": 1,
+          "state": "light_gunfire",
+          "label": "1  LIGHT",
+          "derivedFrom": 0,
+          "master": "west-to-east/masters/sedan_gunfire_west_to_east_01_light.png",
+          "sprite": "west-to-east/sprites-128x64/sedan_gunfire_west_to_east_01_light.png"
+        },
+        {
+          "index": 2,
+          "state": "sustained_gunfire",
+          "label": "2  SUSTAINED",
+          "derivedFrom": 1,
+          "master": "west-to-east/masters/sedan_gunfire_west_to_east_02_sustained.png",
+          "sprite": "west-to-east/sprites-128x64/sedan_gunfire_west_to_east_02_sustained.png"
+        },
+        {
+          "index": 3,
+          "state": "heavy_gunfire",
+          "label": "3  HEAVY",
+          "derivedFrom": 2,
+          "master": "west-to-east/masters/sedan_gunfire_west_to_east_03_heavy.png",
+          "sprite": "west-to-east/sprites-128x64/sedan_gunfire_west_to_east_03_heavy.png"
+        },
+        {
+          "index": 4,
+          "state": "critical_gunfire",
+          "label": "4  CRITICAL",
+          "derivedFrom": 3,
+          "master": "west-to-east/masters/sedan_gunfire_west_to_east_04_critical.png",
+          "sprite": "west-to-east/sprites-128x64/sedan_gunfire_west_to_east_04_critical.png"
+        }
+      ]
+    },
+    {
+      "id": "north_to_south",
+      "label": "TOP → BOTTOM — upper-side entry",
+      "incomingFrom": {
+        "screenEdge": "top",
+        "vehicleRegion": "screen_top_flank"
+      },
+      "travel": {
+        "screen": "top_to_bottom",
+        "vector": [
+          0,
+          1
+        ],
+        "impactTailDirection": "down"
+      },
+      "stageChain": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "stages": [
+        {
+          "index": 0,
+          "state": "intact",
+          "label": "0  INTACT",
+          "derivedFrom": null,
+          "source": "shared_stage_0",
+          "master": "north-to-south/masters/sedan_gunfire_north_to_south_00_intact.png",
+          "sprite": "north-to-south/sprites-128x64/sedan_gunfire_north_to_south_00_intact.png"
+        },
+        {
+          "index": 1,
+          "state": "light_gunfire",
+          "label": "1  LIGHT",
+          "derivedFrom": 0,
+          "master": "north-to-south/masters/sedan_gunfire_north_to_south_01_light.png",
+          "sprite": "north-to-south/sprites-128x64/sedan_gunfire_north_to_south_01_light.png"
+        },
+        {
+          "index": 2,
+          "state": "sustained_gunfire",
+          "label": "2  SUSTAINED",
+          "derivedFrom": 1,
+          "master": "north-to-south/masters/sedan_gunfire_north_to_south_02_sustained.png",
+          "sprite": "north-to-south/sprites-128x64/sedan_gunfire_north_to_south_02_sustained.png"
+        },
+        {
+          "index": 3,
+          "state": "heavy_gunfire",
+          "label": "3  HEAVY",
+          "derivedFrom": 2,
+          "master": "north-to-south/masters/sedan_gunfire_north_to_south_03_heavy.png",
+          "sprite": "north-to-south/sprites-128x64/sedan_gunfire_north_to_south_03_heavy.png"
+        },
+        {
+          "index": 4,
+          "state": "critical_gunfire",
+          "label": "4  CRITICAL",
+          "derivedFrom": 3,
+          "master": "north-to-south/masters/sedan_gunfire_north_to_south_04_critical.png",
+          "sprite": "north-to-south/sprites-128x64/sedan_gunfire_north_to_south_04_critical.png"
+        }
+      ]
+    },
+    {
+      "id": "south_to_north",
+      "label": "BOTTOM → TOP — lower-side entry",
+      "incomingFrom": {
+        "screenEdge": "bottom",
+        "vehicleRegion": "screen_bottom_flank"
+      },
+      "travel": {
+        "screen": "bottom_to_top",
+        "vector": [
+          0,
+          -1
+        ],
+        "impactTailDirection": "up"
+      },
+      "stageChain": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "stages": [
+        {
+          "index": 0,
+          "state": "intact",
+          "label": "0  INTACT",
+          "derivedFrom": null,
+          "source": "shared_stage_0",
+          "master": "south-to-north/masters/sedan_gunfire_south_to_north_00_intact.png",
+          "sprite": "south-to-north/sprites-128x64/sedan_gunfire_south_to_north_00_intact.png"
+        },
+        {
+          "index": 1,
+          "state": "light_gunfire",
+          "label": "1  LIGHT",
+          "derivedFrom": 0,
+          "master": "south-to-north/masters/sedan_gunfire_south_to_north_01_light.png",
+          "sprite": "south-to-north/sprites-128x64/sedan_gunfire_south_to_north_01_light.png"
+        },
+        {
+          "index": 2,
+          "state": "sustained_gunfire",
+          "label": "2  SUSTAINED",
+          "derivedFrom": 1,
+          "master": "south-to-north/masters/sedan_gunfire_south_to_north_02_sustained.png",
+          "sprite": "south-to-north/sprites-128x64/sedan_gunfire_south_to_north_02_sustained.png"
+        },
+        {
+          "index": 3,
+          "state": "heavy_gunfire",
+          "label": "3  HEAVY",
+          "derivedFrom": 2,
+          "master": "south-to-north/masters/sedan_gunfire_south_to_north_03_heavy.png",
+          "sprite": "south-to-north/sprites-128x64/sedan_gunfire_south_to_north_03_heavy.png"
+        },
+        {
+          "index": 4,
+          "state": "critical_gunfire",
+          "label": "4  CRITICAL",
+          "derivedFrom": 3,
+          "master": "south-to-north/masters/sedan_gunfire_south_to_north_04_critical.png",
+          "sprite": "south-to-north/sprites-128x64/sedan_gunfire_south_to_north_04_critical.png"
+        }
+      ]
+    }
+  ]
+}
