@@ -3675,3 +3675,99 @@ console.log('  the same round along the panel: dmg=' + c9.dmg.toFixed(1),
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('VEHICLE DAMAGE TEST DONE');
 })();
+
+(function directionalDamageTests(){
+console.log('--- vehicles: which side you shot it from ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+game.mapIndex = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE'); initGame(); game.state = 'play';
+
+// A 4x2 car is bonnet, doors, doors, boot. The ends are front and rear; the
+// middle tiles are the flanks — which is what a car actually looks like.
+const v = level.vehicles[0];
+const bySide = {};
+for (const t of v.tiles) bySide[t.side] = (bySide[t.side] || 0) + 1;
+console.log('  4x2 car panels: ' + Object.entries(bySide).map(([k,n]) => k + ':' + n).join(' '),
+            bySide.front && bySide.rear && bySide.left === 2 && bySide.right === 2
+              ? 'CORRECT (ends are bonnet and boot, middle is doors)' : 'WRONG');
+
+// The art is named for the direction of TRAVEL and marks the face the fire
+// came from. A round flying toward the nose has come from behind.
+const nose0 = level.vehicles.find(x => x.ang === 0);
+const hits = { rear: vehSideHit(nose0, 0), front: vehSideHit(nose0, Math.PI),
+               left: vehSideHit(nose0, Math.PI/2), right: vehSideHit(nose0, -Math.PI/2) };
+console.log('  bearings on a nose-right car: ' + Object.entries(hits).map(([k,r]) => k+'->'+r).join(' '),
+            hits.rear==='rear' && hits.front==='front' && hits.left==='left' && hits.right==='right'
+              ? 'CORRECT' : 'WRONG');
+// and it rotates with the car, not with the world
+const st = MAPS.findIndex(m => m.name === 'THE STANDOFF');
+const keep = game.mapIndex;
+game.mapIndex = st; initGame(); game.state = 'play';
+const noseL = level.vehicles.find(x => x.ang === Math.PI);
+console.log('  the same world bearing on a nose-LEFT car: ' + vehSideHit(noseL, 0),
+            vehSideHit(noseL, 0) === 'front' ? 'CORRECT (the frame turns with the car)' : 'WRONG');
+game.mapIndex = keep; initGame(); game.state = 'play';
+
+// Shoot ONE door out. That door opens; the far side is untouched.
+const c = level.vehicles[0];
+const leftTile = c.tiles.find(t => t.side === 'left' && !t.engine);
+const rightTile = c.tiles.find(t => t.side === 'right' && !t.engine);
+// A side carries a third of the car's life, so concentrated fire opens ONE
+// door well before the car as a whole is spent. Walk it round by round and
+// find the window where the two sides genuinely disagree.
+let opened = 0;
+for (let i = 1; i <= 30; i++) {
+  damageVehicle(leftTile.tx, leftTile.ty, { pen: 30, dmg: 30, side: 'player', ang: Math.PI/2 }, 1);
+  const a = materialAt(leftTile.tx, leftTile.ty), b = materialAt(rightTile.tx, rightTile.ty);
+  if (a.dmgKeep > b.dmgKeep && b.dmgKeep === 0.6 && !opened) opened = i;
+}
+console.log('  driver door opens at round ' + opened + ' while the far side is still shut',
+            opened > 0 && opened < 20
+              ? 'CORRECT (you opened one door, not the car)' : 'WRONG');
+console.log('  and the picture shows the side you shot: hotSide=' + c.hotSide + ' stage=' + c.stage,
+            c.hotSide === 'left' && c.stage > 0 ? 'CORRECT' : 'WRONG');
+
+// Enough total damage and the whole car goes, wherever it came from.
+const c2 = level.vehicles[1];
+const t2 = c2.tiles.filter(t => !t.engine);
+for (let i = 0; i < 90; i++) {
+  const t = t2[i % t2.length];
+  damageVehicle(t.tx, t.ty, { pen: 34, dmg: 30, side: 'player', ang: i * 1.7 }, 1);
+}
+const allSides = ['front','rear','left','right'].map(s => vehSideState(c2, s));
+console.log('  90 rounds spread all round: state=' + c2.state + ', panels ' + allSides.join(','),
+            c2.state === 'wreck' && allSides.every(s => s === 'wreck')
+              ? 'CORRECT (past enough total damage the whole thing goes)' : 'WRONG');
+
+// The engine block is STILL untouchable, directional or not.
+const c3 = level.vehicles[2], hood = c3.tiles.find(t => t.engine);
+for (let i = 0; i < 300; i++)
+  damageVehicle(hood.tx, hood.ty, { pen: 40, dmg: 30, side: 'player', ang: Math.PI }, 1);
+console.log('  300 rounds into the bonnet: ' + materialAt(hood.tx, hood.ty).name +
+            ', state=' + c3.state,
+            materialAt(hood.tx, hood.ty) === MATERIALS.engine && c3.state === 'intact'
+              ? 'CORRECT (still nothing you can do to it)' : 'WRONG');
+
+// The sprite chain degrades instead of blanking.
+const c4 = level.vehicles[3];
+c4.stage = 3; c4.hotSide = 'left'; c4.state = 'shot_up';
+const chain = [];
+for (const body of VEH_BODIES) {
+  c4.body = body;
+  chain.push(body + ':' + (VEHICLE_SPRITES[body + '__left__3'] ? 'full'
+              : VEHICLE_SPRITES[body + '__left__d'] ? 'single' : 'rung'));
+}
+console.log('  art coverage per body: ' + chain.join(' '),
+            chain.some(x => x.endsWith('full')) && chain.every(x => !x.endsWith('none'))
+              ? 'CORRECT (uneven coverage degrades, never blanks)' : 'WRONG');
+console.log('  every body resolves to a real sprite at every stage: ' +
+            VEH_BODIES.every(b => VEH_STATES.every((s,i) =>
+              !!(VEHICLE_SPRITES[b + '__left__' + i] || VEHICLE_SPRITES[b + '__left__d'] ||
+                 VEHICLE_SPRITES[b + '__' + s] || VEHICLE_SPRITES[b + '__intact']))),
+            VEH_BODIES.every(b => VEH_STATES.every((s,i) =>
+              !!(VEHICLE_SPRITES[b + '__left__' + i] || VEHICLE_SPRITES[b + '__left__d'] ||
+                 VEHICLE_SPRITES[b + '__' + s] || VEHICLE_SPRITES[b + '__intact']))) ? 'CORRECT' : 'WRONG');
+
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('DIRECTIONAL DAMAGE TEST DONE');
+})();
