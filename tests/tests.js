@@ -3950,3 +3950,29 @@ console.log('  60 rounds from every angle, stage never regressed: ' + ok + ' (en
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('MULTI-SIDE DAMAGE TEST DONE');
 })();
+
+(function multiFrameTests(){
+console.log('--- the all-round frame: shot from two sides ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const missing = VEH_BODIES.filter(b => !VEHICLE_SPRITES[b + '__multi']);
+console.log('  every body has an all-round frame: ' + (VEH_BODIES.length - missing.length) +
+            '/' + VEH_BODIES.length + (missing.length ? ' missing ' + missing.join(',') : ''),
+            missing.length === 0 ? 'CORRECT' : 'WRONG');
+// one side only must NOT use it; two sides must
+const v = level.vehicles[0]; v.body = 'pickup';
+const L = v.tiles.find(t => t.side === 'left' && !t.engine);
+const R = v.tiles.find(t => t.side === 'right' && !t.engine);
+for (let i = 0; i < 6; i++) damageVehicle(L.tx, L.ty, { pen: 26, dmg: 26, side: 'player', ang: Math.PI/2 }, 1);
+const oneSide = v.faces;
+for (let i = 0; i < 6; i++) damageVehicle(R.tx, R.ty, { pen: 26, dmg: 26, side: 'player', ang: -Math.PI/2 }, 1);
+console.log('  faces marked: one side ' + oneSide + ' -> two sides ' + v.faces,
+            oneSide === 1 && v.faces >= 2 ? 'CORRECT' : 'WRONG');
+console.log('  and the face count never goes back down: ' +
+            (function(){ const f = v.faces;
+              damageVehicle(L.tx, L.ty, { pen: 26, dmg: 26, side: 'player', ang: Math.PI/2 }, 1);
+              return v.faces >= f; })(),
+            v.faces >= 2 ? 'CORRECT (a car cannot un-learn it was hit from two sides)' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('MULTI FRAME TEST DONE');
+})();
