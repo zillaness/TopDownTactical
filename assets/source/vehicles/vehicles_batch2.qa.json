@@ -1,0 +1,562 @@
+{
+  "sedan_grey/intact": {
+    "source": "assets/incoming/cars/damage-ladders-v1/grey-sedan/sedan_grey.png",
+    "source_size": [
+      1552,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8046,
+    "partial_alpha_fraction": 0.7875,
+    "opaque_rgb_average": [
+      75,
+      81,
+      86
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 10202
+  },
+  "sedan_grey/glass_out": {
+    "source": "assets/incoming/cars/damage-ladders-v1/grey-sedan/sedan_grey_glass_out.png",
+    "source_size": [
+      1552,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8046,
+    "partial_alpha_fraction": 0.7875,
+    "opaque_rgb_average": [
+      66,
+      71,
+      77
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 10880
+  },
+  "sedan_grey/shot_up": {
+    "source": "assets/incoming/cars/damage-ladders-v1/grey-sedan/sedan_grey_shot_up.png",
+    "source_size": [
+      1552,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8046,
+    "partial_alpha_fraction": 0.7875,
+    "opaque_rgb_average": [
+      55,
+      59,
+      62
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 12140
+  },
+  "sedan_grey/wreck": {
+    "source": "assets/incoming/cars/damage-ladders-v1/grey-sedan/car_wreck.png",
+    "source_size": [
+      1552,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8046,
+    "partial_alpha_fraction": 0.7875,
+    "opaque_rgb_average": [
+      47,
+      46,
+      45
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 12300
+  },
+  "panel_van/intact": {
+    "source": "assets/incoming/cars/damage-ladders-v1/panel-van/panel_van.png",
+    "source_size": [
+      1617,
+      744
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7608,
+    "partial_alpha_fraction": 0.742,
+    "opaque_rgb_average": [
+      167,
+      166,
+      163
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 7506
+  },
+  "panel_van/glass_out": {
+    "source": "assets/incoming/cars/damage-ladders-v1/panel-van/panel_van_glass_out.png",
+    "source_size": [
+      1617,
+      744
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7608,
+    "partial_alpha_fraction": 0.742,
+    "opaque_rgb_average": [
+      166,
+      164,
+      161
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 7920
+  },
+  "panel_van/shot_up": {
+    "source": "assets/incoming/cars/damage-ladders-v1/panel-van/panel_van_shot_up.png",
+    "source_size": [
+      1617,
+      744
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7608,
+    "partial_alpha_fraction": 0.742,
+    "opaque_rgb_average": [
+      143,
+      141,
+      137
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 12556
+  },
+  "panel_van/wreck": {
+    "source": "assets/incoming/cars/damage-ladders-v1/panel-van/panel_van_wreck.png",
+    "source_size": [
+      1617,
+      744
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7608,
+    "partial_alpha_fraction": 0.742,
+    "opaque_rgb_average": [
+      99,
+      94,
+      89
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 12652
+  },
+  "pickup/intact": {
+    "source": "assets/incoming/cars/damage-ladders-v1/pickup/pickup.png",
+    "source_size": [
+      1582,
+      728
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7615,
+    "partial_alpha_fraction": 0.7444,
+    "opaque_rgb_average": [
+      71,
+      72,
+      72
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 10082
+  },
+  "pickup/glass_out": {
+    "source": "assets/incoming/cars/damage-ladders-v1/pickup/pickup_glass_out.png",
+    "source_size": [
+      1582,
+      728
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7615,
+    "partial_alpha_fraction": 0.7444,
+    "opaque_rgb_average": [
+      70,
+      69,
+      69
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 11150
+  },
+  "pickup/shot_up": {
+    "source": "assets/incoming/cars/damage-ladders-v1/pickup/pickup_shot_up.png",
+    "source_size": [
+      1582,
+      728
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7615,
+    "partial_alpha_fraction": 0.7444,
+    "opaque_rgb_average": [
+      67,
+      66,
+      65
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 13296
+  },
+  "pickup/wreck": {
+    "source": "assets/incoming/cars/damage-ladders-v1/pickup/pickup_wreck.png",
+    "source_size": [
+      1582,
+      728
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      118
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.7615,
+    "partial_alpha_fraction": 0.7444,
+    "opaque_rgb_average": [
+      53,
+      52,
+      50
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 13146
+  },
+  "sedan_red/intact": {
+    "source": "assets/incoming/cars/damage-ladders-v1/red-sedan/sedan_red.png",
+    "source_size": [
+      1622,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      113
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8075,
+    "partial_alpha_fraction": 0.7893,
+    "opaque_rgb_average": [
+      107,
+      63,
+      59
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 9746
+  },
+  "sedan_red/glass_out": {
+    "source": "assets/incoming/cars/damage-ladders-v1/red-sedan/sedan_red_glass_out.png",
+    "source_size": [
+      1622,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      113
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8075,
+    "partial_alpha_fraction": 0.7893,
+    "opaque_rgb_average": [
+      100,
+      54,
+      49
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 10606
+  },
+  "sedan_red/shot_up": {
+    "source": "assets/incoming/cars/damage-ladders-v1/red-sedan/sedan_red_shot_up.png",
+    "source_size": [
+      1622,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      113
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8075,
+    "partial_alpha_fraction": 0.7893,
+    "opaque_rgb_average": [
+      90,
+      53,
+      48
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 13066
+  },
+  "sedan_red/wreck": {
+    "source": "assets/incoming/cars/damage-ladders-v1/red-sedan/sedan_red_wreck.png",
+    "source_size": [
+      1622,
+      718
+    ],
+    "output_size": [
+      256,
+      128
+    ],
+    "world_size": [
+      128,
+      64
+    ],
+    "tiles": [
+      4.0,
+      2.0
+    ],
+    "fitted_size": [
+      256,
+      113
+    ],
+    "alpha_source": "native-alpha",
+    "alpha_ceiling_in_source": 255,
+    "transparent_corners": true,
+    "visible_fraction": 0.8075,
+    "partial_alpha_fraction": 0.7893,
+    "opaque_rgb_average": [
+      57,
+      42,
+      39
+    ],
+    "encoding": "webp q85",
+    "file_bytes": 12630
+  }
+}
