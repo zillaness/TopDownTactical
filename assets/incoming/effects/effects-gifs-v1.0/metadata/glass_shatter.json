@@ -1,0 +1,24 @@
+{
+  "id": "glass_shatter",
+  "frame_count": 4,
+  "frame_size": [
+    605,
+    605
+  ],
+  "world_diameter_px": 32,
+  "durations_ms": [
+    70,
+    90,
+    120,
+    220
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/glass_shatter/frame_01.png",
+    "frames/glass_shatter/frame_02.png",
+    "frames/glass_shatter/frame_03.png",
+    "frames/glass_shatter/frame_04.png"
+  ],
+  "contact_sheet": "contact-sheets/glass_shatter_contact.png",
+  "gif": "gifs/glass_shatter.gif"
+}

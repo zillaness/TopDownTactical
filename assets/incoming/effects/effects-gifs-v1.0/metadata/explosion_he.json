@@ -1,0 +1,32 @@
+{
+  "id": "explosion_he",
+  "frame_count": 8,
+  "frame_size": [
+    512,
+    512
+  ],
+  "world_diameter_px": 96,
+  "durations_ms": [
+    80,
+    80,
+    90,
+    110,
+    140,
+    180,
+    220,
+    300
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/explosion_he/frame_01.png",
+    "frames/explosion_he/frame_02.png",
+    "frames/explosion_he/frame_03.png",
+    "frames/explosion_he/frame_04.png",
+    "frames/explosion_he/frame_05.png",
+    "frames/explosion_he/frame_06.png",
+    "frames/explosion_he/frame_07.png",
+    "frames/explosion_he/frame_08.png"
+  ],
+  "contact_sheet": "contact-sheets/explosion_he_contact.png",
+  "gif": "gifs/explosion_he.gif"
+}
