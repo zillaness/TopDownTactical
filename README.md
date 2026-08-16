@@ -1,6 +1,6 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.44
+version: 1.45
 author: Sam Cao
 created: 2026-08-07
 last_updated: 2026-08-15
@@ -10,7 +10,7 @@ ai_update: Update last_updated and bump version in frontmatter (filename stays R
 
 # Top-Down Tactical (title TBD)
 
-A top-down Door Kickers 2-style tactical game where you directly control the
+A top-down tactical game where you directly control the
 point man — WASD to move, **Shift** to sprint, **Space** to steady, mouse to aim
 and shoot, or a controller if you prefer — while commanding a 3-man AI squad — or a nine-man
 rifle squad in two fireteams — through stacks, synchronized breaches, and hostage rescues. Fifteen
@@ -114,3 +114,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.42 (2026-08-15): Moved to its own repository (zillaness/TopDownTactical). art/ became assets/, with incoming/ for raw drops and source/ for processed masters.
 - v1.43 (2026-08-15): Synced to v0.48 — BROKEN ARROW's exfil now counts the casualties on the tile, not just the point man.
 - v1.44 (2026-08-15): Art prompts flipped to alpha-first (CARS v1.1, EFFECTS v1.1, MAIN v2.1) — GPT does real transparency now; magenta stays as the named fallback.
+- v1.45 (2026-08-15): Dropped the genre-comparison clause from the outward-facing description — the game describes itself now.
