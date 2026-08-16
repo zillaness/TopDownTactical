@@ -3526,3 +3526,152 @@ console.log('  return fire: suppression +' + ((s1.suppress || 0) - sup0).toFixed
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('OVERWATCH TEST DONE');
 })();
+
+(function vehicleDamageTests(){
+console.log('--- vehicles: the hood saves you, the door wears out ---');
+localStorage.clear();
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+// 1. What counts as a vehicle. '%' is sheet metal, and sheet metal is also
+// buildings — THE SPLIT's garage, THE TREELINE's shed. Group on connectivity
+// alone and you paint a sedan over a garage.
+const shed = MAPS.findIndex(m => m.name === 'THE SPLIT');
+game.mapIndex = shed; initGame(); game.state = 'play';
+// THE SPLIT has two real cars AND a 21-tile corrugated garage. The cars must
+// be found and the garage must not be one of them.
+const splitBig = level.vehicles.filter(v => v.tiles.length > 8);
+console.log('  THE SPLIT: ' + level.vehicles.length + ' cars found, ' + splitBig.length +
+            ' of them building-sized',
+            level.vehicles.length === 2 && splitBig.length === 0
+              ? 'CORRECT (the garage has no engine block, so it is not a car)' : 'WRONG');
+console.log('  and the garage tiles are still plain sheet metal: ' +
+            (level.mat[6][3] === 'sheetmetal' && !level.vehAt.has('3,6')),
+            level.mat[6][3] === 'sheetmetal' && !level.vehAt.has('3,6')
+              ? 'CORRECT (no sedan painted over a garage)' : 'WRONG');
+
+const lane = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE');
+game.mapIndex = lane; initGame(); game.state = 'play';
+const cars = level.vehicles;
+console.log('  DOWNTOWN EXCHANGE: ' + cars.length + ' cars, footprints ' +
+            [...new Set(cars.map(v => v.tw + 'x' + v.th))].join(','),
+            cars.length === 12 && cars.every(v => v.tw * v.th <= TUNE.vehMaxTiles)
+              ? 'CORRECT (a lane of cars)' : 'WRONG');
+console.log('  every car has an engine block and a body: ' +
+            cars.every(v => v.tiles.some(t => t.engine) && v.panels > 0),
+            cars.every(v => v.tiles.some(t => t.engine) && v.panels > 0) ? 'CORRECT' : 'WRONG');
+
+// 2. The map already says which way a car points: the engine IS the nose.
+const angs = [...new Set(cars.map(v => v.ang.toFixed(2)))];
+console.log('  orientation read off the @ side: ' + angs.join(', '),
+            cars.every(v => v.ang === 0) ? 'CORRECT (all %%%@ = nose right)' : 'WRONG');
+const st = MAPS.findIndex(m => m.name === 'THE STANDOFF');
+game.mapIndex = st; initGame(); game.state = 'play';
+const facing = level.vehicles.map(v => v.ang);
+console.log('  THE STANDOFF has one of each: ' + facing.map(a => a === 0 ? 'right' : 'left').join(', '),
+            facing.includes(0) && facing.includes(Math.PI)
+              ? 'CORRECT (@% points left, %@ points right)' : 'WRONG');
+
+// 3. The engine block is not on the ladder AT ALL.
+game.mapIndex = lane; initGame(); game.state = 'play';
+const car = level.vehicles[0];
+const hood = car.tiles.find(t => t.engine), door = car.tiles.find(t => !t.engine);
+const identity = [];
+for (const s of VEH_STATES) {
+  car.state = s;
+  identity.push(materialAt(hood.tx, hood.ty) === MATERIALS.engine);
+}
+car.state = 'intact';
+console.log('  materialAt(hood) is MATERIALS.engine at every rung: ' + identity.join(','),
+            identity.every(Boolean) ? 'CORRECT (you cannot shoot the hood away)' : 'WRONG');
+
+// 4. The door does wear out, and what moves is what sheet metal was FOR.
+const rungs = VEH_STATES.map(s => { car.state = s; return materialAt(door.tx, door.ty); });
+car.state = 'intact';
+console.log('  door dmgKeep down the ladder: ' + rungs.map(m => m.dmgKeep).join(' -> '),
+            rungs[0].dmgKeep === 0.6 && rungs[3].dmgKeep > rungs[0].dmgKeep ? 'CORRECT' : 'WRONG');
+console.log('  spall rises at shot_up then collapses: ' + rungs.map(m => m.spall).join(' -> '),
+            rungs[2].spall > rungs[0].spall && rungs[3].spall < rungs[0].spall
+              ? 'CORRECT (torn steel is the worst thing to hug)' : 'WRONG');
+console.log('  a wreck stops hiding you: opaque ' + rungs.map(m => m.opaque).join(',') ,
+            rungs[0].opaque && !rungs[3].opaque ? 'CORRECT' : 'WRONG');
+
+// 5. level.mat and level.wall are IDENTITY and are never written.
+car.state = 'wreck';
+console.log('  mat/wall untouched by damage: mat=' + level.mat[door.ty][door.tx] +
+            ' wall=' + level.wall[door.ty][door.tx],
+            level.mat[door.ty][door.tx] === 'sheetmetal' && level.wall[door.ty][door.tx] === 1
+              ? 'CORRECT (a wreck still stops a body)' : 'WRONG');
+car.state = 'intact'; car.dmg = 0; car.scuff = 0;
+
+// 6. Hood fire is quarantined: you cannot make the DOORS transparent by
+// emptying magazines into the one part of the car meant to save you.
+const c2 = level.vehicles[1];
+for (let i = 0; i < 400; i++) damageVehicle(c2.tiles.find(t => t.engine).tx,
+                                            c2.tiles.find(t => t.engine).ty,
+                                            { pen: 40, dmg: 30, side: 'player' }, 1);
+console.log('  400 rounds into the block: state=' + c2.state + ', scuff capped at ' +
+            (c2.scuff / c2.hpMax).toFixed(2) + ' of hp',
+            c2.state !== 'wreck' && c2.state !== 'shot_up'
+              ? 'CORRECT (the hood never becomes a hole in the doors)' : 'WRONG');
+
+// 7. The doors do go, and in order.
+const c3 = level.vehicles[2];
+const seq = [];
+const dt3 = c3.tiles.find(t => !t.engine);
+for (let i = 0; i < 60; i++) {
+  damageVehicle(dt3.tx, dt3.ty, { pen: 26, dmg: 30, side: 'player' }, 1);
+  if (c3.state !== 'intact' && seq[seq.length - 1] !== c3.state) seq.push(c3.state);
+}
+console.log('  60 rifle rounds through the doors: intact -> ' + seq.join(' -> '),
+            seq.join(',') === 'glass_out,shot_up,wreck' ? 'CORRECT (monotonic, one way)' : 'WRONG');
+
+// 8. A round that skips off the bodywork barely marks it.
+const c4 = level.vehicles[3], c5 = level.vehicles[4];
+const d4 = c4.tiles.find(t => !t.engine), d5 = c5.tiles.find(t => !t.engine);
+damageVehicle(d4.tx, d4.ty, { pen: 30, dmg: 30, side: 'player' }, 1);
+damageVehicle(d5.tx, d5.ty, { pen: 30, dmg: 30, side: 'player' }, TUNE.vehGraze);
+console.log('  square hit ' + c4.dmg.toFixed(1) + ' vs graze ' + c5.dmg.toFixed(1),
+            c5.dmg < c4.dmg * 0.2 ? 'CORRECT (the angle you chose, not a coin flip)' : 'WRONG');
+
+// 9. Explosives come off the panels too.
+const c6 = level.vehicles[5];
+const before6 = c6.dmg;
+applyBlast(c6.x, c6.y, 'player', TUNE.blastLethal, TUNE.blastWound, TUNE.blastDmg);
+console.log('  a frag on the bonnet moves it: dmg ' + before6.toFixed(0) + ' -> ' + c6.dmg.toFixed(0),
+            c6.dmg > before6 ? 'CORRECT (a 40mm is not weaker than a rifle)' : 'WRONG');
+const far = level.vehicles.find(v => dist(v.x, v.y, 0, 0) > 900);
+if (far) {
+  const b4 = far.dmg;
+  applyBlast(0, 0, 'player', TUNE.blastLethal, TUNE.blastWound, TUNE.blastDmg);
+  console.log('  and a blast across the map does not: ' + (far.dmg === b4),
+              far.dmg === b4 ? 'CORRECT' : 'WRONG');
+}
+
+// 10. The author's knob actually holds the door shut.
+const c7 = level.vehicles[6]; c7.state = 'wreck';
+TUNE.vehWreckSeeThrough = false;
+const opaqueWreck = materialAt(c7.tiles.find(t => !t.engine).tx, c7.tiles.find(t => !t.engine).ty).opaque;
+TUNE.vehWreckSeeThrough = true;
+const clearWreck = materialAt(c7.tiles.find(t => !t.engine).tx, c7.tiles.find(t => !t.engine).ty).opaque;
+console.log('  vehWreckSeeThrough flips only the sight rule: opaque ' + opaqueWreck + ' / ' + clearWreck,
+            opaqueWreck === true && clearWreck === false ? 'CORRECT' : 'WRONG');
+
+// 11. A real round, all the way through resolveBarrier.
+game.mapIndex = lane; initGame(); game.state = 'play';
+const c8 = level.vehicles[0], d8 = c8.tiles.find(t => !t.engine);
+const b8 = { x: d8.tx * TILE - 8, y: d8.ty * TILE + 16, ang: 0, speed: 1500,
+             dmg: 30, pen: 26, side: 'player', alive: true, traveled: 0 };
+resolveBarrier(b8, { x: d8.tx * TILE, y: d8.ty * TILE + 16, axis: 'x' });
+console.log('  a live round square through resolveBarrier: dmg=' + c8.dmg.toFixed(0),
+            Math.abs(c8.dmg - 26) < 0.01 ? 'CORRECT (full penetration credited)' : 'WRONG');
+// and the same round arriving along the panel deposits the graze fraction
+const c9 = level.vehicles[1], d9 = c9.tiles.find(t => !t.engine);
+const b9 = { x: d9.tx * TILE - 8, y: d9.ty * TILE + 16, ang: 0, speed: 1500,
+             dmg: 30, pen: 26, side: 'player', alive: true, traveled: 0 };
+resolveBarrier(b9, { x: d9.tx * TILE, y: d9.ty * TILE + 16, axis: 'y' });
+console.log('  the same round along the panel: dmg=' + c9.dmg.toFixed(1),
+            c9.dmg < 3 ? 'CORRECT (shallow angle, barely a mark)' : 'WRONG');
+
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('VEHICLE DAMAGE TEST DONE');
+})();

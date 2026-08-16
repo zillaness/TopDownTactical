@@ -1,9 +1,9 @@
 ---
 file: README.md (top-down-tactical)
-version: 1.45
+version: 1.46
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-15
+last_updated: 2026-08-16
 description: Index and quickstart for the top-down-tactical project (game title TBD).
 ai_update: Update last_updated and bump version in frontmatter (filename stays README.md). Append changelog at bottom.
 ---
@@ -28,7 +28,7 @@ plain release breaches the first closed door on the path, so pointing into a
 room *is* ordering a breach. Middle mouse holds the grenade bag on the same
 idiom: **↑ frag ↓ concussion ← flash → smoke**.
 
-**Play:** open `top_down_tactical_v0.48.html` in a browser. Everything is one
+**Play:** open `top_down_tactical_v0.49.html` in a browser. Everything is one
 self-contained file — no build, no dependencies.
 
 **Art:** the 27-asset SVG sprite set lives inline in section S0 of the HTML,
@@ -48,7 +48,7 @@ real browser with Playwright.
 
 | File | What it is |
 |---|---|
-| `top_down_tactical_v0.48.html` | The game (single file, canvas 2D) |
+| `top_down_tactical_v0.49.html` | The game (single file, canvas 2D) |
 | `top_down_tactical_prd_v1.2.md` | Product requirements — pillars, systems, deferred list |
 | `tactical_research_v1.1.md` | Seven-chapter genre/doctrine research + synthesis (§7: formations) |
 | `GOAL.md` | North-star goal and design pillars (`/goal` command reads this) |
@@ -115,3 +115,4 @@ or update the ledger — format compatible with the token-burndown skill).
 - v1.43 (2026-08-15): Synced to v0.48 — BROKEN ARROW's exfil now counts the casualties on the tile, not just the point man.
 - v1.44 (2026-08-15): Art prompts flipped to alpha-first (CARS v1.1, EFFECTS v1.1, MAIN v2.1) — GPT does real transparency now; magenta stays as the named fallback.
 - v1.45 (2026-08-15): Dropped the genre-comparison clause from the outward-facing description — the game describes itself now.
+- v1.46 (2026-08-16): Synced to v0.49 — vehicles take live damage across a four-rung ladder with real art; the engine block is the one thing you cannot shoot away.
