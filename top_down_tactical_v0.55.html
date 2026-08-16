@@ -604,8 +604,21 @@ function vehImage(key) {
 // nothing at all falls back to flat paint. Adding art later needs no code.
 function vehSprite(v) {
   if (v.stage <= 0) return vehImage(v.body + "__intact");
-  return vehImage(v.body + "__" + v.hotSide + "__" + v.stage)
-      || vehImage(v.body + "__" + v.hotSide + "__d")
+  // A body with the full ladder always wins: it says both how far gone and
+  // from where, which is the whole point.
+  const full = vehImage(v.body + "__" + v.hotSide + "__" + v.stage);
+  if (full) return full;
+  // Otherwise the RUNG ladder takes over once the car is badly hurt. A body
+  // with only one directional frame would otherwise look identical at stage 1
+  // and stage 4 — a burned-out van drawn as a van with a few holes in it —
+  // because that single frame is all the chain ever reached. Heavy damage is
+  // better served by art that is actually heavier than by art that is merely
+  // pointed the right way.
+  if (v.stage >= 3) {
+    const rung = vehImage(v.body + "__" + (v.stage >= 4 ? "wreck" : "shot_up"));
+    if (rung) return rung;
+  }
+  return vehImage(v.body + "__" + v.hotSide + "__d")
       || vehImage(v.body + "__" + v.state)
       || vehImage(v.body + "__intact");
 }
@@ -4561,14 +4574,25 @@ function setVehicleState(v, side) {
   for (const k of ["front", "rear", "left", "right"])
     if (v.side[k] >= v.hpMax * TUNE.vehFaceMark) faces++;
   if (faces > 1) stage = Math.max(stage, Math.min(TUNE.vehStages.length, faces));
-  v.stage = Math.max(v.stage || 0, stage);
-  // The face that shows is the worst-hit one, and it only changes when the new
-  // one clearly beats it. Without the margin two sides trading fire flip the
-  // sprite back and forth every few rounds.
+
+  // The face that shows is the worst-hit one, and it only turns when a rival
+  // clearly beats it — without the margin two sides trading fire flip the
+  // sprite every few rounds.
   let worst = v.hotSide || "front";
   for (const k of ["front", "rear", "left", "right"])
     if (v.side[k] > v.side[worst] * (1 + TUNE.vehFaceSwap)) worst = k;
+
+  // AND THE TURN ITSELF COSTS A RUNG. When a second side overtakes the first,
+  // the picture has to change face — but the new face's art only shows the new
+  // face's damage, so on its own that would erase what the first side did. Step
+  // the car further down the ladder at the same time and the swap reads as
+  // "this car is more wrecked than it was" rather than "this car healed and was
+  // then shot somewhere else". A car worked from two sides ends up visibly
+  // worse than one worked from a single side for the same number of rounds,
+  // which is also just true.
+  if (worst !== v.hotSide && (v.stage || 0) > 0) stage = Math.max(stage, (v.stage || 0) + 1);
   v.hotSide = worst;
+  v.stage = Math.min(TUNE.vehStages.length, Math.max(v.stage || 0, stage));
   if (v.state === was) return;
   // Individual rounds stay silent — the tile is already sparking. What the
   // player has to HEAR is the moment his cover changed, once, per rung.

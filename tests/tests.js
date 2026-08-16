@@ -3917,6 +3917,24 @@ const before = v.hotSide;
 damageVehicle(R.tx, R.ty, { pen: 4, dmg: 4, side: 'player', ang: -Math.PI/2 }, 1);
 console.log('  and a near-tie does not flip the sprite: ' + before + ' -> ' + v.hotSide,
             v.hotSide === before ? 'CORRECT (hysteresis)' : 'WRONG');
+
+// THE TURN COSTS A RUNG. Overtake the shown face decisively and the car must
+// come out further down the ladder than it went in, not merely different.
+const v3 = level.vehicles[2]; v3.body = 'sedan_grey';
+const L3 = v3.tiles.find(t => t.side === 'left' && !t.engine);
+const R3 = v3.tiles.find(t => t.side === 'right' && !t.engine);
+for (let i = 0; i < 8; i++)
+  damageVehicle(L3.tx, L3.ty, { pen: 26, dmg: 26, side: 'player', ang: Math.PI/2 }, 1);
+const face0 = v3.hotSide, st0 = v3.stage;
+let turned = false, stAtTurn = null;
+for (let i = 0; i < 30 && !turned; i++) {
+  damageVehicle(R3.tx, R3.ty, { pen: 26, dmg: 26, side: 'player', ang: -Math.PI/2 }, 1);
+  if (v3.hotSide !== face0) { turned = true; stAtTurn = v3.stage; }
+}
+console.log('  the shown face turned ' + face0 + ' -> ' + v3.hotSide +
+            ' and the rung went ' + st0 + ' -> ' + stAtTurn,
+            turned && stAtTurn > st0
+              ? 'CORRECT (more wrecked, not differently wrecked)' : 'WRONG');
 // monotonic under any order of fire
 const v2 = level.vehicles[1]; v2.body = 'sedan_grey';
 let worst = 0, ok = true;
