@@ -1,0 +1,32 @@
+{
+  "id": "fire_loop",
+  "frame_count": 8,
+  "frame_size": [
+    457,
+    457
+  ],
+  "world_diameter_px": 64,
+  "durations_ms": [
+    120,
+    120,
+    120,
+    120,
+    120,
+    120,
+    120,
+    120
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/fire_loop/frame_01.png",
+    "frames/fire_loop/frame_02.png",
+    "frames/fire_loop/frame_03.png",
+    "frames/fire_loop/frame_04.png",
+    "frames/fire_loop/frame_05.png",
+    "frames/fire_loop/frame_06.png",
+    "frames/fire_loop/frame_07.png",
+    "frames/fire_loop/frame_08.png"
+  ],
+  "contact_sheet": "contact-sheets/fire_loop_contact.png",
+  "gif": "gifs/fire_loop.gif"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "flash_burst",
+  "frame_count": 4,
+  "frame_size": [
+    683,
+    683
+  ],
+  "world_diameter_px": 96,
+  "durations_ms": [
+    50,
+    70,
+    90,
+    160
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/flash_burst/frame_01.png",
+    "frames/flash_burst/frame_02.png",
+    "frames/flash_burst/frame_03.png",
+    "frames/flash_burst/frame_04.png"
+  ],
+  "contact_sheet": "contact-sheets/flash_burst_contact.png",
+  "gif": "gifs/flash_burst.gif"
+}

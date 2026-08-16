@@ -1,0 +1,511 @@
+{
+  "status": "pass",
+  "effect_count": 9,
+  "effects": [
+    {
+      "id": "explosion_frag",
+      "frame_count": 8,
+      "frame_size": [
+        459,
+        459
+      ],
+      "world_diameter_px": 64,
+      "durations_ms": [
+        70,
+        70,
+        80,
+        90,
+        110,
+        140,
+        180,
+        240
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/explosion_frag/frame_01.png",
+        "frames/explosion_frag/frame_02.png",
+        "frames/explosion_frag/frame_03.png",
+        "frames/explosion_frag/frame_04.png",
+        "frames/explosion_frag/frame_05.png",
+        "frames/explosion_frag/frame_06.png",
+        "frames/explosion_frag/frame_07.png",
+        "frames/explosion_frag/frame_08.png"
+      ],
+      "contact_sheet": "contact-sheets/explosion_frag_contact.png",
+      "gif": "gifs/explosion_frag.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "frame_order": [
+        "frames/explosion_frag/frame_01.png",
+        "frames/explosion_frag/frame_02.png",
+        "frames/explosion_frag/frame_03.png",
+        "frames/explosion_frag/frame_04.png",
+        "frames/explosion_frag/frame_05.png",
+        "frames/explosion_frag/frame_06.png",
+        "frames/explosion_frag/frame_07.png",
+        "frames/explosion_frag/frame_08.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/explosion_frag.png",
+        "frames": [
+          "frames/explosion_frag/frame_01.png",
+          "frames/explosion_frag/frame_02.png",
+          "frames/explosion_frag/frame_03.png",
+          "frames/explosion_frag/frame_04.png",
+          "frames/explosion_frag/frame_05.png",
+          "frames/explosion_frag/frame_06.png",
+          "frames/explosion_frag/frame_07.png",
+          "frames/explosion_frag/frame_08.png"
+        ],
+        "contact_sheet": "contact-sheets/explosion_frag_contact.png",
+        "gif": "gifs/explosion_frag.gif",
+        "metadata": "metadata/explosion_frag.json",
+        "critique": "critiques/explosion_frag.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "explosion_he",
+      "frame_count": 8,
+      "frame_size": [
+        512,
+        512
+      ],
+      "world_diameter_px": 96,
+      "durations_ms": [
+        80,
+        80,
+        90,
+        110,
+        140,
+        180,
+        220,
+        300
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/explosion_he/frame_01.png",
+        "frames/explosion_he/frame_02.png",
+        "frames/explosion_he/frame_03.png",
+        "frames/explosion_he/frame_04.png",
+        "frames/explosion_he/frame_05.png",
+        "frames/explosion_he/frame_06.png",
+        "frames/explosion_he/frame_07.png",
+        "frames/explosion_he/frame_08.png"
+      ],
+      "contact_sheet": "contact-sheets/explosion_he_contact.png",
+      "gif": "gifs/explosion_he.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "frame_order": [
+        "frames/explosion_he/frame_01.png",
+        "frames/explosion_he/frame_02.png",
+        "frames/explosion_he/frame_03.png",
+        "frames/explosion_he/frame_04.png",
+        "frames/explosion_he/frame_05.png",
+        "frames/explosion_he/frame_06.png",
+        "frames/explosion_he/frame_07.png",
+        "frames/explosion_he/frame_08.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/explosion_he.png",
+        "frames": [
+          "frames/explosion_he/frame_01.png",
+          "frames/explosion_he/frame_02.png",
+          "frames/explosion_he/frame_03.png",
+          "frames/explosion_he/frame_04.png",
+          "frames/explosion_he/frame_05.png",
+          "frames/explosion_he/frame_06.png",
+          "frames/explosion_he/frame_07.png",
+          "frames/explosion_he/frame_08.png"
+        ],
+        "contact_sheet": "contact-sheets/explosion_he_contact.png",
+        "gif": "gifs/explosion_he.gif",
+        "metadata": "metadata/explosion_he.json",
+        "critique": "critiques/explosion_he.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "fire_loop",
+      "frame_count": 8,
+      "frame_size": [
+        457,
+        457
+      ],
+      "world_diameter_px": 64,
+      "durations_ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/fire_loop/frame_01.png",
+        "frames/fire_loop/frame_02.png",
+        "frames/fire_loop/frame_03.png",
+        "frames/fire_loop/frame_04.png",
+        "frames/fire_loop/frame_05.png",
+        "frames/fire_loop/frame_06.png",
+        "frames/fire_loop/frame_07.png",
+        "frames/fire_loop/frame_08.png"
+      ],
+      "contact_sheet": "contact-sheets/fire_loop_contact.png",
+      "gif": "gifs/fire_loop.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "frame_order": [
+        "frames/fire_loop/frame_01.png",
+        "frames/fire_loop/frame_02.png",
+        "frames/fire_loop/frame_03.png",
+        "frames/fire_loop/frame_04.png",
+        "frames/fire_loop/frame_05.png",
+        "frames/fire_loop/frame_06.png",
+        "frames/fire_loop/frame_07.png",
+        "frames/fire_loop/frame_08.png"
+      ],
+      "loop_kind": "seamless",
+      "artifacts": {
+        "source_sheet": "sheets/fire_loop.png",
+        "frames": [
+          "frames/fire_loop/frame_01.png",
+          "frames/fire_loop/frame_02.png",
+          "frames/fire_loop/frame_03.png",
+          "frames/fire_loop/frame_04.png",
+          "frames/fire_loop/frame_05.png",
+          "frames/fire_loop/frame_06.png",
+          "frames/fire_loop/frame_07.png",
+          "frames/fire_loop/frame_08.png"
+        ],
+        "contact_sheet": "contact-sheets/fire_loop_contact.png",
+        "gif": "gifs/fire_loop.gif",
+        "metadata": "metadata/fire_loop.json",
+        "critique": "critiques/fire_loop.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "smoke_drift_loop",
+      "frame_count": 8,
+      "frame_size": [
+        447,
+        447
+      ],
+      "world_diameter_px": 64,
+      "durations_ms": [
+        180,
+        180,
+        180,
+        180,
+        180,
+        180,
+        180,
+        180
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/smoke_drift_loop/frame_01.png",
+        "frames/smoke_drift_loop/frame_02.png",
+        "frames/smoke_drift_loop/frame_03.png",
+        "frames/smoke_drift_loop/frame_04.png",
+        "frames/smoke_drift_loop/frame_05.png",
+        "frames/smoke_drift_loop/frame_06.png",
+        "frames/smoke_drift_loop/frame_07.png",
+        "frames/smoke_drift_loop/frame_08.png"
+      ],
+      "contact_sheet": "contact-sheets/smoke_drift_loop_contact.png",
+      "gif": "gifs/smoke_drift_loop.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "frame_order": [
+        "frames/smoke_drift_loop/frame_01.png",
+        "frames/smoke_drift_loop/frame_02.png",
+        "frames/smoke_drift_loop/frame_03.png",
+        "frames/smoke_drift_loop/frame_04.png",
+        "frames/smoke_drift_loop/frame_05.png",
+        "frames/smoke_drift_loop/frame_06.png",
+        "frames/smoke_drift_loop/frame_07.png",
+        "frames/smoke_drift_loop/frame_08.png"
+      ],
+      "loop_kind": "seamless",
+      "artifacts": {
+        "source_sheet": "sheets/smoke_drift_loop.png",
+        "frames": [
+          "frames/smoke_drift_loop/frame_01.png",
+          "frames/smoke_drift_loop/frame_02.png",
+          "frames/smoke_drift_loop/frame_03.png",
+          "frames/smoke_drift_loop/frame_04.png",
+          "frames/smoke_drift_loop/frame_05.png",
+          "frames/smoke_drift_loop/frame_06.png",
+          "frames/smoke_drift_loop/frame_07.png",
+          "frames/smoke_drift_loop/frame_08.png"
+        ],
+        "contact_sheet": "contact-sheets/smoke_drift_loop_contact.png",
+        "gif": "gifs/smoke_drift_loop.gif",
+        "metadata": "metadata/smoke_drift_loop.json",
+        "critique": "critiques/smoke_drift_loop.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "flash_burst",
+      "frame_count": 4,
+      "frame_size": [
+        683,
+        683
+      ],
+      "world_diameter_px": 96,
+      "durations_ms": [
+        50,
+        70,
+        90,
+        160
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/flash_burst/frame_01.png",
+        "frames/flash_burst/frame_02.png",
+        "frames/flash_burst/frame_03.png",
+        "frames/flash_burst/frame_04.png"
+      ],
+      "contact_sheet": "contact-sheets/flash_burst_contact.png",
+      "gif": "gifs/flash_burst.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "frame_order": [
+        "frames/flash_burst/frame_01.png",
+        "frames/flash_burst/frame_02.png",
+        "frames/flash_burst/frame_03.png",
+        "frames/flash_burst/frame_04.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/flash_burst.png",
+        "frames": [
+          "frames/flash_burst/frame_01.png",
+          "frames/flash_burst/frame_02.png",
+          "frames/flash_burst/frame_03.png",
+          "frames/flash_burst/frame_04.png"
+        ],
+        "contact_sheet": "contact-sheets/flash_burst_contact.png",
+        "gif": "gifs/flash_burst.gif",
+        "metadata": "metadata/flash_burst.json",
+        "critique": "critiques/flash_burst.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "smoke_pop",
+      "frame_count": 4,
+      "frame_size": [
+        564,
+        564
+      ],
+      "world_diameter_px": 48,
+      "durations_ms": [
+        80,
+        100,
+        120,
+        160
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/smoke_pop/frame_01.png",
+        "frames/smoke_pop/frame_02.png",
+        "frames/smoke_pop/frame_03.png",
+        "frames/smoke_pop/frame_04.png"
+      ],
+      "contact_sheet": "contact-sheets/smoke_pop_contact.png",
+      "gif": "gifs/smoke_pop.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "frame_order": [
+        "frames/smoke_pop/frame_01.png",
+        "frames/smoke_pop/frame_02.png",
+        "frames/smoke_pop/frame_03.png",
+        "frames/smoke_pop/frame_04.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/smoke_pop.png",
+        "frames": [
+          "frames/smoke_pop/frame_01.png",
+          "frames/smoke_pop/frame_02.png",
+          "frames/smoke_pop/frame_03.png",
+          "frames/smoke_pop/frame_04.png"
+        ],
+        "contact_sheet": "contact-sheets/smoke_pop_contact.png",
+        "gif": "gifs/smoke_pop.gif",
+        "metadata": "metadata/smoke_pop.json",
+        "critique": "critiques/smoke_pop.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "gas_pop",
+      "frame_count": 4,
+      "frame_size": [
+        559,
+        559
+      ],
+      "world_diameter_px": 48,
+      "durations_ms": [
+        90,
+        110,
+        140,
+        190
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/gas_pop/frame_01.png",
+        "frames/gas_pop/frame_02.png",
+        "frames/gas_pop/frame_03.png",
+        "frames/gas_pop/frame_04.png"
+      ],
+      "contact_sheet": "contact-sheets/gas_pop_contact.png",
+      "gif": "gifs/gas_pop.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "frame_order": [
+        "frames/gas_pop/frame_01.png",
+        "frames/gas_pop/frame_02.png",
+        "frames/gas_pop/frame_03.png",
+        "frames/gas_pop/frame_04.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/gas_pop.png",
+        "frames": [
+          "frames/gas_pop/frame_01.png",
+          "frames/gas_pop/frame_02.png",
+          "frames/gas_pop/frame_03.png",
+          "frames/gas_pop/frame_04.png"
+        ],
+        "contact_sheet": "contact-sheets/gas_pop_contact.png",
+        "gif": "gifs/gas_pop.gif",
+        "metadata": "metadata/gas_pop.json",
+        "critique": "critiques/gas_pop.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "debris_burst",
+      "frame_count": 4,
+      "frame_size": [
+        700,
+        700
+      ],
+      "world_diameter_px": 64,
+      "durations_ms": [
+        70,
+        90,
+        120,
+        200
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/debris_burst/frame_01.png",
+        "frames/debris_burst/frame_02.png",
+        "frames/debris_burst/frame_03.png",
+        "frames/debris_burst/frame_04.png"
+      ],
+      "contact_sheet": "contact-sheets/debris_burst_contact.png",
+      "gif": "gifs/debris_burst.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "frame_order": [
+        "frames/debris_burst/frame_01.png",
+        "frames/debris_burst/frame_02.png",
+        "frames/debris_burst/frame_03.png",
+        "frames/debris_burst/frame_04.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/debris_burst.png",
+        "frames": [
+          "frames/debris_burst/frame_01.png",
+          "frames/debris_burst/frame_02.png",
+          "frames/debris_burst/frame_03.png",
+          "frames/debris_burst/frame_04.png"
+        ],
+        "contact_sheet": "contact-sheets/debris_burst_contact.png",
+        "gif": "gifs/debris_burst.gif",
+        "metadata": "metadata/debris_burst.json",
+        "critique": "critiques/debris_burst.md"
+      },
+      "qa_status": "pass"
+    },
+    {
+      "id": "glass_shatter",
+      "frame_count": 4,
+      "frame_size": [
+        605,
+        605
+      ],
+      "world_diameter_px": 32,
+      "durations_ms": [
+        70,
+        90,
+        120,
+        220
+      ],
+      "gif_loop": 0,
+      "frames": [
+        "frames/glass_shatter/frame_01.png",
+        "frames/glass_shatter/frame_02.png",
+        "frames/glass_shatter/frame_03.png",
+        "frames/glass_shatter/frame_04.png"
+      ],
+      "contact_sheet": "contact-sheets/glass_shatter_contact.png",
+      "gif": "gifs/glass_shatter.gif",
+      "grid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "frame_order": [
+        "frames/glass_shatter/frame_01.png",
+        "frames/glass_shatter/frame_02.png",
+        "frames/glass_shatter/frame_03.png",
+        "frames/glass_shatter/frame_04.png"
+      ],
+      "loop_kind": "event-preview",
+      "artifacts": {
+        "source_sheet": "sheets/glass_shatter.png",
+        "frames": [
+          "frames/glass_shatter/frame_01.png",
+          "frames/glass_shatter/frame_02.png",
+          "frames/glass_shatter/frame_03.png",
+          "frames/glass_shatter/frame_04.png"
+        ],
+        "contact_sheet": "contact-sheets/glass_shatter_contact.png",
+        "gif": "gifs/glass_shatter.gif",
+        "metadata": "metadata/glass_shatter.json",
+        "critique": "critiques/glass_shatter.md"
+      },
+      "qa_status": "pass"
+    }
+  ]
+}

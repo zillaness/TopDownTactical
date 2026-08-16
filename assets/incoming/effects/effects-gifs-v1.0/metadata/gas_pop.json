@@ -1,0 +1,24 @@
+{
+  "id": "gas_pop",
+  "frame_count": 4,
+  "frame_size": [
+    559,
+    559
+  ],
+  "world_diameter_px": 48,
+  "durations_ms": [
+    90,
+    110,
+    140,
+    190
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/gas_pop/frame_01.png",
+    "frames/gas_pop/frame_02.png",
+    "frames/gas_pop/frame_03.png",
+    "frames/gas_pop/frame_04.png"
+  ],
+  "contact_sheet": "contact-sheets/gas_pop_contact.png",
+  "gif": "gifs/gas_pop.gif"
+}

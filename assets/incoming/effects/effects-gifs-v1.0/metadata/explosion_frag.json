@@ -1,0 +1,32 @@
+{
+  "id": "explosion_frag",
+  "frame_count": 8,
+  "frame_size": [
+    459,
+    459
+  ],
+  "world_diameter_px": 64,
+  "durations_ms": [
+    70,
+    70,
+    80,
+    90,
+    110,
+    140,
+    180,
+    240
+  ],
+  "gif_loop": 0,
+  "frames": [
+    "frames/explosion_frag/frame_01.png",
+    "frames/explosion_frag/frame_02.png",
+    "frames/explosion_frag/frame_03.png",
+    "frames/explosion_frag/frame_04.png",
+    "frames/explosion_frag/frame_05.png",
+    "frames/explosion_frag/frame_06.png",
+    "frames/explosion_frag/frame_07.png",
+    "frames/explosion_frag/frame_08.png"
+  ],
+  "contact_sheet": "contact-sheets/explosion_frag_contact.png",
+  "gif": "gifs/explosion_frag.gif"
+}
