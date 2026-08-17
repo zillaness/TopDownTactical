@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.60.html
-  version: 0.60
+  file: top_down_tactical_v0.61.html
+  version: 0.61
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.60 (working title)</title>
+<title>Top-Down Tactical v0.61 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.60 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.61 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -1884,10 +1884,10 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,,,,,",
 ",s,,,,,%%%@,,,%%%@,,g%%%@,,,%%%@,,,%%%@,,,,,,,",
-",,s,,,,,,,,,,,,,,,,,,,,,,,,,,,p,,,,,,,,,,,,,,,",
-",P,,%%%@,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%%@,",
-",,,,%%%@,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,E%%%@,",
-",s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,s,@@,,,,,,,,,,,,,,,,,,,,,,,,p,,,,,,,,,,,@@,,",
+",,P,%%,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%,,",
+",,,,%%,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%E,",
+",s,,%%,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,%%,,",
 ",,,,,,,,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,%%%@,,,,",
 ",,,,,,,,,,%%%@,,,%%%@,,g%%%@,,,%%%@,,,%%%@,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g,,,,,,,,,,,,",
@@ -10975,6 +10975,36 @@ requestAnimationFrame(frame);
     handed one before you have moved.
     Your own HUD was the smallest type on screen; the status panel and the ammo
     readout are both about 1.4x up.
+  v0.61 (2026-08-17): THE SQUAD MOVES WHEN IT IS SHOT AT. coverSpotFrom has
+    been in this file since the enemy AI shipped, gated behind side === "enemy",
+    so the garrison ducked behind the engine block while your own team stood in
+    the street. That asymmetry is gone, and the trigger is better than the one
+    the enemies use: theirs fires in applyHit, which means only once somebody is
+    already bleeding, while a NEAR MISS is being shot at too. Bearings
+    accumulate in suppressAlong — each round adds a unit vector toward where it
+    came from, weighted by how close it passed, decaying over contactMemory —
+    so what a man acts on is the direction of MOST of the contact rather than
+    the last round. Two shooters on opposite sides cancel toward zero and
+    contactCommit refuses to act below that, which is correct: there is no one
+    direction to hide from, so he holds rather than diving behind the wrong
+    wall. Concealment counts when cover is not on offer. HOLD FIRE stops it —
+    the player's off switch already existed — and so do stack, entry, aid,
+    turret, the set element of a bound, and PEEL, SUPPRESS and WALLBREACH,
+    which are men deliberately standing still so somebody else can move; the
+    peel test caught that one, covering rounds falling from 8 to 6.
+    The drone flew through walls, by name, in a comment. It has a radius now
+    and goes through moveCircle like everyone else, so it flies through
+    doorways and windows instead of masonry. And it reports MEN: anyone inside
+    its circle with a clear line to the lens gets a live mark, and the bird
+    counts as your eyes while it is up, so flying a hallway before you walk it
+    is finally worth doing for the picture rather than only for the warhead.
+    DOWNTOWN EXCHANGE's two end cars are turned ninety degrees. Broadside-on
+    their length ran WITH the street and they shielded nobody; across it they
+    are four tiles of cover facing the threat, with the player tucked behind
+    the west one at 0.80 covered and the elite behind the east one at 0.93.
+    The vehicle orientation test asserted "every car points right", which was
+    only ever true by accident of how the maps were drawn; it now asserts the
+    real invariant — that a nose is wherever its own engine is.
 -->
 </body>
 </html>

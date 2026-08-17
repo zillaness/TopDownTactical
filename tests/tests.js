@@ -3638,8 +3638,19 @@ console.log('  every car has an engine block and a body: ' +
 
 // 2. The map already says which way a car points: the engine IS the nose.
 const angs = [...new Set(cars.map(v => v.ang.toFixed(2)))];
+// The invariant is not "every car points right" — DOWNTOWN EXCHANGE's two end
+// cars are deliberately turned across the street so their length shields the
+// spawns behind them. It is that the nose is wherever the ENGINE is, for every
+// car, whichever way it was laid down. That holds on any map.
+const nosesAtEngine = cars.every(v => {
+  const eng = v.tiles.filter(t => t.engine);
+  const ex = eng.reduce((a, t) => a + t.tx, 0) / eng.length;
+  const ey = eng.reduce((a, t) => a + t.ty, 0) / eng.length;
+  const cx = (v.x0 + v.x1) / 2, cy = (v.y0 + v.y1) / 2;
+  return Math.abs(angDiff(v.ang, Math.atan2(ey - cy, ex - cx))) < deg(46);
+});
 console.log('  orientation read off the @ side: ' + angs.join(', '),
-            cars.every(v => v.ang === 0) ? 'CORRECT (all %%%@ = nose right)' : 'WRONG');
+            nosesAtEngine ? 'CORRECT (every nose is at its own engine)' : 'WRONG');
 const st = MAPS.findIndex(m => m.name === 'THE STANDOFF');
 game.mapIndex = st; initGame(); game.state = 'play';
 const facing = level.vehicles.map(v => v.ang);
