@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.58.html
-  version: 0.58
+  file: top_down_tactical_v0.59.html
+  version: 0.59
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-16
+  last_updated: 2026-08-17
   description: Playable prototype — top-down tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.58 (working title)</title>
+<title>Top-Down Tactical v0.59 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.58 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.59 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -455,6 +455,49 @@ const PROP_SPRITES = {
 };
 // --- END PROP ART ---
 
+// Replace this whole block to swap door art wholesale. --- BEGIN DOOR ART ---
+// Six frames: two materials x three states. Authored at 2x like everything
+// else, so one 32px world tile is 64px of sprite. WebP for the same reason the
+// cars are WebP — the art is photographic and quantises badly — though at door
+// size the win is thin: 3066 B against 3292 B for a 32-colour indexed PNG, and
+// the palette version bands visibly on the steel plate. Against 256-colour PNG
+// it is 8677 B and against RGBA PNG 12941 B, so the rule still holds.
+//
+// THE ANCHOR IS THE DOORWAY AXIS, NOT THE CENTROID. Every frame is composed so
+// that the line of the wall the door sits in falls on the exact vertical CENTRE
+// of the box. Closed and breached are symmetric about that line anyway; open is
+// not — the leaf has swung ninety degrees and hangs a full tile clear — which
+// is why open carries a 1x2 box with its top half empty rather than a 1x1 box
+// with the frame shoved off-centre. Draw every frame the same way and the door
+// cannot jump between states:
+//
+//     const w = sp.tiles[0] * TILE, h = sp.tiles[1] * TILE;
+//     ctx.translate(c.x, c.y);
+//     if (d.orient === "v") ctx.rotate(Math.PI / 2);
+//     ctx.drawImage(img, -w / 2, -h / 2, w, h);
+//
+// NO INSET. process_props.py insets a chair because a chair is smaller than a
+// metre and a half of floor. A door is exactly as wide as its doorway, and a
+// doorway is one tile — inset it and the leaf stops plugging the gap in the
+// wall, leaving a lit slot down each jamb. Width is fitted hard to 1 tile and
+// the depth follows from the art's own aspect: 0.36 tile for the timber door,
+// 0.50 for the steel one, which carries a brick surround.
+//
+// ONE SET SERVES BOTH ORIENTATIONS. The leaf runs left-to-right (+X), which is
+// what orient "h" means in the parser — masonry either side, so the wall and
+// the leaf run along X. A vertical door is the same sprite rotated +90 deg,
+// exactly as drawDoor already rotates the SVG. There is no second set.
+// Contract: ART_PROMPTS_MAIN_v2.1.md, BATCH 7.
+const DOOR_SPRITES = {
+  wood__closed: { tiles: [1, 1], src: `data:image/webp;base64,UklGRkwBAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSEkAAAABYCNJchr9/49ktiNHzExTUqQgIiZAeJ+VDNIXi/Jx1Txu5+V0WOjt/NMPmoXufh2ucb4W11mvx3W4xnotrsHVuAHXz7RaeH8BAFZQOCDcAAAAEAYAnQEqQABAAD5JHopEIqGhGPZIKASEtIBowBmyhSq1q9V7aFvbw9625Yq6QNcbY8m4bfC1w8DAAP79Nmhx5FdNK0Z/59yrlmxCxzwskz2jYAXPcCTQJXylhF3pWkGIPTl5FKVZmQcYv1yFVu1EtCyisT3y4UK78x93cFuzpuPm7ghNGvOvaFK8YkxTN3E44nhc2NAp9sQHfNc5OjijX5UByG5XxmijwAyMOJ+IB2AHJ8sAZQvCNJchfxwJUk8W8nZpueNelxQTQ8yrAqV7UaJwAdX/pCZcUr4AAA==` },
+  wood__open: { tiles: [1, 2], src: `data:image/webp;base64,UklGRpQBAABXRUJQVlA4WAoAAAAQAAAAPwAAfwAAQUxQSNsAAAABgFRb27LqC4BrBbcZBRgRgwwsOri7MyMISeS6u364nusaERMg/v062s5HKUcL5dXl1eXlzeXiLXlZ5fKINT6Nui6va1mna9bh2kK3y3cyGo0eRxHB3Z+T4qgO5iQ5inlpXBmXxCVweVwZl8Al33C7TzDlzWgmxRH+wEwNJMRMFZfBxXFlXAUXx2VxHVwZF8cVcB1cCRfH1XAdXAaXxDVxGVwcl8F1cKVXr/3q1XBpXB3XwpVwrS99EjeSj89NVG90PwqiwkcP/RBKOO99gq25sMHM106Y/sACwwMAVlA4IJIAAACQBQCdASpAAIAAPlEmjkSjoqEWjYwAOAUEtIAARitjpVXVI3+lU2qS5XXWaA1opvaTc2lFIAD+/TZoHv8sgPtOZ7cmC52Bb/Okj2MISDW0CgUh6EJ8JKZ/0DTD//h4RA7//IXT//u5nkVjiEzkZgABlIAF+gWx7UMSOM7SBpVT26HMg6HruZ9wO1Od338VLpZgAA==` },
+  wood__breached: { tiles: [1, 1], src: `data:image/webp;base64,UklGRoYCAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHABAAAB78IokiRFWz3L/F//Tg8dRES6mS1V88G4RgEoScEiN3mPr8EACyEh7QMEficUtW0kTfZr/oj3ohDR/wmYb6isOW5V8NYNciRJVm2n6rz7xczMzMwmL0DrVGgBZGsdzAwP/mnjgeC434iICWDB3xu9AIo4poBEUQUEMRRAUEHHpHzb1WPGCERmj4TZw4zi0v6SAHVuTAD5jxNqUSg8/W5dsfn59zXzS7//KgFiSoJJCWYsAoEq0dqd31kZ9+O7FTTZZ2L89uhlG2USLBl+aSOT7K87R7uS8vFBt62dEEb9Z6/bkMnzUNuYvqhHw2LdMNeQkPL2d0MEcOuihqDUzTdXNSSke11sJoDDzZvThkx1nm59C/NTSjZdvHf/wpEzl69cOnDw8M4Tp/bs7hj0iL355d03ahXiuh99A0EjtVsVCWB2Qj1Kg7VQFKi1OIpAMJIxA0YyTTKLsSf+XhwIyOSAwbHI1Bg0RMDEGIzYf8hCz1ZQOCDwAAAAkAYAnQEqQABAAD5NHotEIqGhHPk8ACgExLSAaX6EHP/gkQz72+1iKe1gsZ3jxpKKKrUniYaL9nIAHaJiAAD+/gbQ1fnjedci1qLIfbmdCaqh3t/BjSfHO5PBSIInwk/j3viiBqkupACpO1tnWp0uHHD+vDZKdmn3PaPrNsCdHQ6NmE2jNmL1tnPxAdKb0YmG9n8HnJbSQXBAsTRajjGgMW5NXpgYCDa6QWPkZOMU21yBTg4Z/sv6T0XjsHqe2NuX5oTKJdBzcMkJAe/R7nuMi08JBqdLCCS+NFv3wwpCFjZYQ2ioBqjTr/3AadcH4AAA` },
+  steel__closed: { tiles: [1, 1], src: `data:image/webp;base64,UklGRrQBAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSG4AAAABcCNJkhPx/5+ehRxmVvZpVYGFExETMJz+x+xfDf/27k/NX19C8ATrWkSPQttwJrr3o7NMW0SPRvNMM9G3TotEcx1eo+1OW0V3XqdZYnUtojsuGm0LVtcseio0Ez2KVNtD6w+1fqu3b9QqLcPpH1ZQOCAgAQAAMAgAnQEqQABAAD5JHotEIqGhGvulmCgEhLOAZlrTBAMKVBGHKi9DuAZCVc/UQGNnYP93ZYHwE2saGUnLrPSQ6aBSzn72Jor98hgA/v4G0AQVJLehL31lUUlmfTRwn9Pe3LSEug8jZtmtzXpG2PWIlnmIBNf43Dfb0zDcN9Tp0FVHuOQkdTy0xXZurE2fokhJ0zSFGrEAgFScSbQrAgmF7gCO+ld//5sRo3KPI5i1HBvboLmCtjVf0zAuuCXOyHyqdH9IFxvJxcXBbPTGfuNBfgpV8UH4cxf46ec3ZWfO51sJf8wzyTAp9zpKhhz+yAn0V9SATfzggXyVGWRGOfsqThTVdFyS8gMyhKh/giGIFvVJp/q364MKPiKRDIz5JoAA` },
+  steel__open: { tiles: [1, 2], src: `data:image/webp;base64,UklGRhACAABXRUJQVlA4WAoAAAAQAAAAPwAAfwAAQUxQSCYBAAABCji2rR17/jIrXSaQtDYmYLSubNtO5wzDtofhtLbx4bdyoy7v/b+ImADx79cn5fHl/s7GlydavufLPa27SNLleni+I/lyL7QXks93fHh+08OrPJmeGAfVXGd6lfJzhg53Q69RYjfQqoUaoC3K1NQkoB0zxgJt6jWSoUBzeolkCNC2XibpB+f/7QXAeYOpjALaokaJXcIdxE0sUFLIq2OnHglaPBQ0F4IWBUnBB1nSw+/rube5TVRNWy/WM1cHXadnCVYfWYY1SBZj1cFVwlX9BZXDFf/5FcGVYfXq2YZVTRZjVf0FFcE1wlXCFcEV//mUwhXAbcDtwS3C7aLJR5Fh9EB6J8lRJHUkIyXZD8pTB12lV4Owqqn6Y5XBZZKBWFl88ML6+QNWUDggxAAAADAHAJ0BKkAAgAA+USKORKOiIZaOxGw4BQS0gAAqj+u5HcjpRWIBRV24RtuPYg3I9d4bRuBTzdyFIDxwnq4ywU5+sAD+/PhAJ47A0oGN0RsrSfJx7p1x5qvhoq8Fr1p5a75hN7i6yKvrCBb6sknF6xUyyHzq8on14WtnQGzJa5GVJnMLkbAzAhffKmEA/I5Mj/+zvI7WP/SM1fDmYnj8f/9ny9KsVnQfSh0rlRyB5AyyQ13Vqs7Mv+RM6GF4vQRJYxQAAAA=` },
+  steel__breached: { tiles: [1, 1], src: `data:image/webp;base64,UklGRqACAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSFABAAABkKptt2orIx7cEsndboAG3ZLDZVCtQXN3y2MuLLq7uyZvy9ecY/zIWtsGTomICaD//rOqyPPgi7KSKi+rOCt9lX/v8zjPfZGkWZIWcZznSV76Ms7TIsvjNC18nnsVRbPCuALnnWNmdlzrmJkdtxg5ZsccRVzvHB8vWlB9uoAMvoPWCU72I4ND3reQzyGLA5s81vXZCjhCtqSsltkCMNmUPj+8nswoAo72I6PfCTw2kiXAY5u5rX98tpnbYEzx1m0eN8pQ/UozAkAr/3qkGXzvsZ9sBfAAIlox1QyC7qZ+tODtPDOQZC4Nn3Ucq3prSEt4vpShKg+uLeyjDU+vLPpu5oiW+q+9eWoR0exRLdC7FqAABLUvrgLAbRcdz1+7yDXyIwDh9E3/OXKNxwu0qiEAUBEBgoigg14COqhNrUoAAPHeq/hWBYCGoOqbAwD67x9WUDggKgEAAPAHAJ0BKkAAQAA+TR6ORCKhoZj5zkgoBMS0gAigDqV48HJEii6Hwxw3y9XvF+7Hot97IivDZWrUQmzfu/aAZwU80b0I9SMg4AD+/gbeWe6LrlocqbGzdn/uEf9Gdk/YUscQFGb4Px/4WeCwqzutyTe8Zfk2E5CnViWrtd/lClo3/H9/80/oNeVxgtw6i3/zbvBsUqmzA1JEx2DEUn1XhXmw98W8ByfradjtWg9KDoUY2DaES9PSY8GNafLVYQbCbTQbFCbcYOTtqECWCCIu0Hmc3I+FuBkcN7On7lRRHf/v48T9Dbeij/pBMLZmvh9eZqa0ajwVywTTCZV7ErAkeXIBNIjfHbu7RyCgmxsNvaPyWo06nF1neDjkFiWs7urKrytI/6QkVqgAAAA=` },
+};
+// --- END DOOR ART ---
+
 // Drop recorded sound in here and it replaces the synth. --- BEGIN SOUND ART ---
 // EMPTY BY DESIGN, and the emptiness is the point: the wiring is the work and
 // the files are just a drop. The game already makes noise — every sound is
@@ -604,6 +647,14 @@ function propImage(key) {
   if (!spec || typeof Image === "undefined") return null;
   let im = _propImg[key];
   if (!im) { im = _propImg[key] = new Image(); im.src = spec.src; }
+  return (im.complete && im.naturalWidth) ? im : null;
+}
+const _doorImg = {};
+function doorImage(key) {
+  const spec = DOOR_SPRITES[key];
+  if (!spec || typeof Image === "undefined") return null;
+  let im = _doorImg[key];
+  if (!im) { im = _doorImg[key] = new Image(); im.src = spec.src; }
   return (im.complete && im.naturalWidth) ? im : null;
 }
 // Ground is one repeating pattern per key, built once. Because the camera
@@ -2277,7 +2328,13 @@ function parseLevel() {
     }
     if (ch === "D" || ch === "L") {
       const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#");
+      // The MATERIAL is captured here and never again, because `locked` is not
+      // a material — it is cleared the moment the door is opened OR breached,
+      // so keying the art off it would turn a security door into plywood at
+      // exactly the instant you got through it. 'L' IS the steel door: the one
+      // you have to breach is the one worth locking, so this needs no map edit.
       const door = { tx: x, ty: y, orient: horiz ? "h" : "v", state: "closed",
+                     mat: ch === "L" ? "steel" : "wood",
                      locked: ch === "L", hp: TUNE.doorHp, open: 0 };
       level.doors.push(door); level.doorAt.set(x + "," + y, door);
       continue;
@@ -7730,6 +7787,23 @@ function drawCamera(cam) {
 
 function drawDoor(d) {
   const c = doorCenter(d);
+  // Photographic art first, the SVG behind it. The anchor is THE DOORWAY AXIS
+  // and it is the vertical centre of every frame — which is why open carries a
+  // 1x2 box with an empty top half rather than a 1x1 box with the frame shoved
+  // off-centre, and why all six frames draw with the identical two lines. Get
+  // that wrong and the door slides along the wall as it opens.
+  const mat = d.mat || "wood";                       // guards doors built before mat existed
+  const art = DOOR_SPRITES[mat + "__" + d.state];
+  const img = art && doorImage(mat + "__" + d.state);
+  if (img) {
+    const w = art.tiles[0] * TILE, h = art.tiles[1] * TILE;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    if (d.orient === "v") ctx.rotate(Math.PI / 2);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return;
+  }
   const key = d.state === "breached" ? "door_breached" : d.state === "open" ? "door_open" : "door_closed";
   const tint = d.state === "breached" ? COLORS.doorBreached : d.locked ? COLORS.doorLocked
              : d.state === "open" ? COLORS.doorOpen : COLORS.doorClosed;
@@ -10608,6 +10682,42 @@ requestAnimationFrame(frame);
     which is the entire thing the tree art exists to stop. Canopies now draw
     with the cars, at full strength where anyone can see them and dimmed where
     they are only remembered.
+  v0.59 (2026-08-17): CAR-SIZED CARS, A ROSTER YOU CAN CLICK, AND COVER THAT
+    COMES OUT OF THE FOG. Twelve of the twenty-seven vehicles were authored as
+    2x1 tile groups; at 32px to the metre against a man of r=9 that is a 1.8m
+    body — a golf cart — so the 4x2 art was squeezed to half length and a box
+    truck read as a hatchback. All 27 are now full size, each grown back from
+    its own engine so its nose stayed put, and only open ground was allowed to
+    become bodywork. THE STANDOFF's west car slid west rather than east because
+    growing east would have run the body through the mounted gun beside it.
+    Selecting a man was a moving-target problem: the hit test ran a flat 26px
+    nearest-man search against LIVE positions at the instant of the press, so a
+    man who sidestepped slid out from under the cursor and, in a stack, the
+    winner flipped between two men as they jostled. Hysteresis fixes the pick
+    (30px to acquire, 46px to keep, 12px for a rival to steal it) and a ring
+    drawn on the man the button would take says so before you press. The squad
+    roster moved to the top of the screen and became the input device it always
+    looked like — click a card, or drag across several — which costs no new
+    binding, because the trigger lives in the world and a press that begins on
+    HUD chrome was never a shot.
+    Windows, doors, cameras and turrets drew UNDER the fog, and a tile that
+    stops sight sits by construction on the boundary of every visibility
+    polygon that reaches it, so the veil landed squarely on the thing you were
+    hiding behind. They join the cars and the trees above it. Doors are
+    photographs now rather than SVG: two materials by three states, anchored on
+    the doorway axis so a door cannot slide along its wall as it opens. The
+    material is captured at parse time and never inferred from `locked`, which
+    is cleared the moment you get through — the bug that would have turned a
+    security door into plywood at exactly the wrong instant.
+    The emplaced gun is an M2 Browning instead of a circle and a line, mount
+    drawn in world orientation and weapon in its own because a tripod does not
+    traverse; and a vehicle carrying a ring-mounted .50 is now a Humvee rather
+    than whatever the position hash picked. Squaddies turn toward incoming fire
+    and call the clock — acquisition is cone-gated at 160 degrees, so a man
+    holding a bearing from two rooms ago was physically unable to perceive the
+    firefight he was standing in. SOUND_ART is an empty table that overrides
+    the synthesized effects one key at a time, for whenever recorded sound
+    arrives.
 -->
 </body>
 </html>
