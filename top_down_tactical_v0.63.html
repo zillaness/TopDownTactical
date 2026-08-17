@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.62.html
-  version: 0.62
+  file: top_down_tactical_v0.63.html
+  version: 0.63
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.62 (working title)</title>
+<title>Top-Down Tactical v0.63 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.62 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.63 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -837,6 +837,14 @@ const TUNE = {
 
   // vision
   playerViewDist: 620,
+  // THE GLASS. A marksman rifle reaches 1450 while a naked eye in this game
+  // reaches 620, so more than half the gun's envelope was ground you could
+  // shoot into but never see into — you were firing at a black rectangle.
+  // Settling on the sights with the DMR opens a NARROW, LONG wedge: you see
+  // most of the way to max range, but through a 26-degree slot, so what the
+  // scope costs you is everything either side of it.
+  scopeRange: 1380, scopeFov: deg(26), scopeRays: 96,
+  scopeLead: 0.92, scopeLeadMax: 760,
   squadViewDist: 430,               // how far a squaddie's cone lights up for you
   memoryFade: 22,                   // seconds a last-known mark survives
   snakeTime: 3.5, snakeRange: 300, snakeArc: deg(110),
@@ -2732,6 +2740,12 @@ function visibleToPlayerSide(ent) {
   // The bird is a pair of eyes on your side while it is up. This is what makes
   // it worth flying somewhere rather than just flying it INTO something.
   if (game.fpv && canSee(game.fpv.x, game.fpv.y, ent.x, ent.y, TUNE.fpvSee)) return "drone";
+  // down the glass, out to scope range, but only inside that narrow slot
+  if (scoped()) {
+    const p2 = game.player;
+    const aim = Math.atan2(input.mouse.wy - p2.y, input.mouse.wx - p2.x);
+    if (canSee(p2.x, p2.y, ent.x, ent.y, TUNE.scopeRange, aim, TUNE.scopeFov)) return "scope";
+  }
   for (const s of game.squad) {
     if (s.alive && canSee(s.x, s.y, ent.x, ent.y, TUNE.aiViewDistAlert, s.face, deg(160))) return "squad";
   }
@@ -7503,6 +7517,7 @@ function render() {
     (game.squadPolys || []).forEach(punch);
     if (game.snake && game.snake.t > 0) punch(game.snakePoly);
     if (game.fpv) punch(circlePoly(game.fpv.x, game.fpv.y, TUNE.fpvSee));
+    if (game.scopePoly) punch(game.scopePoly);   // the slot the glass sees down
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(fog, 0, 0, viewW, viewH);
@@ -8513,6 +8528,52 @@ function buildMinimapLayer(scale) {
   }
 }
 
+// What glassing looks like from the outside. The camera has walked most of a
+// screen away from your man, so two things have to be said plainly: WHERE HE
+// IS, and HOW FAR the thing under the cursor actually is. Without the first
+// you lose yourself; without the second the reach is a feeling rather than a
+// number you can act on.
+function drawScopeOverlay() {
+  if (!scoped()) return;
+  const p = game.player;
+  const sx = viewW / 2 + (p.x - game.cam.x) * game.zoom;
+  const sy = viewH / 2 + (p.y - game.cam.y) * game.zoom;
+  ctx.save();
+  // a vignette, so the narrowed attention reads as narrowed
+  const g = ctx.createRadialGradient(viewW / 2, viewH / 2, Math.min(viewW, viewH) * 0.30,
+                                     viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.62);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.44)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, viewW, viewH);
+  // your man: a ring where he is, or an arrow at the edge pointing back to him
+  const onScreen = sx > 10 && sx < viewW - 10 && sy > 10 && sy < viewH - 10;
+  ctx.strokeStyle = COLORS.player; ctx.lineWidth = 1.6;
+  if (onScreen) {
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(sx, sy, 16, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+  } else {
+    const a = Math.atan2(sy - viewH / 2, sx - viewW / 2);
+    const ex = viewW / 2 + Math.cos(a) * (viewW / 2 - 34);
+    const ey = viewH / 2 + Math.sin(a) * (viewH / 2 - 34);
+    ctx.translate(ex, ey); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -7); ctx.lineTo(-8, 7); ctx.closePath();
+    ctx.fillStyle = COLORS.player; ctx.fill();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = COLORS.hudDim; ctx.font = "10px Consolas, monospace"; ctx.textAlign = "center";
+    ctx.fillText("YOU", ex, ey + 22);
+  }
+  // range to the cursor, in metres, at one tile to the metre
+  const d = dist(p.x, p.y, input.mouse.wx, input.mouse.wy);
+  const cx = viewW / 2 + (input.mouse.wx - game.cam.x) * game.zoom;
+  const cy = viewH / 2 + (input.mouse.wy - game.cam.y) * game.zoom;
+  const over = d > (p.weapon.range || TUNE.rifle.range);
+  ctx.font = "bold 12px Consolas, monospace"; ctx.textAlign = "left";
+  ctx.fillStyle = over ? COLORS.danger : COLORS.accent;
+  ctx.fillText(Math.round(d / TILE) + "m" + (over ? "  BEYOND THE GUN" : ""), cx + 16, cy - 10);
+  ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
+  ctx.restore();
+}
+
 function drawMinimap() {
   if (!game.minimap || !level.w) return;
   const scale = Math.min(176 / level.w, 124 / level.h);
@@ -8836,6 +8897,7 @@ function drawHud() {
     ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
   }
 
+  drawScopeOverlay();
   drawMinimap();
   drawWheel();
 
@@ -9661,11 +9723,49 @@ function glassing() {
   return !!(g && g.name === "MARKSMAN RIFLE");
 }
 
+// Eye to the scope. Reuses the STEADY key rather than inventing a binding:
+// space already means settled on the sights, and putting your eye behind glass
+// is the same gesture. A man running, blind, staggered or on a turret is not
+// glassing anything.
+function scoped() {
+  const p = game.player;
+  if (!p || !p.alive || !glassing()) return false;
+  return p.steady && !p.sprinting && p.blind <= 0 && p.stagger <= 0 && !p.turret && !game.fpv;
+}
+
+// The wedge the scope sees down. Narrow and long, walled by the same raycast
+// everything else uses — glass does not see through a building.
+function scopePolygon() {
+  const p = game.player;
+  const aim = Math.atan2(input.mouse.wy - p.y, input.mouse.wx - p.x);
+  const half = TUNE.scopeFov / 2, n = TUNE.scopeRays, pts = [{ x: p.x, y: p.y }];
+  for (let i = 0; i <= n; i++) {
+    const ang = aim - half + (i / n) * TUNE.scopeFov;
+    const hit = raycast(p.x, p.y, ang, TUNE.scopeRange, opaque);
+    pts.push(hit);
+    // and it EXPLORES what it looks at, the same as any other pair of eyes
+    const stepLen = TILE * 0.5, steps = Math.ceil(hit.d / stepLen);
+    for (let s2 = 0; s2 <= steps; s2++) {
+      const d = Math.min(hit.d, s2 * stepLen);
+      const tx = Math.floor((p.x + Math.cos(ang) * d) / TILE);
+      const ty = Math.floor((p.y + Math.sin(ang) * d) / TILE);
+      if (inBounds(tx, ty)) seen.grid[ty][tx] = 1;
+    }
+  }
+  return pts;
+}
+
 function updateCamera(dt) {
   const p = game.fpv || game.player;   // goggles down: you see what the bird sees
   if (!glassing() && game.zoom < 1) game.zoom = 1;   // the glass goes back in the pocket
   const toCursor = { x: input.mouse.wx - p.x, y: input.mouse.wy - p.y };
-  const lead = Math.min(TUNE.camLeadMax * (glassing() ? 2.2 : 1), Math.hypot(toCursor.x, toCursor.y) * TUNE.camLead);
+  // Scoped, the view WALKS OUT toward the cursor: push the cursor to the edge
+  // and the camera follows it, which brings ground on screen that was never
+  // on screen before and is the whole point of carrying the thing.
+  const sc = scoped();
+  const leadK = sc ? TUNE.scopeLead : TUNE.camLead;
+  const leadCap = sc ? TUNE.scopeLeadMax : TUNE.camLeadMax * (glassing() ? 2.2 : 1);
+  const lead = Math.min(leadCap, Math.hypot(toCursor.x, toCursor.y) * leadK);
   const ang = Math.atan2(toCursor.y, toCursor.x);
   const tx = p.x + Math.cos(ang) * lead, ty = p.y + Math.sin(ang) * lead;
   game.cam.x = lerp(game.cam.x, tx, clamp(dt * TUNE.camLerp, 0, 1));
@@ -9737,6 +9837,7 @@ function frame(now) {
       const eye = eyePoint(game.player);   // you see from the muzzle, not your belly button
       game.eye = eye;
       game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
+      game.scopePoly = scoped() ? scopePolygon() : null;
       refreshSquadCones();
       game.snakePoly = (game.snake && game.snake.t > 0)
         ? computeVisCone(game.snake.x, game.snake.y, TUNE.snakeRange, game.snake.face, TUNE.snakeArc, 40)
@@ -11057,6 +11158,28 @@ requestAnimationFrame(frame);
     All twenty maps run solo with no exceptions and the right squad size on
     each, asserted in tests/run.sh — including the two men on BROKEN ARROW you
     are still there to carry out.
+  v0.63 (2026-08-17): THE GLASS. The marksman rifle reached 1450 while a naked
+    eye in this game reaches 620, so more than half the gun's envelope was
+    ground you could shoot into but never see into — you were firing at a black
+    rectangle and hoping. Settling on the sights with the DMR in hand now opens
+    a scope: STEADY is the binding, because space already means settled on the
+    sights and putting your eye behind glass is the same gesture, so nothing
+    new had to be learned.
+    Two things happen together. The VIEW walks out toward the cursor — the lead
+    cap goes from 242px to 760px, which puts ground on screen that was never on
+    screen before and brings aimable reach to 1400px against the gun's 1450.
+    And SIGHT follows it, out to 1380px, but through a 26-degree slot: what the
+    scope costs you is everything either side of it, and it does not see
+    through masonry any more than an eye does. Measured across all twenty maps,
+    the longest clear sightline anywhere is 1528px on THE LONG WALK, so the
+    gun, the glass and the biggest map in the game now agree with one another.
+    Five maps have lanes past 1000px where this matters: MARKET ROW, FLIGHT
+    214, THE TREELINE, THE LONG WALK and BROKEN ARROW.
+    Because the camera walks most of a screen from your man, the overlay says
+    where he is — a ring when he is on screen, an arrow at the edge when he is
+    not — and puts the range to the cursor in metres beside it, reddening past
+    the gun's reach. A vignette narrows the frame so the narrowed attention
+    reads as a choice.
 -->
 </body>
 </html>

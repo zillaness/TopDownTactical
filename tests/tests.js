@@ -3036,6 +3036,59 @@ game.loadout.squad = prevSquad;
 console.log('SOLO TEST DONE');
 })();
 
+(function scopeTests(){
+console.log('--- the glass: seeing further than the naked eye ---');
+const prevGun = game.loadout.primary;
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE LONG WALK');
+game.loadout.primary = 'dmr'; initGame(); game.state = 'play';
+const p = game.player, foe = game.enemies.find(e => e.alive);
+foe.floor = p.floor || 0;
+console.log('  glassing with the DMR in hand: ' + glassing(), glassing() ? 'CORRECT' : 'WRONG');
+let lane = null;
+for (let i = 0; i < 720 && !lane; i++) {
+  const a = (i / 720) * TAU;
+  const hit = raycast(p.x, p.y, a, 1200, opaque);
+  if (!hit.hit || hit.d > 1050) lane = a;
+}
+if (lane === null) { console.log('  (no open lane found — cannot assert visibility)'); }
+else {
+  foe.x = p.x + Math.cos(lane) * 950; foe.y = p.y + Math.sin(lane) * 950;
+  input.mouse.wx = p.x + Math.cos(lane) * 1200; input.mouse.wy = p.y + Math.sin(lane) * 1200;
+  p.steady = false; p.sprinting = false; p.blind = 0; p.stagger = 0;
+  console.log('  a man at 950px, unaided (eye reaches ' + TUNE.playerViewDist + '): ' + visibleToPlayerSide(foe),
+              !visibleToPlayerSide(foe) ? 'CORRECT (too far to see)' : 'WRONG');
+  p.steady = true;
+  console.log('  scoped(): ' + scoped(), scoped() ? 'CORRECT' : 'WRONG');
+  console.log('  down the glass, same man: ' + visibleToPlayerSide(foe),
+              visibleToPlayerSide(foe) === 'scope' ? 'CORRECT (the glass reaches him)' : 'WRONG');
+  const off = lane + deg(60);
+  foe.x = p.x + Math.cos(off) * 950; foe.y = p.y + Math.sin(off) * 950;
+  console.log('  same range, 60 degrees off the aim line: ' + visibleToPlayerSide(foe),
+              !visibleToPlayerSide(foe) ? 'CORRECT (a scope is a slot, not a sphere)' : 'WRONG');
+}
+// the camera walks out far enough that near-max-range ground is on screen
+initGame(); game.state = 'play';
+const q = game.player;
+input.mouse.wx = q.x + 1200; input.mouse.wy = q.y;
+game.cam.x = q.x; game.cam.y = q.y; q.steady = false;
+for (let i = 0; i < 120; i++) updateCamera(1 / 60);
+const plain = game.cam.x - q.x;
+q.steady = true;
+for (let i = 0; i < 180; i++) updateCamera(1 / 60);
+const scopedLead = game.cam.x - q.x;
+// Not a ratio: the unaided lead varies with where the world-edge clamp bites,
+// so the invariant is that scoped reaches its own cap and beats unaided.
+console.log('  camera lead ' + Math.round(plain) + 'px unaided -> ' + Math.round(scopedLead) + 'px scoped',
+            scopedLead > plain && scopedLead >= TUNE.scopeLeadMax * 0.9
+              ? 'CORRECT (the view walks out toward the cursor)' : 'WRONG');
+// and that the reach it buys covers most of the gun's range
+const reach = scopedLead + viewW / 2;
+console.log('  aimable reach ' + Math.round(reach) + 'px vs DMR range ' + PRIMARIES.dmr.w.range,
+            reach >= PRIMARIES.dmr.w.range * 0.85 ? 'CORRECT (you can aim to near max range)' : 'WRONG');
+game.loadout.primary = prevGun;
+console.log('SCOPE TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
