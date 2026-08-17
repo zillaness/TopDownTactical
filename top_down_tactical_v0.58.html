@@ -2345,6 +2345,13 @@ function parseLevel() {
     // Which car it is, from a hash of its own corner: one body per vehicle,
     // stable across replays, and a lane of parked cars is not five clones.
     v.body = VEH_BODIES[tileHash(v.x0, v.y0) % VEH_BODIES.length];
+    // A .50 on a ring mount is not bolted to a hatchback. The parser already
+    // grants near-full traverse to a gun bolted beside bodywork; if a vehicle
+    // is carrying one it IS the gun truck, so it gets the Humvee body — and
+    // with it the armour, which is the whole reason you would fight from it.
+    if (level.turrets.some(t => t.ring &&
+          v.tiles.some(tl => Math.abs(tl.tx - t.tx) + Math.abs(tl.ty - t.ty) === 1)))
+      v.body = "humvee";
     v.side = { front: 0, rear: 0, left: 0, right: 0 };
     v.hotSide = "front"; v.stage = 0;
     // Which panel each tile IS, in the car's own frame. The ends are bonnet and
@@ -7568,14 +7575,73 @@ function drawTurret(t) {
     ctx.arc(0, 0, 130, t.face0 - (t.arc || TUNE.turretArc) / 2, t.face0 + (t.arc || TUNE.turretArc) / 2);
     ctx.closePath(); ctx.fill();
   }
-  ctx.fillStyle = "#242b31"; ctx.strokeStyle = "#14181c"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, TAU); ctx.fill(); ctx.stroke();
   const fa = t.manned ? t.manned.face : t.face0;
+  // The mount is drawn in WORLD orientation and the gun on top of it in the
+  // gun's, because a tripod does not rotate when the gunner traverses — only
+  // the weapon does. A ring mount is the vehicle's, so it does not turn either.
+  if (t.ring) {
+    // vehicle ring: the hoop the gunner stands inside, and the pintle
+    ctx.strokeStyle = "#1a1f24"; ctx.lineWidth = 4.2;
+    ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = "#4a545e"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke();
+  } else {
+    // M3 tripod: three legs, one forward under the barrel and two trailing
+    ctx.strokeStyle = "#1c2126"; ctx.lineWidth = 3.4;
+    for (const off of [0, 2.4, -2.4]) {
+      const a = t.face0 + off;
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); ctx.stroke();
+    }
+    ctx.fillStyle = "#161a1e";
+    for (const off of [0, 2.4, -2.4]) {
+      const a = t.face0 + off;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 13, Math.sin(a) * 13, 2, 0, TAU); ctx.fill();
+    }
+  }
+  // pintle boss, the thing the gun actually swivels on
+  ctx.fillStyle = "#2b3239"; ctx.strokeStyle = "#12161a"; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.stroke();
+
+  // ---- the gun itself: an M2 Browning, nose +X, pivoting on the pintle.
+  // Roughly to scale — a real M2 is about 1.65m, and at 32px to the metre that
+  // is ~53px end to end, which is what this comes to from spade grips to muzzle.
   ctx.rotate(fa);
-  ctx.strokeStyle = "#14181c"; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(24, 0); ctx.stroke();
-  ctx.strokeStyle = "#5a6570"; ctx.lineWidth = 2.4;
-  ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(23, 0); ctx.stroke();
+  // ammunition can, outboard on the right, and the belt running up into the feed
+  ctx.fillStyle = "#39412c"; ctx.strokeStyle = "#20261a"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.rect(-11, 5.5, 11, 7); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "#525c3a"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-11, 7.6); ctx.lineTo(0, 7.6); ctx.stroke();
+  ctx.strokeStyle = "#6b6142"; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.moveTo(-3.5, 5.6); ctx.lineTo(-3.5, 2.4); ctx.stroke();
+  // receiver
+  ctx.fillStyle = "#2f373e"; ctx.strokeStyle = "#12161a"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.rect(-15, -4.4, 22, 8.8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#3d4750";
+  ctx.fillRect(-13, -3, 18, 2.6);                       // top plate catches the light
+  // backplate and the spade grips either side of the butterfly trigger
+  ctx.fillStyle = "#242b31"; ctx.strokeStyle = "#12161a";
+  ctx.beginPath(); ctx.rect(-18, -5.4, 3.4, 10.8); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "#1a2025"; ctx.lineWidth = 2.8;
+  ctx.beginPath();
+  ctx.moveTo(-16, -5); ctx.lineTo(-20.5, -7.4);
+  ctx.moveTo(-16, 5); ctx.lineTo(-20.5, 7.4);
+  ctx.stroke();
+  // charging handle, right side
+  ctx.strokeStyle = "#4d575f"; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-8, 4.4); ctx.lineTo(-8, 6.4); ctx.stroke();
+  // heavy barrel, tapering, with the jacket collar and carrying handle
+  ctx.strokeStyle = "#12161a"; ctx.lineWidth = 5.6;
+  ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(30, 0); ctx.stroke();
+  ctx.strokeStyle = "#464f58"; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(29, 0); ctx.stroke();
+  ctx.fillStyle = "#39424a"; ctx.strokeStyle = "#12161a"; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.rect(7, -3.6, 5, 7.2); ctx.fill(); ctx.stroke();   // collar
+  ctx.fillStyle = "#2b3239";
+  ctx.beginPath(); ctx.rect(13, -4.6, 6, 2.4); ctx.fill(); ctx.stroke();  // carry handle
+  // muzzle
+  ctx.fillStyle = "#20262b"; ctx.strokeStyle = "#12161a";
+  ctx.beginPath(); ctx.rect(28, -3, 4, 6); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
 
