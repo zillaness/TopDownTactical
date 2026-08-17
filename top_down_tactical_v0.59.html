@@ -844,13 +844,22 @@ const TUNE = {
   aiViewDistAlert: 520, aiFovAlert: deg(150),
   losRays: 280,
 
-  // player weapon (carbine)
+  // Player weapon (carbine). Guns got TIGHTER and LONGER in v0.60, per Sam.
+  // The standing cone came down from 0.54 to 0.34 degrees and reach from 900
+  // to 1150 — a carbine that could not hold a man at 30m was the thing making
+  // every fight feel like a knife fight. Moving penalties are untouched on
+  // purpose: the reward is for stopping and shooting, and shrinking the base
+  // cone without shrinking the moving one widens the gap between the two,
+  // which is the trade the corner game is built on.
   rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
-           spreadBase: deg(0.54), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
-           recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 900 },
-  // enemy weapon
+           spreadBase: deg(0.34), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
+           recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 1150 },
+  // Enemy weapon. Tightened too, but deliberately LESS: 1.44 to 1.20 against
+  // the player's 0.54 to 0.34, and reach 800 to 880 against 900 to 1150. The
+  // ask was for the guns to feel accurate, not for the garrison to get a free
+  // buff — so the spread between you and them widens rather than sliding.
   akm:   { dmg: 21, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
-           spreadBase: deg(1.44), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 800 },
+           spreadBase: deg(1.20), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 880 },
 
   // lethality
   playerHp: 100, squadHp: 100, enemyHp: 82,
@@ -1151,8 +1160,14 @@ const AMMO = {
   x39:  { name: "7.62 FMJ",  pen: 32, dmgMul: 1.00 },
   pistol:{name: "9mm FMJ",   pen: 12, dmgMul: 1.00 },
   hp9:  { name: "9mm HP",    pen: 3,  dmgMul: 1.25 },
-  bird: { name: "BIRDSHOT",  pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
-  buck: { name: "BUCKSHOT",  pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
+  // Buckshot tightened from 7 to 4.4 degrees and birdshot from 11 to 7.2. At
+  // 7 degrees a buck pattern was wider than a doorway by the far side of a
+  // room, so the shotgun missed a man it was pointed at — which is the exact
+  // opposite of what a shotgun is for. It still opens fastest of anything in
+  // the game; it just no longer sprays past its own target at across-the-room
+  // range. Slug is unaffected: a slug has no pattern.
+  bird: { name: "BIRDSHOT",  pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(7.2) },
+  buck: { name: "BUCKSHOT",  pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(4.4) },
   slug: { name: "SLUG",      pen: 34, dmgMul: 1.70 },
 };
 
@@ -5483,15 +5498,15 @@ const ROLES = {
   rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 } },
   breacher: { name: "BREACHER", sprite: "squad_breacher",
-              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 420, mag: 7,   reload: 3.2 } },
+              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 550, mag: 7,   reload: 3.2 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
-              w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 950, mag: 100, reload: 5.0,
-                   spreadBase: deg(1.53), carrySpeed: 0.86 } },
+              w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 1100, mag: 100, reload: 5.0,
+                   spreadBase: deg(1.08), carrySpeed: 0.86 } },
   grenadier:{ name: "GRENADIER", sprite: "squad_breacher",
-              w: { ammo: "fmj",  rpm: 420, dmg: 34, range: 900 }, launcher: true },
+              w: { ammo: "fmj",  rpm: 420, dmg: 34, range: 1150 }, launcher: true },
   marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
-              w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1100, mag: 20, reload: 2.9,
-                   spreadBase: deg(0.32), penMul: 1.15, carrySpeed: 0.95 } },
+              w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1450, mag: 20, reload: 2.9,
+                   spreadBase: deg(0.19), penMul: 1.15, carrySpeed: 0.95 } },
 };
 
 const PRIMARIES = {
@@ -5500,25 +5515,25 @@ const PRIMARIES = {
              w: { ...TUNE.rifle } },
   shotgun: { name: "SHOTGUN",    ammo: ["buck", "slug", "bird"],
              note: "devastating close, useless far",
-             w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
-                  spreadBase: deg(1.08), recoil: deg(3), recoilMax: deg(9) } },
+             w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 560,
+                  spreadBase: deg(0.70), recoil: deg(3), recoilMax: deg(9) } },
   saw:     { name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
              note: "belt-fed — you are the base of fire, and you are slow",
-             w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 900,
-                  spreadBase: deg(1.53), spreadMove: deg(13), spreadWalkMove: deg(6.5),
+             w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 1100,
+                  spreadBase: deg(1.08), spreadMove: deg(13), spreadWalkMove: deg(6.5),
                   recoil: deg(0.75), recoilMax: deg(8), recoilDecay: deg(4.5), sprintDrain: 1.55,
                   recoilRamp: 1.30 },   // long strings are the belt-fed's whole job
              speed: 0.86 },
   dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
              note: "one round at a time, from across the map",
-             w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
-                  spreadBase: deg(0.32), spreadMove: deg(12), spreadWalkMove: deg(5),
+             w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1450,
+                  spreadBase: deg(0.19), spreadMove: deg(12), spreadWalkMove: deg(5),
                   recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15, sprintDrain: 1.2 },
              speed: 0.95 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
-             w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
-                  spreadBase: deg(0.72), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
+             w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 700,
+                  spreadBase: deg(0.48), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
 };
 
 // Everybody carries a sidearm. It is not a choice at the briefing — it is the
@@ -8436,54 +8451,61 @@ function drawHud() {
     ctx.lineWidth = 1.5;
   }
 
-  // player status (bottom left)
-  const bx = 18, by = viewH - 88;
-  ctx.fillStyle = "#000a"; ctx.fillRect(bx - 8, by - 20, 292, 90);
-  ctx.fillStyle = COLORS.hud; ctx.fillText("#1 POINT MAN (YOU)", bx, by - 4);
-  ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 150, 8);
-  ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 150 * clamp(p.hp / p.maxHp, 0, 1), 8);
+  // Player status, bottom left. YOUR OWN state is the thing you read most and
+  // it was the smallest type on the screen — six numbers at 11px in a corner,
+  // while the roster above got 13px cards. Everything here is scaled up about
+  // 1.4x: a 420x126 panel, 210px bars, and the two lines you actually act on
+  // (shoulder and formation) at 15px instead of 13.
+  const bx = 22, by = viewH - 118;
+  ctx.fillStyle = "#000b"; ctx.fillRect(bx - 10, by - 28, 420, 126);
+  ctx.strokeStyle = "#1e262d"; ctx.lineWidth = 1;
+  ctx.strokeRect(bx - 9.5, by - 27.5, 419, 125);
+  ctx.font = "bold 15px Consolas, monospace";
+  ctx.fillStyle = COLORS.hud; ctx.fillText("#1 POINT MAN (YOU)", bx, by - 8);
+  ctx.font = "13px Consolas, monospace";
+  ctx.fillStyle = "#333"; ctx.fillRect(bx, by + 2, 210, 12);
+  ctx.fillStyle = p.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(bx, by + 2, 210 * clamp(p.hp / p.maxHp, 0, 1), 12);
   // Plate integrity sits under the health bar, because it is the thing that
   // runs out first and the player needs to feel it going.
   if (p.armorMax > 0) {
-    ctx.fillStyle = "#2a2f34"; ctx.fillRect(bx, by + 15, 150, 6);
+    ctx.fillStyle = "#2a2f34"; ctx.fillRect(bx, by + 19, 210, 9);
     ctx.fillStyle = p.armor > p.armorMax * 0.3 ? "#8fa6bd" : COLORS.accent;
-    ctx.fillRect(bx, by + 15, 150 * clamp(p.armor / p.armorMax, 0, 1), 6);
+    ctx.fillRect(bx, by + 19, 210 * clamp(p.armor / p.armorMax, 0, 1), 9);
   }
   // wind, under the plate — the thing the plate actually costs you
   if (p.stamMax) {
     const k = clamp(p.stam / p.stamMax, 0, 1);
-    ctx.fillStyle = "#22282e"; ctx.fillRect(bx, by + 24, 150, 4);
+    ctx.fillStyle = "#22282e"; ctx.fillRect(bx, by + 32, 210, 6);
     ctx.fillStyle = p.blown ? COLORS.danger : p.sprinting ? COLORS.accent : "#6f8fae";
-    ctx.fillRect(bx, by + 24, 150 * k, 4);
+    ctx.fillRect(bx, by + 32, 210 * k, 6);
   }
-  ctx.font = "11px Consolas, monospace";
+  ctx.font = "12px Consolas, monospace";
   ctx.fillStyle = p.armor > 0 ? COLORS.hudDim : COLORS.danger;
   const wind = p.stamMax ? (p.blown ? "  BLOWN" : "  " + p.stam.toFixed(1) + "s sprint")
                          : "  unlimited sprint";
   ctx.fillText((p.armorMax > 0 ? (ARMOR[p.armorType].name + (p.armor > 0 ? "" : " — GONE")) : "NO ARMOR")
-               + wind, bx + 158, by + 21);
-  ctx.font = "13px Consolas, monospace";
+               + wind, bx + 220, by + 26);
   ctx.fillStyle = COLORS.hud;
   const shoulderTxt = p.swapT > 0 ? "SWAPPING"
     : (p.shoulder === "support" ? "SUPPORT SIDE" : (p.handed === "left" ? "LEFT SHOULDER" : "RIGHT SHOULDER"));
-  const rnd = AMMO[p.ammoType] || AMMO.fmj;
   // The ammunition line lived here and was one of six numbers in 13px type.
   // It has its own large readout bottom-right now, so this row is free for the
   // bag, which was colliding with the shoulder line.
+  ctx.font = "15px Consolas, monospace";
   ctx.fillStyle = p.shoulder === "support" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText(shoulderTxt + "  [N]", bx, by + 40);
+  ctx.fillText(shoulderTxt + "  [N]", bx, by + 56);
   ctx.fillStyle = game.formation !== "wedge" ? COLORS.accent : COLORS.hudDim;
-  ctx.fillText((game.formation || "wedge").toUpperCase() + "  [Z]", bx + 158, by + 40);
-  ctx.font = "11px Consolas, monospace";
+  ctx.fillText((game.formation || "wedge").toUpperCase() + "  [Z]", bx + 220, by + 56);
+  ctx.font = "13px Consolas, monospace";
   let gx = bx;
   for (const k of THROW_ORDER) {
     const T = THROWABLES[k], have = p.nades[k] || 0;
     ctx.fillStyle = have <= 0 ? "#3c444b" : (k === p.nadeKind ? COLORS.accent : COLORS.hudDim);
-    ctx.fillText(T.name.slice(0, 5) + " " + have, gx, by + 56);
-    gx += 52;
+    ctx.fillText(T.name.slice(0, 5) + " " + have, gx, by + 80);
+    gx += 62;
   }
   ctx.fillStyle = p.charges > 0 ? COLORS.hudDim : "#3c444b";
-  ctx.fillText("CHG " + p.charges, gx, by + 56);
+  ctx.fillText("CHG " + p.charges, gx, by + 80);
   ctx.font = "13px Consolas, monospace";
   // Losing the controls needs to be the loudest thing on screen, not a note in
   // the corner: the state lasts about a second and reads as a freeze otherwise.
@@ -8549,31 +8571,33 @@ function drawHud() {
   // panel was 13px among five other numbers.
   {
     const low = p.ammo <= Math.max(3, p.weapon.mag * 0.25);
-    const ax = viewW - 26, ay = viewH - 34;
+    const ax = viewW - 30, ay = viewH - 74;   // the pip strip hangs 58px below this; keep it on screen
     ctx.textAlign = "right";
-    ctx.font = "bold 40px Consolas, monospace";
+    ctx.fillStyle = "#000a";
+    ctx.fillRect(ax - 250, ay - 74, 260, 146);   // tall enough to contain the pip strip
+    ctx.font = "bold 58px Consolas, monospace";
     ctx.fillStyle = p.reloading > 0 ? COLORS.accent : low ? COLORS.danger : COLORS.hud;
     ctx.fillText(p.reloading > 0 ? "--" : String(p.ammo), ax, ay);
-    ctx.font = "15px Consolas, monospace";
+    ctx.font = "19px Consolas, monospace";
     ctx.fillStyle = COLORS.hudDim;
-    ctx.fillText("/ " + p.weapon.mag, ax, ay + 18);
-    ctx.font = "11px Consolas, monospace";
+    ctx.fillText("/ " + p.weapon.mag, ax, ay + 24);
+    ctx.font = "13px Consolas, monospace";
     ctx.fillText((p.guns ? p.guns[p.gunIndex].name + "  " : "") + (AMMO[p.ammoType] || AMMO.fmj).name + (p.can ? "  + CAN" : ""),
-                 ax, ay - 42);
+                 ax, ay - 54);
     if (p.reloading > 0) {
-      ctx.fillStyle = COLORS.accent; ctx.font = "bold 13px Consolas, monospace";
-      ctx.fillText("RELOADING", ax, ay + 34);
+      ctx.fillStyle = COLORS.accent; ctx.font = "bold 15px Consolas, monospace";
+      ctx.fillText("RELOADING", ax, ay + 44);
     } else if (low) {
-      ctx.fillStyle = COLORS.danger; ctx.font = "bold 13px Consolas, monospace";
-      ctx.fillText(p.ammo > 0 ? "LOW — [R]" : "EMPTY — [R]", ax, ay + 34);
+      ctx.fillStyle = COLORS.danger; ctx.font = "bold 15px Consolas, monospace";
+      ctx.fillText(p.ammo > 0 ? "LOW — [R]" : "EMPTY — [R]", ax, ay + 44);
     }
     // a pip per round for the small magazines, where counting matters
     if (p.weapon.mag <= 30) {
-      const pw = 5, gap = 2, total = p.weapon.mag * (pw + gap) - gap;
+      const pw = 6, gap = 2.4, total = p.weapon.mag * (pw + gap) - gap;
       let px = ax - total;
       for (let i = 0; i < p.weapon.mag; i++) {
         ctx.fillStyle = i < p.ammo ? (low ? COLORS.danger : "#8fa6bd") : "#2a3038";
-        ctx.fillRect(px + i * (pw + gap), ay + 42, pw, 7);
+        ctx.fillRect(px + i * (pw + gap), ay + 52, pw, 9);
       }
     }
     ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
