@@ -914,6 +914,13 @@ const TUNE = {
   // re-anchors under the cursor and the next ring opens. Release anywhere to
   // run what you have; every ring has a sane default.
   wheelCommit: 52,
+  // Pointing at a man is a MOVING-TARGET problem. He sidesteps to cover while
+  // you are reaching for him, and in a stack the nearest-man test flips
+  // between two men as they jostle — which is what made picking one out feel
+  // like it was squirming away. Three numbers fix it: he is acquired inside
+  // hoverGrab, he KEEPS the cursor out to the larger hoverHold, and a rival
+  // has to be hoverSwap nearer than him — not a pixel nearer — to take it.
+  hoverGrab: 30, hoverHold: 46, hoverSwap: 12,
   selfAidTime: 4.0, selfAidHeal: 30,
   // BETA — elevated overwatch. A man posted at an upper-floor window sees the
   // STREET: over cars and engine blocks, out to postRange, and he is invisible
@@ -2641,7 +2648,7 @@ canvas.addEventListener("wheel", e => {
   input.justPressed.add(e.deltaY > 0 ? "scrolldown" : "scrollup");
 }, { passive: false });
 window.addEventListener("mouseup", e => {
-  if (e.button === 0) input.mouse.down = false;
+  if (e.button === 0) { input.mouse.down = false; input.justReleased.add("lmb"); }
   if (e.button === 1) input.justReleased.add("mmb");
   if (e.button === 2) { input.mouse.rdown = false; input.justReleased.add("rmb"); }
 });
@@ -3090,7 +3097,10 @@ function updatePlayer(p, dt) {
   if (pressed("n")) swapShoulder(p);
   // scroll or [1] to change guns — the sidearm is faster than a reload
   if ((pressed("scrollup") || pressed("scrolldown")) && !p.turret) swapGun(p, p.gunIndex + 1);
-  if (input.mouse.down && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging && !game.tq) {
+  // The trigger lives in the world. A press that began on the squad bar was a
+  // selection, not a shot, and holding the cursor over the roster is not aiming.
+  const onChrome = !!game.barDrag || !!squadCardAt(input.mouse.x, input.mouse.y);
+  if (input.mouse.down && !onChrome && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging && !game.tq) {
     let fa = aimAngle(p, input.mouse.wx, input.mouse.wy);
     if (p.turret) fa = clampToArc(p.turret, fa);   // the mount decides, not the wrist
     tryFire(p, fa);
@@ -5614,6 +5624,57 @@ function pieSlots(d, normal) {
   });
 }
 
+// ---- the squad bar as an input device (works while paused)
+//
+// Selecting a man by pointing at him in the world is a moving-target problem:
+// he sidesteps to cover while you are reaching for him, and in a stack the
+// nearest-man test flips between two men as they jostle. The bar is the fix —
+// a roster that cannot move. Click a card, or drag across several.
+//
+// It costs no new binding. The left button is the trigger, but the trigger
+// lives in the WORLD; a press that begins on HUD chrome was never a shot.
+function squadBarInput() {
+  game.barHover = null;
+  if (!game.squad || !game.squad.length) { game.barDrag = null; return; }
+  const c = squadCardAt(input.mouse.x, input.mouse.y);
+  if (!game.barDrag && c) game.barHover = c.i;
+
+  if (pressed("lmb") && c) {
+    // A man on the ground is not someone you select — he is someone you send
+    // help to, and the card says so rather than silently doing nothing.
+    game.barDrag = { swept: new Set(), additive: input.keys.has("shift"),
+                     base: new Set(game.selected), start: c.i, moved: false };
+  }
+  const d = game.barDrag;
+  if (!d) return;
+  if (c) {
+    if (c.i !== d.start) d.moved = true;
+    if (c.s.alive && !c.s.downed) d.swept.add(c.i);
+  }
+  if (released("lmb") || !input.mouse.down) {
+    const startCard = game.squad[d.start];
+    if (!d.moved && startCard && startCard.alive && startCard.downed) {
+      game.hint = startCard.name + " is down — right-click him to send a man";
+    } else if (!d.swept.size) {
+      if (!d.additive) game.selected.clear();
+    } else if (d.additive) {
+      d.swept.forEach(i => game.selected.add(i));
+    } else if (!d.moved && game.selected.size === 1 && game.selected.has(d.start)) {
+      game.selected.clear();                 // clicking your only man drops him
+    } else {
+      game.selected.clear();
+      d.swept.forEach(i => game.selected.add(i));
+    }
+    if (!(!d.moved && startCard && startCard.alive && startCard.downed)) {
+      game.hint = game.selected.size
+        ? "#" + [...game.selected].map(j => opNumber(game.squad[j])).sort().join(" #") +
+          " selected — right-click where to go"
+        : "whole team";
+    }
+    game.barDrag = null;
+  }
+}
+
 // ---- order issuing (works while paused)
 function issueOrders() {
   // One button runs the squad. Right-click a man to select him; right-click
@@ -6220,8 +6281,34 @@ function wheelContext() {
            far: dist(from.x, from.y, x, y) > 90 };
 }
 
+// The latch, recomputed every frame: which man the cursor is ON. Hysteresis
+// on both edges — a wider radius to keep him than to catch him, and a margin
+// a rival must beat — so a man who shuffles a step does not drop the cursor,
+// and two men in a doorway stop trading it back and forth.
+function updateHoverOp() {
+  // over the roster is not over the world
+  if (squadCardAt(input.mouse.x, input.mouse.y)) { game.hoverOp = null; return; }
+  const x = input.mouse.wx, y = input.mouse.wy;
+  let best = null, bd = TUNE.hoverGrab;
+  for (const s of game.squad) {
+    if (!s.alive) continue;
+    const d = dist(x, y, s.x, s.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  const cur = game.hoverOp;
+  if (cur && cur.alive) {
+    const cd = dist(x, y, cur.x, cur.y);
+    if (cd <= TUNE.hoverHold && (!best || best === cur || bd > cd - TUNE.hoverSwap)) return;
+  }
+  game.hoverOp = best;
+}
+
 function squaddieUnder(wx, wy) {
-  return nearestEntity(game.squad, wx, wy, 26, s => s.alive);
+  // what the ring shows is what you get — the press must not re-run the test
+  // and quietly land on somebody else in the time it took you to click
+  const h = game.hoverOp;
+  if (h && h.alive && dist(wx, wy, h.x, h.y) <= TUNE.hoverHold) return h;
+  return nearestEntity(game.squad, wx, wy, TUNE.hoverGrab, s => s.alive);
 }
 
 // A play needs a door: the one under the cursor, else the one you are standing at.
@@ -7171,6 +7258,13 @@ function render() {
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r + 6, 0, TAU); ctx.stroke();
     ctx.setLineDash([]);
   });
+  // Who the button would take, drawn BEFORE you press it. The latch already
+  // stops the pick from squirming; this is the half that tells you so.
+  const hv = game.hoverOp;
+  if (hv && hv.alive && !game.selected.has(game.squad.indexOf(hv))) {
+    ctx.strokeStyle = "rgba(255,255,255,0.62)";
+    ctx.beginPath(); ctx.arc(hv.x, hv.y, hv.r + 5, 0, TAU); ctx.stroke();
+  }
   for (const s of game.squad) {
     if (!s.alive || s.order.type !== "move") continue;
     ctx.strokeStyle = "rgba(63,194,126,0.5)"; ctx.setLineDash([4, 6]);
@@ -7980,7 +8074,8 @@ function drawMinimap() {
   if (!game.minimap || !level.w) return;
   const scale = Math.min(176 / level.w, 124 / level.h);
   const w = Math.ceil(level.w * scale), h = Math.ceil(level.h * scale);
-  const x0 = viewW - w - 16, y0 = 16;
+  // the squad bar spans the top now, so the minimap hangs below it
+  const x0 = viewW - w - 16, y0 = squadBarBottom() + 14;
   if (game.stats.time - mmBuiltAt > 0.5 || mmBuiltAt < 0) { buildMinimapLayer(scale); mmBuiltAt = game.stats.time; }
   ctx.fillStyle = "rgba(6,9,12,0.8)"; ctx.fillRect(x0 - 5, y0 - 5, w + 10, h + 10);
   ctx.strokeStyle = "#4d5964"; ctx.lineWidth = 1; ctx.strokeRect(x0 - 4.5, y0 - 4.5, w + 9, h + 9);
@@ -8016,6 +8111,94 @@ function drawMinimap() {
     ctx.font = "bold 11px Consolas, monospace"; ctx.fillStyle = COLORS.accent; ctx.textAlign = "left";
     ctx.fillText("FLOOR " + ((game.floor || 0) + 1), x0, y0 + h + 14);
   }
+}
+
+// ONE definition of where the squad cards are, so the thing you see and the
+// thing you click cannot drift apart. Everything else asks this.
+const SQUAD_BAR = { y: 8, h: 52, pad: 10, gap: 5, minW: 96 };
+function squadBarCards() {
+  const n = game.squad ? game.squad.length : 0;
+  if (!n) return [];
+  const { y, h, pad, gap } = SQUAD_BAR;
+  // The bar spans the window, but it never squeezes a card below legibility:
+  // past that it stops growing the row and simply centres what fits.
+  const avail = viewW - pad * 2 - gap * (n - 1);
+  const w = Math.max(SQUAD_BAR.minW, Math.floor(avail / n));
+  const total = w * n + gap * (n - 1);
+  const x0 = Math.max(pad, Math.floor((viewW - total) / 2));
+  return game.squad.map((s, i) => ({ i, s, x: x0 + i * (w + gap), y, w, h }));
+}
+// how tall the bar actually is, so everything below it can clear it
+function squadBarBottom() {
+  return game.squad && game.squad.length ? SQUAD_BAR.y + SQUAD_BAR.h : 0;
+}
+function squadCardAt(sx, sy) {
+  for (const c of squadBarCards())
+    if (sx >= c.x && sx <= c.x + c.w && sy >= c.y && sy <= c.y + c.h) return c;
+  return null;
+}
+
+function drawSquadBar() {
+  const cards = squadBarCards();
+  if (!cards.length) return;
+  const drag = game.barDrag;
+  for (const c of cards) {
+    const s = c.s, sel = game.selected.has(c.i);
+    const hot = drag && drag.swept.has(c.i);
+    const hover = !drag && game.barHover === c.i;
+    ctx.fillStyle = sel || hot ? "#1d4ed855" : hover ? "#ffffff14" : "#0009";
+    ctx.fillRect(c.x, c.y, c.w, c.h);
+    if (sel || hot) {
+      ctx.strokeStyle = COLORS.player;
+      ctx.strokeRect(c.x + 0.5, c.y + 0.5, c.w - 1, c.h - 1);
+    } else if (hover) {
+      ctx.strokeStyle = "#ffffff44";
+      ctx.strokeRect(c.x + 0.5, c.y + 0.5, c.w - 1, c.h - 1);
+    }
+    const L = c.x + 7, R = c.x + c.w - 7, barW = c.w - 14;
+    // #2..#9 are the entry numbers the plays assign roles by. You are #1.
+    ctx.textAlign = "left";
+    ctx.font = "bold 12px Consolas, monospace";
+    ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
+    ctx.fillText("#" + opNumber(s) + (s.team || "") + " " + s.name + (s.alive ? "" : " ✝"), L, c.y + 15);
+    if (s.rank) {
+      ctx.textAlign = "right";
+      ctx.font = "10px Consolas, monospace";
+      ctx.fillStyle = s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent;
+      ctx.fillText(s.rank.tag, R, c.y + 15);
+    }
+    ctx.textAlign = "left";
+    ctx.font = "10px Consolas, monospace";
+    if (s.alive && s.downed) {
+      // his card becomes the thing that matters now: the clock
+      ctx.fillStyle = "#333"; ctx.fillRect(L, c.y + 22, barW, 5);
+      ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
+      ctx.fillRect(L, c.y + 22, barW * (s.stabilized ? 1 : clamp(s.bleedT / (s.bleedMax || TUNE.bleedOut), 0, 1)), 5);
+      ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
+      ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), L, c.y + 39);
+      // the same key does both jobs, so the card has to keep asking for it: tie
+      // him off, then haul him — a stable man still on the ground is unfinished
+      const cue = !s.stabilized ? "[E] hold"
+        : (s.qrfCasualty && game.mission.objectives.includes("extract") && !inExtraction(s)) ? "[E] haul" : "";
+      if (cue) {
+        ctx.fillStyle = COLORS.hud; ctx.textAlign = "right";
+        ctx.fillText(cue, R, c.y + 39);
+      }
+      ctx.textAlign = "left";
+      ctx.fillStyle = COLORS.hudDim;
+      ctx.fillText("DOWN — right-click to send help", L, c.y + 49);
+    } else if (s.alive) {
+      ctx.fillStyle = "#333"; ctx.fillRect(L, c.y + 22, barW, 5);
+      ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger;
+      ctx.fillRect(L, c.y + 22, barW * clamp(s.hp / s.maxHp, 0, 1), 5);
+      ctx.fillStyle = COLORS.hudDim;
+      ctx.fillText(orderLabel(s), L, c.y + 39);
+      ctx.fillStyle = s.roe === "free" ? COLORS.danger : s.roe === "hold" ? COLORS.hud : COLORS.accent;
+      ctx.fillText(s.roe === "free" ? "WEAPONS FREE" : s.roe === "hold" ? "HOLD FIRE" : "RETURN FIRE", L, c.y + 49);
+    }
+  }
+  ctx.textAlign = "left";
+  ctx.font = "13px Consolas, monospace";
 }
 
 function drawHud() {
@@ -8104,62 +8287,30 @@ function drawHud() {
     ctx.fillStyle = COLORS.danger; ctx.fillText(word, viewW / 2, viewH / 2 + 84);
     ctx.font = "13px Consolas, monospace"; ctx.textAlign = "left";
   }
-  // squad panel (top left) — a rifle squad folds into two columns of four,
-  // Team A left, Team B right, which is also just what the org chart looks like
-  game.squad.forEach((s, i) => {
-    const px = 14 + Math.floor(i / 4) * 198;
-    const sy = 18 + (i % 4) * 44;
-    const sel = game.selected.has(i);
-    ctx.fillStyle = sel ? "#1d4ed855" : "#0009"; ctx.fillRect(px, sy, 190, 38);
-    if (sel) { ctx.strokeStyle = COLORS.player; ctx.strokeRect(px + 0.5, sy + 0.5, 189, 37); }
-    ctx.fillStyle = s.alive ? COLORS.squad : COLORS.danger;
-    // #2..#9 are the entry numbers the plays assign roles by. You are #1.
-    const label = game.squad.length > 3
-      ? "#" + opNumber(s) + (s.team || "") + " " + s.name
-      : "[" + (i + 1) + "] #" + opNumber(s) + " " + s.name;
-    ctx.fillText(label + (s.alive ? "" : " ✝"), px + 8, sy + 15);
-    if (s.alive && s.downed) {
-      // his row becomes the thing that matters now: the clock
-      ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
-      ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
-      ctx.fillRect(px + 8, sy + 22, 110 * (s.stabilized ? 1 : clamp(s.bleedT / (s.bleedMax || TUNE.bleedOut), 0, 1)), 6);
-      ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), px + 126, sy + 15);
-      // the same key does both jobs, so the row has to keep asking for it: tie
-      // him off, then haul him — a stable man still on the ground is unfinished
-      const cue = !s.stabilized ? "[E] hold"
-        : (s.qrfCasualty && game.mission.objectives.includes("extract") && !inExtraction(s)) ? "[E] haul" : "";
-      if (cue) { ctx.fillStyle = COLORS.hud; ctx.fillText(cue, px + 126, sy + 30); }
-    } else if (s.alive) {
-      ctx.fillStyle = "#333"; ctx.fillRect(px + 8, sy + 22, 110, 6);
-      ctx.fillStyle = s.hp > 40 ? COLORS.ok : COLORS.danger; ctx.fillRect(px + 8, sy + 22, 110 * clamp(s.hp / s.maxHp, 0, 1), 6);
-      // Rank rides on the ROE line rather than after the name: appended to the
-      // name it ran straight into the order column and drew "REYES BTENGAGING".
-      if (s.rank) {
-        ctx.fillStyle = s.rank === RANKS[0] ? COLORS.hudDim : COLORS.accent;
-        ctx.fillText(s.rank.tag, px + 162, sy + 30);
-      }
-      ctx.fillStyle = COLORS.hudDim;
-      ctx.fillText(orderLabel(s), px + 126, sy + 15);
-      ctx.fillStyle = s.roe === "free" ? COLORS.danger : s.roe === "hold" ? COLORS.hud : COLORS.accent;
-      ctx.fillText(s.roe === "free" ? "FREE" : s.roe === "hold" ? "HOLD-F" : "RTN", px + 126, sy + 30);
-    }
-  });
+  // The squad bar owns the top of the screen, and it is also how you select.
+  // Pointing at a man in the world is a moving-target problem — he sidesteps
+  // while you reach for him — so the roster gets a home that CANNOT move, and
+  // clicking a card is the reliable path to the same selection set.
+  drawSquadBar();
   // objectives (top center; clamped clear of the squad panel on narrow windows)
   ctx.textAlign = "center";
   const objLeft = Math.max(viewW / 2 - 190, 214), objCx = objLeft + 190;
   const rows = game.mission.objectives.length;
+  // The squad bar owns the full width of the top now, so the objectives hang
+  // below it rather than beside it — no clamp, because nothing shares the row.
+  const objTop = squadBarBottom() + 6;
   ctx.fillStyle = "#0009";
-  ctx.fillRect(objLeft, 10, 380, 22 + rows * 16 + (game.alarmTimerVisible() ? 18 : 0));
+  ctx.fillRect(objLeft, objTop, 380, 22 + rows * 16 + (game.alarmTimerVisible() ? 18 : 0));
   ctx.fillStyle = COLORS.hudDim;
-  ctx.fillText(game.mission.type, objCx, 26);
+  ctx.fillText(game.mission.type, objCx, objTop + 16);
   game.mission.objectives.forEach((k, i) => {
     const o = OBJECTIVES[k];
     ctx.fillStyle = o.done() ? COLORS.ok : COLORS.hud;
-    ctx.fillText((o.done() ? "✓ " : "· ") + o.label(), objCx, 42 + i * 16);
+    ctx.fillText((o.done() ? "✓ " : "· ") + o.label(), objCx, objTop + 32 + i * 16);
   });
   if (game.alarmTimerVisible()) {
     ctx.fillStyle = game.execT < 8 ? COLORS.danger : COLORS.accent;
-    ctx.fillText("EXECUTION IN " + Math.ceil(game.execT) + "s", objCx, 42 + rows * 16 + 2);
+    ctx.fillText("EXECUTION IN " + Math.ceil(game.execT) + "s", objCx, objTop + 34 + rows * 16);
   }
   // hint (bottom center)
   if (game.hint) {
@@ -8564,6 +8715,7 @@ const game = {
   player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
   selected: new Set(),
+  hoverOp: null, barHover: null, barDrag: null,
   alarm: false, execT: TUNE.executionTimer, underFireT: 0, snake: null, wallCharge: null,
   wheel: null, nadeWheel: null, pie: null, lastPlay: null, lastOrderMark: null, incidents: [], aar: null, bound: null,
   hint: "", _hintPrev: "", _hintT: 0,
@@ -8694,6 +8846,7 @@ function initGame() {
   game.bullets = []; game.bangs = []; game.noises = []; game.fx = []; game.decals = []; game.plans = []; game.hurt = []; game.smokes = [];
   level.smokeGrid = null;
   game.selected = new Set();
+  game.hoverOp = null; game.barHover = null; game.barDrag = null;
   game.diff = DIFFICULTIES[game.diffIndex] || DIFFICULTIES[1];
   game.alarm = false; game.execT = game.diff.exec; game.underFireT = 0; game.snake = null; game.wallCharge = null;
   game.squadCharges = 2;
@@ -9058,6 +9211,8 @@ function frame(now) {
     // Holding either wheel open is command time. Choosing what the squad does is
     // a decision, and decisions should not be a dexterity test.
     game.slowmo = (!!game.wheel || !!game.nadeWheel) && !game.paused;
+    squadBarInput();                                       // the roster is clickable even with nobody left to command
+    if (!game.wheel) updateHoverOp();                      // the wheel latches its own man; do not move it under him
     if (game.player && game.player.alive) issueOrders();   // orders work while paused/slowed — but not from the dead
     if (!game.paused) {
       // A thrown exception here must never take the render loop with it: the
