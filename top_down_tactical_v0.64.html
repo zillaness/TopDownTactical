@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.63.html
-  version: 0.63
+  file: top_down_tactical_v0.64.html
+  version: 0.64
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.63 (working title)</title>
+<title>Top-Down Tactical v0.64 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.63 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.64 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -844,7 +844,12 @@ const TUNE = {
   // most of the way to max range, but through a 26-degree slot, so what the
   // scope costs you is everything either side of it.
   scopeRange: 1380, scopeFov: deg(26), scopeRays: 96,
-  scopeLead: 0.92, scopeLeadMax: 760,
+  // The glass PULLS THE CAMERA BACK rather than running it out to the
+  // cursor. Chasing the cursor did reach further, but it left your own man
+  // off the edge of the screen, and a marksman who cannot see his own
+  // position has traded the wrong thing for the range. At 0.55 the half
+  // screen is ~1310px, so max range sits inside the frame WITH you in it.
+  scopeZoom: 0.55, scopeZoomLerp: 5,
   squadViewDist: 430,               // how far a squaddie's cone lights up for you
   memoryFade: 22,                   // seconds a last-known mark survives
   snakeTime: 3.5, snakeRange: 300, snakeArc: deg(110),
@@ -9277,7 +9282,7 @@ const game = {
   // Sprites are authored for ~40px, so the camera comes in for the art to read.
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
-  zoom: 1.6,
+  zoom: 1.6, zoomSaved: undefined,
   loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft", can: false },
   player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
@@ -9757,15 +9762,29 @@ function scopePolygon() {
 
 function updateCamera(dt) {
   const p = game.fpv || game.player;   // goggles down: you see what the bird sees
-  if (!glassing() && game.zoom < 1) game.zoom = 1;   // the glass goes back in the pocket
+  // The glass goes back in the pocket AT ONCE when the rifle leaves your hands
+  // — a snap, not a glide, because you no longer own the wide frame at all.
+  if (!glassing() && game.zoom < 1) { game.zoom = 1; game.zoomSaved = undefined; }
   const toCursor = { x: input.mouse.wx - p.x, y: input.mouse.wy - p.y };
-  // Scoped, the view WALKS OUT toward the cursor: push the cursor to the edge
-  // and the camera follows it, which brings ground on screen that was never
-  // on screen before and is the whole point of carrying the thing.
+  // Scoped, the frame WIDENS instead of sliding: the camera keeps its ordinary
+  // lead so you stay near the middle of it, and the zoom pulls back until the
+  // gun's whole envelope is on screen with you.
   const sc = scoped();
-  const leadK = sc ? TUNE.scopeLead : TUNE.camLead;
-  const leadCap = sc ? TUNE.scopeLeadMax : TUNE.camLeadMax * (glassing() ? 2.2 : 1);
-  const lead = Math.min(leadCap, Math.hypot(toCursor.x, toCursor.y) * leadK);
+  const lead = Math.min(TUNE.camLeadMax * (glassing() ? 2.2 : 1),
+                        Math.hypot(toCursor.x, toCursor.y) * TUNE.camLead);
+  // The scope BORROWS the zoom and gives it back. Outside of it nothing here
+  // touches game.zoom at all, so [ and ] keep meaning exactly what they meant.
+  const k = clamp(dt * TUNE.scopeZoomLerp, 0, 1);
+  if (sc) {
+    if (game.zoomSaved === undefined) game.zoomSaved = game.zoom;
+    game.zoom = lerp(game.zoom, TUNE.scopeZoom, k);
+    if (Math.abs(game.zoom - TUNE.scopeZoom) < 0.005) game.zoom = TUNE.scopeZoom;
+  } else if (game.zoomSaved !== undefined) {
+    game.zoom = lerp(game.zoom, game.zoomSaved, k);
+    if (Math.abs(game.zoom - game.zoomSaved) < 0.005) {
+      game.zoom = game.zoomSaved; game.zoomSaved = undefined;
+    }
+  }
   const ang = Math.atan2(toCursor.y, toCursor.x);
   const tx = p.x + Math.cos(ang) * lead, ty = p.y + Math.sin(ang) * lead;
   game.cam.x = lerp(game.cam.x, tx, clamp(dt * TUNE.camLerp, 0, 1));
@@ -9813,8 +9832,9 @@ function frame(now) {
     // pull out to 0.7x and the cursor drags the view over twice as far, which
     // is the difference between owning a street and owning a doorway.
     if (pressed("m")) game.minimap = !game.minimap;
-    if (pressed("[")) game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
-    if (pressed("]")) game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0);
+    // unchanged: these are your zoom. The scope borrows it and hands it back.
+    if (pressed("[")) { game.zoom = clamp(+(game.zoom - 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0); game.zoomSaved = undefined; }
+    if (pressed("]")) { game.zoom = clamp(+(game.zoom + 0.1).toFixed(2), glassing() ? 0.7 : 1.0, 3.0); game.zoomSaved = undefined; }
     // Holding either wheel open is command time. Choosing what the squad does is
     // a decision, and decisions should not be a dexterity test.
     game.slowmo = (!!game.wheel || !!game.nadeWheel) && !game.paused;
@@ -11180,6 +11200,23 @@ requestAnimationFrame(frame);
     not — and puts the range to the cursor in metres beside it, reddening past
     the gun's reach. A vignette narrows the frame so the narrowed attention
     reads as a choice.
+  v0.64 (2026-08-17): THE GLASS PULLS BACK INSTEAD OF RUNNING OUT. v0.63 gave
+    the scope its reach by walking the CAMERA toward the cursor — 760px of lead
+    — which did put distant ground on screen and did leave your own man off the
+    edge of it. Sam's call, and the right one: a marksman who cannot see his
+    own position has traded the wrong thing for the range. So the frame WIDENS
+    instead of sliding. Holding the sights lerps the zoom to 0.55, where half a
+    screen is about 1310px, which puts the gun's whole envelope in frame WITH
+    you standing in the middle of it. Camera lead goes back to the ordinary
+    glassing value.
+    The zoom is BORROWED and given back. Outside the scope nothing touches
+    game.zoom, so [ and ] keep meaning exactly what they meant; the scope
+    remembers what you had, overrides it while you hold the sights, and lerps
+    home when you let go. Swapping off the rifle entirely still SNAPS to 1x
+    rather than gliding — a pre-existing guarantee that the first draft of this
+    broke and the suite caught.
+    The sight wedge is unchanged: 1380px through a 26-degree slot, blocked by
+    masonry like any other eye.
 -->
 </body>
 </html>

@@ -3072,19 +3072,31 @@ const q = game.player;
 input.mouse.wx = q.x + 1200; input.mouse.wy = q.y;
 game.cam.x = q.x; game.cam.y = q.y; q.steady = false;
 for (let i = 0; i < 120; i++) updateCamera(1 / 60);
-const plain = game.cam.x - q.x;
+// The glass WIDENS the frame rather than sliding it off your man: the whole
+// point is that you keep sight of your own position while you reach.
+const zoomPlain = game.zoom;
 q.steady = true;
-for (let i = 0; i < 180; i++) updateCamera(1 / 60);
-const scopedLead = game.cam.x - q.x;
-// Not a ratio: the unaided lead varies with where the world-edge clamp bites,
-// so the invariant is that scoped reaches its own cap and beats unaided.
-console.log('  camera lead ' + Math.round(plain) + 'px unaided -> ' + Math.round(scopedLead) + 'px scoped',
-            scopedLead > plain && scopedLead >= TUNE.scopeLeadMax * 0.9
-              ? 'CORRECT (the view walks out toward the cursor)' : 'WRONG');
-// and that the reach it buys covers most of the gun's range
-const reach = scopedLead + viewW / 2;
-console.log('  aimable reach ' + Math.round(reach) + 'px vs DMR range ' + PRIMARIES.dmr.w.range,
-            reach >= PRIMARIES.dmr.w.range * 0.85 ? 'CORRECT (you can aim to near max range)' : 'WRONG');
+for (let i = 0; i < 240; i++) updateCamera(1 / 60);
+console.log('  zoom ' + zoomPlain.toFixed(2) + ' unaided -> ' + game.zoom.toFixed(2) + ' scoped',
+            game.zoom < zoomPlain && Math.abs(game.zoom - TUNE.scopeZoom) < 0.01
+              ? 'CORRECT (the frame pulls back)' : 'WRONG');
+// your own man must still be on screen — that is the reason for doing it this way
+const half = viewW / (2 * game.zoom);
+const offCentre = Math.abs(game.cam.x - q.x);
+// The invariant is that he is ON SCREEN, not that he is near the middle. At
+// 0.55 the world-edge clamp often centres the camera on the whole map, which
+// puts him off centre and fully visible — which is the point.
+console.log('  your own sprite stays in frame: ' + Math.round(offCentre) + 'px off centre vs ' +
+            Math.round(half) + 'px of half-screen',
+            offCentre < half - 40 ? 'CORRECT (you can see yourself)' : 'WRONG');
+// and the widened frame still covers most of the gun's reach
+console.log('  aimable reach ' + Math.round(half) + 'px vs DMR range ' + PRIMARIES.dmr.w.range,
+            half >= PRIMARIES.dmr.w.range * 0.8 ? 'CORRECT (max range is inside the frame)' : 'WRONG');
+// coming off the sights hands the camera back
+q.steady = false;
+for (let i = 0; i < 240; i++) updateCamera(1 / 60);
+console.log('  off the sights, zoom returns to ' + game.zoom.toFixed(2),
+            Math.abs(game.zoom - zoomPlain) < 0.01 ? 'CORRECT (the glass gives it back)' : 'WRONG');
 game.loadout.primary = prevGun;
 console.log('SCOPE TEST DONE');
 })();
