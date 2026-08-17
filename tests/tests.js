@@ -3101,6 +3101,46 @@ game.loadout.primary = prevGun;
 console.log('SCOPE TEST DONE');
 })();
 
+(function gradeTests(){
+console.log('--- the scorecard explains the letter ---');
+game.mapIndex = 0; initGame();
+const set = o => Object.assign(game.stats,
+  { arrests:0, kills:0, civsKilledByUs:0, squadLost:0, surrenderedKilled:0 }, o);
+// The explanation must never drift from the score it is explaining, so it is
+// checked against the original formula rather than against itself.
+let mismatch = 0;
+for (let i = 0; i < 400; i++) {
+  set({ arrests: i % 5, kills: (i * 3) % 8, civsKilledByUs: i % 3 === 0 ? 1 : 0,
+        squadLost: i % 7 === 0 ? 1 : 0, surrenderedKilled: i % 11 === 0 ? 1 : 0 });
+  const st = game.stats;
+  const legacy = 100 + st.arrests * 5 - st.kills * 2 - st.civsKilledByUs * 20
+                 - st.squadLost * 12 - st.surrenderedKilled * 15;
+  const want = legacy >= 105 ? 'S' : legacy >= 90 ? 'A' : legacy >= 75 ? 'B' : legacy >= 55 ? 'C' : 'D';
+  const b = gradeBreakdown();
+  if (b.score !== legacy || b.grade !== want || computeGrade() !== want) mismatch++;
+}
+console.log('  400 stat combinations vs the original formula, mismatches: ' + mismatch,
+            mismatch === 0 ? 'CORRECT (the explanation cannot drift from the score)' : 'WRONG');
+// every suggestion must actually close the gap it claims to close
+let short = 0, phantom = 0;
+for (const o of [{kills:7}, {squadLost:1}, {civsKilledByUs:1}, {surrenderedKilled:1}, {kills:3,squadLost:1}]) {
+  set(o); const b = gradeBreakdown();
+  if (!b.next) continue;
+  if (b.next.best.units * Math.abs(b.next.best.per) < b.next.gap) short++;
+  // and must never advise undoing something that never happened
+  const term = GRADE_TERMS.find(t => t.label === b.next.best.label);
+  if (term && term.per < 0 && !(game.stats[term.key] > 0)) phantom++;
+}
+console.log('  every suggestion closes its own gap: ' + (short ? short + ' do not' : 'yes'),
+            short === 0 ? 'CORRECT' : 'WRONG');
+console.log('  never advises undoing something you did not do: ' + (phantom ? phantom + ' do' : 'none'),
+            phantom === 0 ? 'CORRECT' : 'WRONG');
+set({ arrests: 3 });
+console.log('  a clean run tops out: ' + gradeBreakdown().grade + ', next=' + gradeBreakdown().next,
+            gradeBreakdown().grade === 'S' && gradeBreakdown().next === null ? 'CORRECT' : 'WRONG');
+console.log('GRADE TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';

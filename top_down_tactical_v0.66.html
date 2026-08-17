@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.65.html
-  version: 0.65
+  file: top_down_tactical_v0.66.html
+  version: 0.66
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.65 (working title)</title>
+<title>Top-Down Tactical v0.66 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.65 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.66 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -9628,15 +9628,59 @@ function checkMissionEnd(dt) {
   if (game.mission.objectives.every(k => OBJECTIVES[k].done())) endMission(true, "");
 }
 
-function computeGrade() {
+// The grade, and WHY. A letter on its own tells you that you did worse without
+// telling you at what, which makes it a scold rather than a lesson — you cannot
+// aim at a number you were never shown. One table drives the arithmetic, the
+// scorecard and the "how close were you" line, so the explanation can never
+// drift from the score it is explaining.
+const GRADE_BANDS = [["S", 105], ["A", 90], ["B", 75], ["C", 55], ["D", -Infinity]];
+const GRADE_TERMS = [
+  { key: "arrests",          per:  +5, label: "Suspects arrested",
+    fix: "arrest one more instead of shooting him" },
+  { key: "kills",            per:  -2, label: "Suspects killed",
+    fix: "take one more alive" },
+  { key: "squadLost",        per: -12, label: "Squad lost",
+    fix: "bring one more man home" },
+  { key: "surrenderedKilled",per: -15, label: "Surrendered suspects killed",
+    fix: "stop shooting once his hands are up" },
+  { key: "civsKilledByUs",   per: -20, label: "Civilians killed by your team",
+    fix: "identify before you fire" },
+];
+function gradeBreakdown() {
   const st = game.stats;
-  let score = 100 + st.arrests * 5 - st.kills * 2 - st.civsKilledByUs * 20 - st.squadLost * 12 - st.surrenderedKilled * 15;
-  if (score >= 105) return "S";
-  if (score >= 90) return "A";
-  if (score >= 75) return "B";
-  if (score >= 55) return "C";
-  return "D";
+  const lines = [];
+  let score = 100;
+  for (const t of GRADE_TERMS) {
+    const n = st[t.key] || 0;
+    if (!n) continue;
+    const delta = n * t.per;
+    score += delta;
+    lines.push({ label: t.label, n, per: t.per, delta, fix: t.fix });
+  }
+  const grade = (GRADE_BANDS.find(b => score >= b[1]) || ["D"])[0];
+  // what the next band up would have taken
+  const idx = GRADE_BANDS.findIndex(b => b[0] === grade);
+  let next = null;
+  if (idx > 0) {
+    const [ng, at] = GRADE_BANDS[idx - 1];
+    const gap = at - score;
+    // the cheapest single change that closes it, costed against what you
+    // actually did — no point advising fewer civilian deaths if there were none
+    let best = null;
+    for (const l of lines) {
+      if (l.per >= 0) continue;
+      const units = Math.min(l.n, Math.ceil(gap / -l.per));
+      if (units * -l.per >= gap && (!best || units < best.units))
+        best = { units, label: l.label, fix: l.fix, per: l.per };
+    }
+    const arrestUnits = Math.ceil(gap / 5);
+    if (!best || arrestUnits < best.units)
+      best = { units: arrestUnits, label: "Suspects arrested", fix: GRADE_TERMS[0].fix, per: 5 };
+    next = { grade: ng, at, gap, best };
+  }
+  return { score, grade, lines, next };
 }
+function computeGrade() { return gradeBreakdown().grade; }
 
 // When it goes wrong, turn the lights on. The fog exists to make you earn
 // information during the run; withholding it afterwards just means you never
@@ -9712,6 +9756,40 @@ function endMission(won, reason) {
     }
   }
   rows.push(`<div class="stat">Shots fired: ${st.shotsFired} · Flashbangs: ${st.bangsUsed} · Breaches: ${st.breaches}</div>`);
+  // WHY THAT LETTER. The arithmetic, itemised, so the grade is something you
+  // can aim at next run rather than a verdict handed down.
+  if (won) {
+    const bd = gradeBreakdown();
+    rows.push(`<br><div class="stat" style="color:#e8b53a">SCORECARD</div>`);
+    rows.push(`<div class="stat"><span style="color:#7f8b96">Clean entry</span>` +
+              `<span style="float:right">100</span></div>`);
+    for (const l of bd.lines) {
+      const col = l.delta < 0 ? "#ff5555" : "#3fc27e";
+      const sign = l.delta > 0 ? "+" : "";
+      rows.push(`<div class="stat">${l.label} &times;${l.n} ` +
+                `<span style="color:#7f8b96">(${sign}${l.per} each)</span>` +
+                `<span style="float:right;color:${col}">${sign}${l.delta}</span></div>`);
+    }
+    if (!bd.lines.length)
+      rows.push(`<div class="stat" style="color:#7f8b96">Nothing docked — nobody died who did not have to.</div>`);
+    rows.push(`<div class="stat" style="border-top:1px solid #2a333c;margin-top:4px;padding-top:4px">` +
+              `<b>Score</b><span style="float:right"><b>${bd.score}</b> &nbsp; grade <b>${bd.grade}</b></span></div>`);
+    if (bd.next) {
+      const b = bd.next.best;
+      const gain = b.units * Math.abs(b.per);
+      // The fix text already names the thing, so naming it twice reads as
+      // filled-in template rather than advice.
+      const how = b.per > 0
+        ? `${b.units} more arrest${b.units === 1 ? "" : "s"} — ${b.fix} (+${gain})`
+        : `${b.units === 1 ? "" : b.units + "&times; "}${b.fix} (+${gain})`;
+      rows.push(`<div class="stat" style="color:#e8b53a;margin-top:4px">` +
+                `${bd.next.gap} point${bd.next.gap === 1 ? "" : "s"} short of ${bd.next.grade} ` +
+                `<span style="color:#7f8b96">(needs ${bd.next.at})</span></div>`);
+      rows.push(`<div class="stat" style="color:#7f8b96">Closest way there: ${how}</div>`);
+    } else {
+      rows.push(`<div class="stat" style="color:#3fc27e;margin-top:4px">Top band — there is nothing above this.</div>`);
+    }
+  }
   // Every bystander death, timestamped and attributed. A count tells you a
   // number went up; this tells you what happened and whether it was you.
   if (game.incidents.length) {
@@ -11339,6 +11417,21 @@ requestAnimationFrame(frame);
     Ammunition is checked against ITS OWN GUN's list rather than the whole
     table, so a preset saved with a shotgun cannot load buckshot into a
     carbine — it falls back to that gun's first round instead.
+  v0.66 (2026-08-17): THE DEBRIEF SHOWS ITS WORKING. The grade was a letter
+    with the arithmetic hidden behind it, which makes it a scold rather than a
+    lesson — you cannot aim at a number you were never shown. There is now a
+    SCORECARD: a clean entry is 100, and every arrest, kill, man lost,
+    surrendered suspect shot and civilian killed by your team is itemised with
+    its own rate and its own subtotal, down to the score and the letter it
+    bought.
+    Under it, how close you were and the cheapest way across: "7 points short
+    of B (needs 75) — bring one more man home (+12)". The suggestion is costed
+    against what you ACTUALLY DID, so it never advises fewer civilian deaths on
+    a run where none happened, and it is checked to actually close the gap it
+    claims to.
+    One table drives the score, the scorecard and the advice, so the
+    explanation cannot drift from the thing it explains — asserted over 400
+    stat combinations against the original formula, letter for letter.
 -->
 </body>
 </html>
