@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
   file: index.html (top-down-tactical)
-  version: 1.0
+  version: 1.1
   author: Sam Cao
   created: 2026-08-15
-  last_updated: 2026-08-15
-  description: GitHub Pages entry point. Redirects to the current build so the Pages URL always plays the newest version without the version number in the link.
+  last_updated: 2026-08-17
+  description: GitHub Pages entry point. Redirects to the current build so the Pages URL always plays the newest version without the version number in the link. Deliberately uncacheable — see the note below.
   ai_update: Update the redirect target whenever the game file is renamed. tests/tests.js asserts this file points at the one game file that exists.
 -->
 <html lang="en">
@@ -13,15 +13,48 @@
 <meta charset="utf-8">
 <title>Top-Down Tactical</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  THIS PAGE MUST NEVER BE CACHED, and the game file always should be.
+
+  A returning player kept landing on an old build: GitHub Pages served
+  index.html from the browser cache, and the cached copy still pointed at a
+  version that had since been renamed away. Pages gives us no control over
+  response headers, so the staleness has to be fought from inside the document.
+
+  The split that makes this safe: the game file is IMMUTABLE UNDER ITS NAME.
+  top_down_tactical_v0.65.html can never change contents — a new build is a new
+  filename — so it is perfect to cache hard, and it is 2.2MB, so it had better
+  be. Only this 1KB pointer is allowed to go stale, and it is the one thing
+  here that must not.
+-->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <!-- REDIRECT TARGET — the version test keeps this in step with the build -->
 <meta http-equiv="refresh" content="0; url=top_down_tactical_v0.65.html">
+<script>
+  // Belt and braces. The meta refresh above is what normally fires; this runs
+  // first in practice and replaces the history entry rather than pushing one,
+  // so Back goes where the player expects instead of bouncing off the redirect.
+  // If a stale copy of THIS file is somehow still being executed, the reload()
+  // path below is what breaks the loop.
+  (function () {
+    var TARGET = "top_down_tactical_v0.65.html";
+    try {
+      if (location.hash === "#stale") { location.replace(TARGET); return; }
+      location.replace(TARGET);
+    } catch (e) { location.href = TARGET; }
+  })();
+</script>
 <style>
   body { background: #0d1216; color: #c9d4de; font: 15px/1.6 Consolas, monospace;
-         display: grid; place-items: center; height: 100vh; margin: 0; }
+         display: grid; place-items: center; height: 100vh; margin: 0; text-align: center; }
   a { color: #e8b53a; }
+  .hint { color: #7f8b96; font-size: 12px; margin-top: 10px; }
 </style>
 </head>
 <body>
 <p>Loading the current build &mdash; <a href="top_down_tactical_v0.65.html">play now</a> if it does not.</p>
+<p class="hint">Still on an older version? Hard-refresh with Ctrl/Cmd + Shift + R.</p>
 </body>
 </html>
