@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.57.html
-  version: 0.57
+  file: top_down_tactical_v0.58.html
+  version: 0.58
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-16
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.57 (working title)</title>
+<title>Top-Down Tactical v0.58 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.57 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.58 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -6933,24 +6933,7 @@ function render() {
     ctx.drawImage(img, d.tx * TILE + TILE / 2 - w / 2, d.ty * TILE + TILE / 2 - h / 2, w, h);
   }
   // Ground clutter goes UNDER the canopies — a shrub belongs beneath a crown.
-  // Canopies in their own pass, after every tile, so a clump of trunks reads as
-  // overlapping crowns instead of a tiled sheet — which is what a canopy does.
-  // They spill past their own tile by design; the trunk tile is still the only
-  // thing that stops a man or a bullet.
-  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-    if (!inBounds(tx, ty) || !seen.grid[ty][tx]) continue;
-    if (!level.wall[ty][tx] || level.mat[ty][tx] !== "tree") continue;
-    const h = tileHash(tx, ty);
-    const img = envImage((h % 100) < 40 ? "pine_tree" : "oak_tree");
-    if (!img) continue;
-    const base = (h % 100) < 40 ? 48 : 64;
-    const w = base * (0.86 + ((h >>> 8) % 28) / 100);
-    ctx.save();
-    ctx.translate(tx * TILE + TILE / 2, ty * TILE + TILE / 2);
-    ctx.rotate(((h >>> 16) % 360) * Math.PI / 180);
-    ctx.drawImage(img, -w / 2, -w / 2, w, w);
-    ctx.restore();
-  }
+
 
   // blood decals
   ctx.fillStyle = COLORS.blood;
@@ -7704,6 +7687,31 @@ function inAnyView(x, y) {
 // make by brute force, made deliberately and at a level you can still read.
 function drawWorldObjects(x0, y0, x1, y1) {
   drawProps(x0, y0, x1, y1, "under");
+  // Canopies in their own pass so a clump of trunks reads as overlapping crowns
+  // rather than a tiled sheet. They spill past their own tile by design; the
+  // trunk tile is still the only thing that stops a man or a bullet.
+  //
+  // Above the fog for the same reason the cars are: under it a wood you had
+  // walked through was a field of dark squares, which is the whole point of
+  // having drawn trees at all.
+  for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
+    for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+      if (!seen.grid[ty][tx]) continue;
+      if (!level.wall[ty][tx] || level.mat[ty][tx] !== "tree") continue;
+      const h = tileHash(tx, ty);
+      const img = envImage((h % 100) < 40 ? "pine_tree" : "oak_tree");
+      if (!img) continue;
+      const base = (h % 100) < 40 ? 48 : 64;
+      const w = base * (0.86 + ((h >>> 8) % 28) / 100);
+      const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+      ctx.save();
+      ctx.globalAlpha = inAnyView(cx, cy) ? 1 : TUNE.rememberedAlpha;
+      ctx.translate(cx, cy);
+      ctx.rotate(((h >>> 16) % 360) * Math.PI / 180);
+      ctx.drawImage(img, -w / 2, -w / 2, w, w);
+      ctx.restore();
+    }
+  }
   if (level.vehicles) for (const v of level.vehicles) {
     let anySeen = false;
     for (const t of v.tiles) if (inBounds(t.tx, t.ty) && seen.grid[t.ty][t.tx]) { anySeen = true; break; }
@@ -10265,6 +10273,12 @@ requestAnimationFrame(frame);
     was hit from two sides, and the all-round frame sits below the rung ladder
     in the chain — a burned-out wreck still draws as a wreck rather than as a
     car with holes in it.
+  v0.58 (2026-08-16): THE TREES COME OUT OF THE FOG TOO. v0.52 lifted vehicles
+    and props above the fog layer and left the canopy pass underneath it, so a
+    wood you had already walked through was still a field of dark squares —
+    which is the entire thing the tree art exists to stop. Canopies now draw
+    with the cars, at full strength where anyone can see them and dimmed where
+    they are only remembered.
 -->
 </body>
 </html>
