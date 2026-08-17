@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.59.html
-  version: 0.59
+  file: top_down_tactical_v0.60.html
+  version: 0.60
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.59 (working title)</title>
+<title>Top-Down Tactical v0.60 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.59 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.60 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -851,14 +851,14 @@ const TUNE = {
   // purpose: the reward is for stopping and shooting, and shrinking the base
   // cone without shrinking the moving one widens the gap between the two,
   // which is the trade the corner game is built on.
-  rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
+  rifle: { dmg: 34, rpm: 640, mag: 30, reload: 1.45, speed: 1500, ammo: "fmj",
            spreadBase: deg(0.34), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
            recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 1150 },
   // Enemy weapon. Tightened too, but deliberately LESS: 1.44 to 1.20 against
   // the player's 0.54 to 0.34, and reach 800 to 880 against 900 to 1150. The
   // ask was for the guns to feel accurate, not for the garrison to get a free
   // buff — so the spread between you and them widens rather than sliding.
-  akm:   { dmg: 21, rpm: 420, mag: 30, reload: 2.6, speed: 1300, ammo: "x39",
+  akm:   { dmg: 21, rpm: 420, mag: 30, reload: 2.35, speed: 1300, ammo: "x39",
            spreadBase: deg(1.20), spreadMove: deg(8), burst: [2, 5], burstPause: [0.5, 1.1], range: 880 },
 
   // lethality
@@ -982,7 +982,7 @@ const TUNE = {
   mortarLethal: 30, mortarWound: 110, mortarDmg: 110, noiseMortar: 820,
   // FIELD TEST — the emplaced gun. An M2 on a fixed mount: devastating inside
   // its arc, useless outside it, and whoever is on it is not going anywhere.
-  m2w: { name: "EMPLACED M2", dmg: 50, rpm: 460, mag: 75, reload: 5.0, speed: 1700,
+  m2w: { name: "EMPLACED M2", dmg: 50, rpm: 460, mag: 75, reload: 7.0, speed: 1700,
          range: 1200, spreadBase: 0.023, spreadMove: 0.023, recoil: 0.009,
          recoilMax: 0.09, recoilDecay: 0.10, penMul: 2.2, ammo: "fmj" },
   turretArc: deg(110), turretReach: 44,
@@ -3854,18 +3854,38 @@ function updateShooterWeapon(s, dt) {
   if (s.recoil <= 1e-4) s.burst = 0;                 // settled: next shot is a first shot
   if (s.reloading > 0) {
     s.reloading -= dt;
-    if (s.reloading <= 0) { s.ammo = s.weapon.mag; s.reloading = 0; }
+    if (s.reloading <= 0) {
+      // A TUBE-FED GUN LOADS ONE SHELL AT A TIME. Each tick puts a single
+      // round in and starts the next, so the magazine fills visibly rather
+      // than all at once at the end of a long timer — and crucially the gun
+      // is LOADED THE WHOLE WAY UP. Every shell is banked the instant it goes
+      // in, so a shooter interrupted after two shells has two shells, not
+      // nothing. tryFire below is what interrupts it.
+      if (s.weapon.shellReload) {
+        s.ammo = Math.min(s.weapon.mag, s.ammo + 1);
+        s.reloading = s.ammo < s.weapon.mag ? s.weapon.shellReload : 0;
+      } else { s.ammo = s.weapon.mag; s.reloading = 0; }
+    }
   }
 }
 
 function tryReload(s) {
   if (s.reloading <= 0 && s.ammo < s.weapon.mag) {
-    s.reloading = s.weapon.reload; sfxAt("click", s.x, s.y);
+    // a shell gun pays per shell, not one flat fee for the magazine
+    s.reloading = s.weapon.shellReload || s.weapon.reload;
+    sfxAt("click", s.x, s.y);
     if (s.side === "squad") bark(s, "RELOADING!");
   }
 }
 
 function tryFire(s, ang) {
+  // You can BREAK OFF a shell reload and shoot what you have. A man topping up
+  // a shotgun who sees a door open does not stand there feeding the tube — he
+  // fires the rounds already in it. Only shell guns can do this; you cannot
+  // half-seat a magazine and fire it.
+  if (s.reloading > 0 && s.weapon.shellReload && s.ammo > 0 && s.cooldown <= 0) {
+    s.reloading = 0;
+  }
   if (s.cooldown > 0 || s.reloading > 0 || !s.alive) return false;
   if (s.ammo <= 0) { tryReload(s); return false; }
   s.ammo--; s.cooldown = 60 / s.weapon.rpm;
@@ -5519,14 +5539,14 @@ const ROLES = {
   rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 } },
   breacher: { name: "BREACHER", sprite: "squad_breacher",
-              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 550, mag: 7,   reload: 3.2 } },
+              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 550, mag: 7,   reload: 3.2, shellReload: 0.55 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
-              w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 1100, mag: 100, reload: 5.0,
+              w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 1100, mag: 100, reload: 6.2,
                    spreadBase: deg(1.08), carrySpeed: 0.86 } },
   grenadier:{ name: "GRENADIER", sprite: "squad_breacher",
               w: { ammo: "fmj",  rpm: 420, dmg: 34, range: 1150 }, launcher: true },
   marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
-              w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1450, mag: 20, reload: 2.9,
+              w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1450, mag: 20, reload: 2.4,
                    spreadBase: deg(0.19), penMul: 1.15, carrySpeed: 0.95 } },
 };
 
@@ -5537,23 +5557,24 @@ const PRIMARIES = {
   shotgun: { name: "SHOTGUN",    ammo: ["buck", "slug", "bird"],
              note: "devastating close, useless far",
              w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 560,
+                  shellReload: 0.55,   // one shell at a time, and you may break off and shoot
                   spreadBase: deg(0.70), recoil: deg(3), recoilMax: deg(9) } },
   saw:     { name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
              note: "belt-fed — you are the base of fire, and you are slow",
-             w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 5.4, range: 1100,
+             w: { ...TUNE.rifle, dmg: 30, rpm: 720, mag: 100, reload: 6.2, range: 1100,
                   spreadBase: deg(1.08), spreadMove: deg(13), spreadWalkMove: deg(6.5),
                   recoil: deg(0.75), recoilMax: deg(8), recoilDecay: deg(4.5), sprintDrain: 1.55,
                   recoilRamp: 1.30 },   // long strings are the belt-fed's whole job
              speed: 0.86 },
   dmr:     { name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
              note: "one round at a time, from across the map",
-             w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1450,
+             w: { ...TUNE.rifle, dmg: 68, rpm: 160, mag: 20, reload: 2.4, range: 1450,
                   spreadBase: deg(0.19), spreadMove: deg(12), spreadWalkMove: deg(5),
                   recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15, sprintDrain: 1.2 },
              speed: 0.95 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
-             w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 700,
+             w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.15, range: 700,
                   spreadBase: deg(0.48), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
 };
 
@@ -10765,6 +10786,34 @@ requestAnimationFrame(frame);
     firefight he was standing in. SOUND_ART is an empty table that overrides
     the synthesized effects one key at a time, for whenever recorded sound
     arrives.
+  v0.60 (2026-08-17): TIGHTER GUNS, FASTER MAGAZINES, AND A FIGHT YOU HAVE TO
+    ENTER. Standing cones came down and reach went up across every gun — the
+    carbine 0.54 to 0.34 degrees and 900 to 1150, the DMR 0.32 to 0.19 and 1100
+    to 1450, the SAW 1.53 to 1.08, the SMG 0.72 to 0.48. Moving penalties are
+    untouched on purpose: shrinking the standing cone without shrinking the
+    moving one widens the gap between shooting still and shooting on the move,
+    which is the trade the corner game is built on. The enemy AKM tightened
+    less than you did, so the gap widens rather than sliding. Buckshot went
+    from 7 degrees to 4.4 — at 7 a pattern was wider than a doorway across a
+    room, so the shotgun missed men it was pointed at.
+    Reloads: the carbine 1.9 to 1.45 and the SMG 1.8 to 1.15, because neither
+    takes two seconds in anyone's hands. The belt-fed went the other way, 5.4
+    to 6.2, and the M2 on its mount 5.0 to 7.0 — running dry on a fixed gun
+    should hurt. The shotgun now loads ONE SHELL AT A TIME at 0.55s each, every
+    shell banked the instant it goes in, and you may break off at any point and
+    fire what is already in the tube. A magazine gun cannot do that; you cannot
+    half-seat a mag and shoot it.
+    Four maps opened on bare ground with nothing solid within four tiles of the
+    start line; they get low walls you shoot around rather than barriers you
+    walk around, and BROKEN ARROW gets cover beside each of the two men you
+    came for. And the alarm no longer goes up on frame one: enemies spawn with
+    a RANDOM facing, so whether one was looking down your start line was a coin
+    flip, and cover cannot fix a man looking straight at you. For 2.5 seconds a
+    sighting makes a man suspicious rather than in contact. Noise and gunfire
+    are exempt — you can still start a fight instantly, you just cannot be
+    handed one before you have moved.
+    Your own HUD was the smallest type on screen; the status panel and the ammo
+    readout are both about 1.4x up.
 -->
 </body>
 </html>
