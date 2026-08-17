@@ -3828,7 +3828,13 @@ function tryFire(s, ang) {
   addNoise(s.x, s.y, s.can ? TUNE.suppNoiseShot : TUNE.noiseShot, "shot", s.side, s.can);
   sfxAt(s.can ? "click" : "shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
-  if (s.side === "enemy") game.underFireT = 4;   // squad "return fire" window
+  // The return-fire window, and WHERE IT CAME FROM. The bearing is the whole
+  // of a contact report; without it a man can only know that shooting is
+  // happening, which is not something you can turn toward.
+  if (s.side === "enemy") {
+    game.underFireT = 4;
+    game.lastContact = { x: s.x, y: s.y, t: game.stats ? game.stats.time : 0 };
+  }
   return true;
 }
 
@@ -6525,6 +6531,44 @@ function syncPlanMembers(p) {
   });
 }
 
+// A relative bearing as a clock face. "Left" is not a contact report; a man
+// who cannot say which way he means has not told you anything you can act on.
+function clockOf(rel) {
+  let h = Math.round(((rel + TAU) % TAU) / TAU * 12);
+  if (h === 0) h = 12;
+  return h;
+}
+
+// ALERT and turn. The first half of react-to-contact, and the half that costs
+// nothing: acquisition is cone-gated at deg(160) around s.face, so a man
+// holding a bearing he was given two rooms ago is PHYSICALLY UNABLE to see the
+// firefight he is standing in. He keeps that face until you re-order him,
+// which reads as the squad ignoring a gunfight.
+//
+// This only ever writes s.face, and only when he has no threat of his own —
+// exactly what case "hold" already does — so it cannot move anyone, cannot
+// make anyone shoot, and cannot deadlock an order. He turns, he calls it, and
+// then the existing acquisition code can finally see what he is looking at.
+function reactToContact(s, dt) {
+  if (game.underFireT <= 0 || !game.lastContact) return;
+  if (s.downed || s.turret) return;
+  if (s.order.type === "aid" || s.order.type === "selfaid") return;   // hands busy
+  if (s.order.type === "stack" || s.order.type === "entry") return;   // he has a door to watch
+  const c = game.lastContact;
+  const want = angleTo(s.x, s.y, c.x, c.y);
+  if (Math.abs(angDiff(s.face, want)) < deg(12)) { s._calledIt = c.t; return; }
+  s.face = angLerp(s.face, want, dt * 7);
+  // called once per contact, by the first man to swing onto it
+  if (s._calledIt !== c.t && game._contactCalled !== c.t && game.player) {
+    s._calledIt = c.t; game._contactCalled = c.t;
+    // Called against the POINT MAN's facing, not the caller's: a clock
+    // direction is only useful if everyone reckons it from the same front,
+    // and the front is wherever you are looking.
+    const rel = angDiff(game.player.face, angleTo(game.player.x, game.player.y, c.x, c.y));
+    bark(s, "CONTACT — " + clockOf(rel) + " O'CLOCK");
+  }
+}
+
 // ---- per-frame squaddie behavior
 function updateSquaddie(s, dt) {
   s.nadeCd = Math.max(0, (s.nadeCd || 0) - dt);
@@ -6644,7 +6688,7 @@ function updateSquaddie(s, dt) {
     // stop to shoot only when actually able and willing — a blocked or held shot
     // must never freeze movement orders (that deadlocks the squad)
     if (!executingEntry && s.order.type !== "stack" && mayFire && canShoot) return;
-  }
+  } else reactToContact(s, dt);
 
   switch (s.order.type) {
     case "follow": {
