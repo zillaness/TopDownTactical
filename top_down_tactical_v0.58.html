@@ -455,6 +455,34 @@ const PROP_SPRITES = {
 };
 // --- END PROP ART ---
 
+// Drop recorded sound in here and it replaces the synth. --- BEGIN SOUND ART ---
+// EMPTY BY DESIGN, and the emptiness is the point: the wiring is the work and
+// the files are just a drop. The game already makes noise — every sound is
+// SYNTHESIZED from oscillators and filtered noise down in the S11b audio
+// section, which is why it has never needed an asset. This table does not
+// replace that system; it OVERRIDES it, one key at a time.
+//
+// The keys are exactly the names the synth already answers to, because sfxAt()
+// looks here first and falls through to the oscillators when it finds nothing:
+//   shot  kick  breach  bang  shout  hit  thud  door  glass  click
+//   surrender  plate
+// So dropping in a single `shot` sample gives you a recorded gunshot and leaves
+// every other sound synthesized, and the game keeps working with this table
+// empty forever. Nothing here is required.
+//
+// Shape, matching the art tables:
+//   shot: { gain: 0.9, src: `data:audio/ogg;base64,...` }
+//   glass: { gain: 1, variants: [`data:audio/ogg;base64,...`, `data:...`] }
+// `variants` is optional; when present one is picked at random per play, which
+// is what stops thirty rounds of the same file sounding like a machine. The
+// distance and pan model is sfxAt's and applies to samples unchanged.
+//
+// Prefer Opus-in-OGG or AAC-in-MP4 over WAV. The byte ceiling is real and a
+// gunshot at 48kbps mono is indistinguishable from 700kbps of PCM.
+const SOUND_ART = {
+};
+// --- END SOUND ART ---
+
 // Replace this whole block to swap effect art wholesale. --- BEGIN EFFECT ART ---
 // Nine effects as frame sequences, authored at 1.5x world size rather than the 2x
 // everything else uses. An explosion is on screen for a third of a second, it is
@@ -2642,6 +2670,7 @@ window.addEventListener("blur", () => { input.keys.clear(); input.mouse.down = f
 const canvas = document.getElementById("game");
 canvas.addEventListener("mousemove", e => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; });
 canvas.addEventListener("mousedown", e => {
+  initAudio();                     // the first gesture is what lets audio start at all
   if (e.button === 0) { input.mouse.down = true; input.justPressed.add("lmb"); }
   if (e.button === 1) { input.justPressed.add("mmb"); e.preventDefault(); }
   if (e.button === 2) {
@@ -7046,30 +7075,12 @@ function render() {
     ctx.setLineDash([]);
   }
 
-  // windows
-  for (const w of level.windowAt.values()) {
-    if (!seen.grid[w.ty][w.tx]) continue;
-    const wx = w.tx * TILE, wy = w.ty * TILE;
-    ctx.strokeStyle = w.broken ? "#5b6b76" : "#7fc8e8";
-    ctx.lineWidth = w.broken ? 2 : 4;
-    if (w.broken) ctx.setLineDash([4, 5]);
-    ctx.beginPath();
-    if (w.orient === "h") { ctx.moveTo(wx + 2, wy + TILE / 2); ctx.lineTo(wx + TILE - 2, wy + TILE / 2); }
-    else { ctx.moveTo(wx + TILE / 2, wy + 2); ctx.lineTo(wx + TILE / 2, wy + TILE - 2); }
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // doors
-  for (const d of level.doors) {
-    const t = tileAt(d.tx * TILE, d.ty * TILE);
-    if (!seen.grid[d.ty][d.tx]) continue;
-    drawDoor(d);
-  }
-  for (const cam of level.cameras) {
-    drawCamera(cam);
-  }
-  for (const t of level.turrets) drawTurret(t);
+  // Windows, doors, cameras and turrets used to be drawn here, under the fog.
+  // They are cover, and cover is the one thing the fog must not eat: a tile
+  // that BLOCKS sight is by construction the edge of the visibility polygon,
+  // so the veil lands squarely on the very object you are taking cover behind.
+  // They moved into drawSightBlockers(), above the fog — the same call already
+  // made for cars in v0.52 and for trees in v0.58.
   for (const st of level.stairs || []) {
     if (!seen.grid[st.ty] || !seen.grid[st.ty][st.tx]) continue;
     const sx2 = st.tx * TILE, sy2 = st.ty * TILE;
@@ -7892,7 +7903,40 @@ function drawWorldObjects(x0, y0, x1, y1) {
     ctx.drawImage(img, -along / 2, -across / 2, along, across);
     ctx.restore();
   }
+  drawSightBlockers();
   drawProps(x0, y0, x1, y1, "over");
+}
+
+// Cover, above the fog. A tile that stops sight sits ON the boundary of every
+// visibility polygon that reaches it, so under the fog the veil landed on
+// exactly the thing you were hiding behind and a whole class of cover never
+// really rendered. Seen-once is the gate, as everywhere else; live things draw
+// full strength and remembered ones dim, so lifting them out of the fog costs
+// no information the fog was carrying.
+function drawSightBlockers() {
+  const lit = (cx, cy) => { ctx.globalAlpha = inAnyView(cx, cy) ? 1 : TUNE.rememberedAlpha; };
+  for (const w of level.windowAt.values()) {
+    if (!seen.grid[w.ty] || !seen.grid[w.ty][w.tx]) continue;
+    const wx = w.tx * TILE, wy = w.ty * TILE;
+    lit(wx + TILE / 2, wy + TILE / 2);
+    ctx.strokeStyle = w.broken ? "#5b6b76" : "#7fc8e8";
+    ctx.lineWidth = w.broken ? 2 : 4;
+    if (w.broken) ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    if (w.orient === "h") { ctx.moveTo(wx + 2, wy + TILE / 2); ctx.lineTo(wx + TILE - 2, wy + TILE / 2); }
+    else { ctx.moveTo(wx + TILE / 2, wy + 2); ctx.lineTo(wx + TILE / 2, wy + TILE - 2); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  for (const d of level.doors) {
+    if (!seen.grid[d.ty] || !seen.grid[d.ty][d.tx]) continue;
+    lit(d.tx * TILE + TILE / 2, d.ty * TILE + TILE / 2);
+    drawDoor(d);
+  }
+  ctx.globalAlpha = 1;
+  for (const cam of level.cameras) drawCamera(cam);
+  for (const t of level.turrets) drawTurret(t);
+  ctx.globalAlpha = 1;
 }
 
 function drawMemory(x0, y0, x1, y1) {
@@ -7914,30 +7958,10 @@ function drawMemory(x0, y0, x1, y1) {
     }
   }
   ctx.stroke();
-  ctx.lineWidth = Math.max(1, 1.6 * k);
-  ctx.lineWidth = Math.max(1, 1.6 * k);
-  for (const d of level.doors) {
-    if (d.tx < x0 || d.tx > x1 || d.ty < y0 || d.ty > y1) continue;
-    if (!seen.grid[d.ty][d.tx]) continue;
-    const c = doorCenter(d);
-    ctx.strokeStyle = d.locked ? "rgba(196,82,63,0.55)"
-                    : d.state === "closed" ? "rgba(224,168,82,0.5)" : "rgba(120,140,160,0.4)";
-    const half = TILE * 0.36;
-    ctx.beginPath();
-    if (d.orient === "h") { ctx.moveTo(c.x - half, c.y); ctx.lineTo(c.x + half, c.y); }
-    else { ctx.moveTo(c.x, c.y - half); ctx.lineTo(c.x, c.y + half); }
-    ctx.stroke();
-  }
-  for (const w of level.windowAt.values()) {
-    if (w.tx < x0 || w.tx > x1 || w.ty < y0 || w.ty > y1) continue;
-    if (!seen.grid[w.ty][w.tx]) continue;
-    const cx = w.tx * TILE + TILE / 2, cy = w.ty * TILE + TILE / 2, half = TILE * 0.36;
-    ctx.strokeStyle = w.broken ? "rgba(91,107,118,0.5)" : "rgba(127,200,232,0.45)";
-    ctx.beginPath();
-    if (w.orient === "h") { ctx.moveTo(cx - half, cy); ctx.lineTo(cx + half, cy); }
-    else { ctx.moveTo(cx, cy - half); ctx.lineTo(cx, cy + half); }
-    ctx.stroke();
-  }
+  // The schematic door and window strokes that used to live here are gone: the
+  // real ones now draw above the fog in drawSightBlockers(), dimmed when only
+  // remembered, so a second stylised copy underneath them was drawing twice
+  // and disagreeing with itself about what a remembered door looks like.
 }
 
 // Where he was when you last had eyes on him, and how long ago. The mark fades
@@ -8664,12 +8688,52 @@ const SFX = {
   plate(v, p)   { playNoise(v * 0.8, 0.06, "highpass", 2600, p); playTone(v * 0.55, 0.09, "square", 940, 340, p); },
 };
 function sfxAt(name, x, y) {
-  if (!AC || !game.player || !SFX[name]) return;
+  if (!AC || !game.player || !(SFX[name] || SOUND_ART[name])) return;
   const d = dist(game.player.x, game.player.y, x, y);
   const vol = clamp(1 - d / 950, 0, 1);
   if (vol <= 0.02) return;
   const pan = clamp((x - game.player.x) / 520, -0.9, 0.9);
-  try { SFX[name](vol, pan); } catch (e) {}
+  // A dropped-in sample wins over the oscillators for that one name; everything
+  // else stays synthesized. Same distance and pan model either way, so the two
+  // sit in the same world and a half-filled table does not sound half-finished.
+  if (SOUND_ART[name] && playSample(name, vol, pan)) return;
+  if (SFX[name]) { try { SFX[name](vol, pan); } catch (e) {} }
+}
+
+// Sampled playback for anything SOUND_ART defines. Decoding is lazy and its
+// first call is silent-but-warming: a miss returns false and the caller falls
+// back to the synth, so the very first shot is an oscillator and every one
+// after it is the recording, rather than the first shot being nothing at all.
+const sndBuf = new Map(), sndPending = new Set();
+function playSample(name, vol, pan) {
+  const def = SOUND_ART[name]; if (!def || !AC) return false;
+  const list = def.variants && def.variants.length ? def.variants : [def.src];
+  const idx = list.length > 1 ? (Math.random() * list.length) | 0 : 0;
+  const key = name + "#" + idx;
+  if (!sndBuf.has(key)) {
+    if (!sndPending.has(key) && list[idx]) {
+      sndPending.add(key);
+      const src = list[idx], b64 = atob(src.slice(src.indexOf(",") + 1));
+      const bytes = new Uint8Array(b64.length);
+      for (let i = 0; i < b64.length; i++) bytes[i] = b64.charCodeAt(i);
+      AC.decodeAudioData(bytes.buffer,
+        b => { sndBuf.set(key, b); sndPending.delete(key); },
+        () => { sndBuf.set(key, null); sndPending.delete(key); });  // a bad file is silent, not fatal
+    }
+    return false;
+  }
+  const buf = sndBuf.get(key); if (!buf) return false;
+  try {
+    const t0 = AC.currentTime;
+    const s = AC.createBufferSource(); s.buffer = buf;
+    s.playbackRate.value = 0.96 + Math.random() * 0.08;   // no two are quite identical
+    const g = AC.createGain(); g.gain.value = vol * (def.gain === undefined ? 1 : def.gain);
+    const p = AC.createStereoPanner ? AC.createStereoPanner() : null;
+    if (p) p.pan.value = pan;
+    s.connect(g); g.connect(p || masterGain); if (p) p.connect(masterGain);
+    s.start(t0);
+  } catch (e) { return false; }
+  return true;
 }
 
 // Tinnitus. This one is in your head, so it bypasses sfxAt's distance model and
