@@ -1013,6 +1013,12 @@ const TUNE = {
   // alarm. Noise and gunfire are never covered by it — you can still start a
   // fight instantly, you just cannot be handed one before you have moved.
   missionSettle: 2.5,
+  // Taking cover under fire. contactMemory is how long a bearing stays
+  // live; contactCommit is how strong the resultant must be before a man
+  // acts on it — fire from two sides cancels below this and he stays put
+  // rather than diving behind the wrong wall. coverEnough is how covered he
+  // must already be to decide he is fine where he is.
+  contactMemory: 3.5, contactCommit: 0.9, coverEnough: 0.35,
   selfAidTime: 4.0, selfAidHeal: 30,
   // BETA — elevated overwatch. A man posted at an upper-floor window sees the
   // STREET: over cars and engine blocks, out to postRange, and he is invisible
@@ -4026,7 +4032,29 @@ function suppressAlong(b, ex, ey) {
     const add = TUNE.suppressPerRound * (1 - near / TUNE.suppressRadius) * (e.rank ? e.rank.sup : 1);
     e.suppress = Math.min(TUNE.suppressMax, (e.suppress || 0) + add);
     e._suppressedBy = b.side;
+    // A near miss IS being shot at. The round that goes past your ear is the
+    // one that tells you where the enemy is, and it is far more common than
+    // the one that hits — so contact bearings are accumulated here rather than
+    // in applyHit, which only ever fires when somebody is already bleeding.
+    if (b.side === "enemy" && b.ox !== undefined) markContact(e, b.ox, b.oy, add);
   }
+}
+
+// WHICH WAY THE FIRE IS COMING FROM, as one vector.
+//
+// Not the last round — the SUM. Each incoming round adds a unit vector toward
+// where it came from, weighted by how close it passed, and the running total
+// decays. Take the resultant and you have the direction of MOST of the
+// contact, which is the thing you want to put a wall between yourself and.
+// Two men shooting from opposite sides cancel toward zero, which is correct:
+// there is no single direction to hide from, and the magnitude test below then
+// refuses to commit rather than diving behind the wrong wall.
+function markContact(e, fromX, fromY, weight) {
+  const a = angleTo(e.x, e.y, fromX, fromY);
+  const w = Math.max(0.15, weight || 0.3);
+  e.contactX = (e.contactX || 0) + Math.cos(a) * w;
+  e.contactY = (e.contactY || 0) + Math.sin(a) * w;
+  e.contactT = TUNE.contactMemory;
 }
 
 // Nobody had a velocity, so nobody could lead a moving target — which is why
@@ -4160,6 +4188,9 @@ function applyHit(ent, b, hx, hy) {
     const spot = coverSpotFrom(ent, b.ox, b.oy);
     if (spot) { ent.repos = spot; ent._reposT = TUNE.reposCooldown; ent.path = null; }
   }
+  // A round that connects is the loudest possible statement about where the
+  // enemy is, so it weighs several near misses' worth into the same bearing.
+  if (b.side === "enemy" && b.ox !== undefined) markContact(ent, b.ox, b.oy, 1.6);
   const raw = b.dmg * rand(0.85, 1.15);
   const res = throughArmor(ent, raw, b.pen, hx, hy);
   ent.hp -= res.dmg;
@@ -6663,6 +6694,73 @@ function clockOf(rel) {
 // exactly what case "hold" already does — so it cannot move anyone, cannot
 // make anyone shoot, and cannot deadlock an order. He turns, he calls it, and
 // then the existing acquisition code can finally see what he is looking at.
+// TAKE COVER — the half of react-to-contact that moves.
+//
+// This is the squad ACTING WITHOUT AN ORDER, which the design has resisted
+// everywhere else, and it is allowed here for one reason: standing in the open
+// being shot at is not a decision anyone would make. Every constraint below
+// exists to keep it from becoming the squad playing itself.
+//
+//   · only when actually shot at, and only while the bearing still means
+//     something — a resultant of length contactCommit or better, which two
+//     shooters on opposite sides cannot produce
+//   · never while stacked, entering, on a turret, treating a casualty, or set
+//     as the covering element of a bound — those men have a job
+//   · never under HOLD FIRE. That is the player's off switch and it already
+//     exists in the UI
+//   · never further than reposDist from where he was, so a man does not
+//     abandon the ground you sent him to
+//   · one move per cooldown, and he returns to his ordered position when the
+//     shooting stops
+//
+// Concealment counts. coverSpotFrom scores on whether a bullet is stopped, but
+// a spot that merely breaks LINE OF SIGHT is worth taking too — being unseen
+// is most of being unshot, and it is what a hedge or a smoke bank buys you.
+function seekCoverUnderFire(s, dt) {
+  if (s.roe === "hold") return;                       // the player said hold; holding includes position
+  if (s.repos || (s._reposT || 0) > 0) return;
+  if ((s.contactT || 0) <= 0) return;
+  const mag = Math.hypot(s.contactX || 0, s.contactY || 0);
+  if (mag < TUNE.contactCommit) return;               // fire from everywhere is not a direction
+  const t = s.order.type;
+  // A man who already has a job does it. PEEL and SUPPRESS are the two that
+  // caught me: both are men deliberately standing still and shooting so
+  // somebody else can move, and letting them self-cover turned the game's own
+  // withdrawal drill into everyone running for a wall at once — the peel test
+  // measured covering rounds falling from 8 to 6.
+  if (t === "stack" || t === "entry" || t === "aid" || t === "selfaid" ||
+      t === "man" || t === "peel" || t === "suppress" || t === "wallbreach") return;
+  if (s.turret || s.downed) return;
+  if (t === "bound" && game.bound && s.order.element !== game.bound.moving) return;   // he IS the cover
+  // where the fire is coming from, far enough out to be a real bearing
+  const ang = Math.atan2(s.contactY, s.contactX);
+  const fx = s.x + Math.cos(ang) * 400, fy = s.y + Math.sin(ang) * 400;
+  if (coveredFrom(s.x, s.y, fx, fy) > TUNE.coverEnough) { s._reposT = TUNE.reposCooldown; return; }
+  const spot = coverSpotFrom(s, fx, fy) || concealSpotFrom(s, fx, fy);
+  if (!spot) return;
+  if (!s._postX) { s._postX = s.x; s._postY = s.y; }   // remember the ground you were given
+  s.repos = spot; s._reposT = TUNE.reposCooldown; s.path = null;
+  bark(s, "TAKING COVER!");
+}
+
+// Cover stops rounds; CONCEALMENT only stops eyes. Worth having as a fallback
+// because a man behind a hedge is one the enemy is not shooting at, and on the
+// open maps it is frequently the only thing on offer.
+function concealSpotFrom(e, fromX, fromY) {
+  let best = null, bestScore = 0;
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU;
+    for (const d of [TUNE.reposDist * 0.55, TUNE.reposDist]) {
+      const pt = nearestPassable(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
+      if (dist(pt.x, pt.y, e.x, e.y) < 24) continue;
+      if (lineOfSight(pt.x, pt.y, fromX, fromY, opaque)) continue;   // still seen: no good
+      const score = 60 - dist(pt.x, pt.y, e.x, e.y) * 0.15;
+      if (score > bestScore) { bestScore = score; best = pt; }
+    }
+  }
+  return best;
+}
+
 function reactToContact(s, dt) {
   if (game.underFireT <= 0 || !game.lastContact) return;
   if (s.downed || s.turret) return;
@@ -6687,6 +6785,14 @@ function reactToContact(s, dt) {
 function updateSquaddie(s, dt) {
   s.nadeCd = Math.max(0, (s.nadeCd || 0) - dt);
   if (!s.alive) return;
+  // the contact bearing fades, and its vector fades with it
+  if (s.contactT > 0) {
+    s.contactT -= dt;
+    const k = Math.max(0, 1 - dt / TUNE.contactMemory);
+    s.contactX = (s.contactX || 0) * k; s.contactY = (s.contactY || 0) * k;
+    if (s.contactT <= 0) { s.contactX = 0; s.contactY = 0; }
+  }
+  if (s._reposT > 0) s._reposT -= dt;
   if (s.turret && s.order.type !== "man") dismountTurret(s);   // any new order comes off the gun
   if (s.turret) { s.x = s.turret.x; s.y = s.turret.y; s.face = clampToArc(s.turret, s.face); }
   if (s.downed) {
@@ -6721,6 +6827,34 @@ function updateSquaddie(s, dt) {
   }
   if (threat && !s.engaged) s.reactT = randIn(TUNE.squadReact) * (s.rank ? s.rank.react : 1);
   s.engaged = threat;
+
+  // Being shot at is the one thing the squad may answer without an order.
+  if (!s.repos) seekCoverUnderFire(s, dt);
+  // Moving to cover overrides the order for as long as it takes, then hands
+  // control straight back. He shoots the WHOLE WAY — a man running for a wall
+  // who stops shooting is a man the enemy gets for free.
+  if (s.repos) {
+    const arrived = squadMove(s, s.repos.x, s.repos.y, TUNE.squadRun, dt);
+    if (arrived || dist(s.x, s.y, s.repos.x, s.repos.y) < 14) s.repos = null;
+    if (threat) {
+      s.face = angLerp(s.face, angleTo(s.x, s.y, threat.x, threat.y), dt * 10);
+      if (s.roe !== "hold" && clearShot(s, threat) && s.reactT <= 0 && s.stagger <= 0)
+        tryFire(s, aimAngle(s, threat.x, threat.y));
+    } else if (s.contactT > 0) {
+      s.face = angLerp(s.face, Math.atan2(s.contactY, s.contactX), dt * 8);
+    }
+    return;
+  }
+  // and when the shooting stops he walks back to the ground he was given
+  if (s._postX !== undefined && (s.contactT || 0) <= 0) {
+    if (s.order.type === "hold" && dist(s.x, s.y, s._postX, s._postY) > 20) {
+      if (squadMove(s, s._postX, s._postY, TUNE.squadRun * 0.8, dt)) {
+        s._postX = undefined; s._postY = undefined;
+      }
+      return;
+    }
+    s._postX = undefined; s._postY = undefined;
+  }
 
   // zip-cuff surrendered suspects in reach when not fighting
   if (!threat) {

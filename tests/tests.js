@@ -2930,6 +2930,53 @@ game.mapIndex = 0; initGame();
 console.log('HOUSE VARIANT TEST DONE');
 })();
 
+(function coverUnderFireTests(){
+console.log('--- the squad takes cover when it is shot at ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE');
+game.diffIndex = 1; initGame(); game.state = 'play';
+const P = game.player;
+const place = (list) => list.forEach((s, i) => {
+  const pt = nearestPassable(P.x - 40 - i * 34, P.y - 20);
+  s.x = pt.x; s.y = pt.y; s.order = { type: 'hold', face: 0 };
+});
+const rake = (list, sides) => {
+  for (let f = 0; f < 60 * 6; f++) {
+    if (f % 8 === 0) for (const s of list) for (const sx of sides(s))
+      suppressAlong({ side: 'enemy', x: sx, y: s.y - 26, ox: sx, oy: s.y - 26,
+                      owner: null, dmg: 1, pen: 1, ang: 0 },
+                    s.x + (sx > s.x ? -200 : 200), s.y - 26);
+    update(1 / 60);
+  }
+};
+const team = game.squad.filter(s => s.alive);
+place(team); team.forEach(s => s.roe = 'return');
+const home = team.map(s => ({ x: s.x, y: s.y }));
+const cov0 = team.map(s => coveredFrom(s.x, s.y, s.x + 400, s.y));
+rake(team, s => [s.x + 420]);
+const moved = team.filter((s, i) => dist(s.x, s.y, home[i].x, home[i].y) > 30).length;
+const better = team.filter((s, i) => coveredFrom(s.x, s.y, s.x + 400, s.y) > cov0[i] + 0.05).length;
+console.log('  men who moved when shot at: ' + moved + '/' + team.length,
+            moved >= 2 ? 'CORRECT (they do not stand in the open)' : 'WRONG');
+console.log('  and ended up better covered from that bearing: ' + better + '/' + team.length,
+            better >= 1 ? 'CORRECT' : 'WRONG');
+// fire from opposite sides is not a direction to hide from
+initGame(); game.state = 'play';
+const t2 = game.squad.filter(s => s.alive); place(t2); t2.forEach(s => s.roe = 'return');
+rake(t2, s => [s.x + 420, s.x - 420]);
+const mag = Math.max(...t2.map(s => Math.hypot(s.contactX || 0, s.contactY || 0)));
+console.log('  fire from BOTH sides cancels the bearing: max |v| = ' + mag.toFixed(2),
+            mag < TUNE.contactCommit ? 'CORRECT (no wrong wall to dive behind)' : 'WRONG');
+// HOLD FIRE is the player's off switch, and it covers position too
+initGame(); game.state = 'play';
+const t3 = game.squad.filter(s => s.alive); place(t3); t3.forEach(s => s.roe = 'hold');
+const h0 = t3.map(s => ({ x: s.x, y: s.y }));
+rake(t3, s => [s.x + 420]);
+const stayed = t3.filter((s, i) => dist(s.x, s.y, h0[i].x, h0[i].y) < 12).length;
+console.log('  under HOLD FIRE they stay put: ' + stayed + '/' + t3.length,
+            stayed === t3.length ? 'CORRECT (the off switch works)' : 'WRONG');
+console.log('COVER UNDER FIRE TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
