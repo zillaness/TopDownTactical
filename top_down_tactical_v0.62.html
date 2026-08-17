@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.61.html
-  version: 0.61
+  file: top_down_tactical_v0.62.html
+  version: 0.62
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.61 (working title)</title>
+<title>Top-Down Tactical v0.62 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.61 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.62 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -5657,6 +5657,14 @@ const UTILITY_KITS = {
 };
 
 const SQUAD_TEMPLATES = {
+  // Nobody behind you. Every system that commands a squad already refuses
+  // gracefully when there is nobody to command — callPlay and issueOrders both
+  // bail on an empty team, the wheel says so, the roster bar draws nothing —
+  // so SOLO is an empty roles list rather than a mode flag threaded through
+  // the game. The one place that had to change is makeSquaddie, which still
+  // gets called for BROKEN ARROW's casualties: they are squaddies, they are
+  // the objective, and they exist whether or not you brought anyone.
+  solo:     { name: "SOLO", roles: [], note: "nobody behind you — every door is yours" },
   standard: { name: "STANDARD", roles: ["rifleman", "breacher", "support"], note: "one of each" },
   weight:   { name: "WEIGHT OF FIRE", roles: ["support", "support", "rifleman"], note: "two belts — suppress and bound" },
   assault:  { name: "ASSAULT",  roles: ["rifleman", "rifleman", "breacher"], note: "rifles forward" },
@@ -5674,7 +5682,9 @@ const SQUAD_TEMPLATES = {
 
 function makeSquaddie(sp, i) {
   const tmpl = SQUAD_TEMPLATES[game.loadout.squad] || SQUAD_TEMPLATES.standard;
-  const role = tmpl.roles[i % tmpl.roles.length];
+  // SOLO carries no roles, but this is still called for the men you came for
+  // on BROKEN ARROW — i % 0 is NaN and would index the table with undefined.
+  const role = tmpl.roles.length ? tmpl.roles[i % tmpl.roles.length] : "rifleman";
   const w = { ...TUNE.rifle, spreadBase: deg(0.9), rpm: 480, ...ROLES[role].w };
   const s = makeShooter(sp.x, sp.y, "squad", TUNE.squadHp, w);
   s.name = (game.deployRoster && game.deployRoster[i]) || SQUAD_NAMES[i] || "OP" + i;
@@ -5895,6 +5905,13 @@ function issueOrders() {
   // anywhere else and either release (go there) or flick a direction (a play).
   if (pressed("rmb")) {
     const man = squaddieUnder(input.mouse.wx, input.mouse.wy);
+    // SOLO: there is nobody to command, so the command wheel does not open at
+    // all rather than opening and reporting that it is empty on every click.
+    // Note the test is for an ABLE man, not an empty squad — BROKEN ARROW's
+    // casualties are squaddies, and right-clicking one of them to send help
+    // must still reach the "nobody left to send" branch below and say so.
+    const anyAble = game.squad.some(s2 => s2.alive && !s2.downed);
+    if (!anyAble && !(man && man.downed)) { game.wheel = null; return; }
     // A downed man is not someone you select — he is someone you send help to.
     // Right-click on him assigns a medic: the selected man if there is exactly
     // one, otherwise the nearest able squaddie. TCCC is a two-man cost by
@@ -8556,7 +8573,9 @@ function squadBarCards() {
 }
 // how tall the bar actually is, so everything below it can clear it
 function squadBarBottom() {
-  return game.squad && game.squad.length ? SQUAD_BAR.y + SQUAD_BAR.h : 0;
+  if (!game.squad) return 0;
+  if (game.squad.length) return SQUAD_BAR.y + SQUAD_BAR.h;
+  return SQUAD_BAR.y + 22;                  // the SOLO strip is short, but it is there
 }
 function squadCardAt(sx, sy) {
   for (const c of squadBarCards())
@@ -8566,7 +8585,18 @@ function squadCardAt(sx, sy) {
 
 function drawSquadBar() {
   const cards = squadBarCards();
-  if (!cards.length) return;
+  if (!cards.length) {
+    // Solo still gets a line where the roster would be. An empty strip reads
+    // as a HUD that failed to draw; a stated one reads as a choice you made.
+    if (game.squad && game.squad.length === 0 && game.state === "play") {
+      ctx.font = "bold 12px Consolas, monospace"; ctx.textAlign = "left";
+      ctx.fillStyle = "#0009"; ctx.fillRect(SQUAD_BAR.pad, SQUAD_BAR.y, 176, 22);
+      ctx.fillStyle = COLORS.hudDim;
+      ctx.fillText("SOLO — NO SUPPORT", SQUAD_BAR.pad + 8, SQUAD_BAR.y + 15);
+      ctx.font = "13px Consolas, monospace";
+    }
+    return;
+  }
   const drag = game.barDrag;
   for (const c of cards) {
     const s = c.s, sel = game.selected.has(c.i);
@@ -9907,7 +9937,8 @@ mkBtn(suppPickEl, "loud", "LOUD", "full noise and flash — nothing on the muzzl
 mkBtn(suppPickEl, "can", "SUPPRESSED", "one wall usually swallows the report, no flash, heard shots are hard to place — the longer gun traverses slower, whole team",
       () => { game.loadout.can = true; refreshMenu(); });
 Object.entries(SQUAD_TEMPLATES).forEach(([k, v]) =>
-  mkBtn(squadPickEl, k, v.name, v.roles.map(r => ROLES[r].name[0]).join(" · ") + " — " + v.note,
+  mkBtn(squadPickEl, k, v.name,
+        (v.roles.length ? v.roles.map(r => ROLES[r].name[0]).join(" · ") : "NO SUPPORT") + " — " + v.note,
         () => { game.loadout.squad = k; refreshMenu(); }));
 refreshMenu();
 
@@ -11005,6 +11036,27 @@ requestAnimationFrame(frame);
     The vehicle orientation test asserted "every car points right", which was
     only ever true by accident of how the maps were drawn; it now asserts the
     real invariant — that a nose is wherever its own engine is.
+  v0.62 (2026-08-17): SOLO. A fifth entry on the squad picker with an empty
+    roles list, and that is very nearly the whole feature — which is the point.
+    Every system that commands a squad already refused gracefully when there
+    was nobody to command: callPlay and issueOrders both bail on an empty team,
+    the roster bar draws nothing, padCycleSelection returns. So SOLO is the
+    absence of men rather than a mode flag threaded through the game, and there
+    is no second code path to keep in step with the first.
+    Three things did need saying. makeSquaddie is still called with an empty
+    roles list, because BROKEN ARROW's casualties are squaddies and they are
+    the OBJECTIVE, not support — i % 0 is NaN and would have indexed the role
+    table with undefined, so the fallback is explicit. The command wheel no
+    longer opens at all when there is nobody able to command, rather than
+    opening and reporting itself empty on every right-click — but the test is
+    for an ABLE man, not an empty squad, so right-clicking one of BROKEN
+    ARROW's casualties still reaches "nobody left to send" and says so. And the
+    top strip states SOLO — NO SUPPORT where the roster would be, because an
+    empty bar reads as a HUD that failed to draw while a stated one reads as a
+    choice you made.
+    All twenty maps run solo with no exceptions and the right squad size on
+    each, asserted in tests/run.sh — including the two men on BROKEN ARROW you
+    are still there to carry out.
 -->
 </body>
 </html>

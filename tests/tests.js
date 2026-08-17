@@ -3006,6 +3006,36 @@ console.log('  and reads as live, not remembered: ' + visibleToPlayerSide(foe),
 console.log('DRONE TEST DONE');
 })();
 
+(function soloTests(){
+console.log('--- SOLO: nobody behind you ---');
+const prevSquad = game.loadout.squad;
+game.loadout.squad = 'solo';
+let threw = 0, wrongSize = [];
+for (let m = 0; m < MAPS.length; m++) {
+  game.mapIndex = m;
+  try {
+    initGame(); game.state = 'play';
+    for (let i = 0; i < 180; i++) {
+      update(1 / 60);
+      // poke every squad-facing system that could assume a team exists
+      if (i === 30) for (const pl of PLAYS) callPlay(pl);
+      if (i === 60) { padCycleSelection(); selectedSquaddies(); squadBarCards(); squadBarBottom(); }
+      if (i === 90) { game.selected.add(0); issueOrders(); game.selected.clear(); }
+    }
+    // BROKEN ARROW's casualties are squaddies and exist whether or not you
+    // brought anyone — they are the objective, not support.
+    const want = MAPS[m].name === 'BROKEN ARROW' ? 2 : 0;
+    if (game.squad.length !== want) wrongSize.push(MAPS[m].name + '=' + game.squad.length);
+  } catch (e) { threw++; wrongSize.push(MAPS[m].name + ' THREW ' + e.message); }
+}
+console.log('  twenty maps run solo, exceptions: ' + threw, threw === 0 ? 'CORRECT' : 'WRONG');
+console.log('  squad empty everywhere except BROKEN ARROW (2 casualties): ' +
+            (wrongSize.length ? wrongSize.join(' ') : 'yes'),
+            wrongSize.length === 0 ? 'CORRECT' : 'WRONG');
+game.loadout.squad = prevSquad;
+console.log('SOLO TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
