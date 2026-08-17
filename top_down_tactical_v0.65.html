@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.64.html
-  version: 0.64
+  file: top_down_tactical_v0.65.html
+  version: 0.65
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.64 (working title)</title>
+<title>Top-Down Tactical v0.65 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -36,7 +36,7 @@
   #briefText { flex: 1 1 300px; min-width: 280px; max-width: 430px; font-size: 12px; line-height: 1.5; }
   #briefText .k { color: #e8b53a; display: inline-block; min-width: 96px; }
   #briefText .row { margin-bottom: 5px; color: #9fb0bf; }
-  #diffPick, #densPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick, #suppPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  #diffPick, #densPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick, #suppPick, #presetPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .sect { margin: 16px 0 6px; font-size: 11px; letter-spacing: 3px; color: #5f9ea0; text-transform: uppercase; }
   #advice { max-width: 640px; margin-top: 8px; font-size: 12px; color: #e8b53a; font-style: italic; }
   .screen { overflow-y: auto; padding: 28px 0; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.64 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.65 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -119,6 +119,8 @@
   <div id="kitPick"></div>
   <div class="sect">Squad</div>
   <div id="squadPick"></div>
+  <div class="sect">Saved loadouts</div>
+  <div id="presetPick"></div>
   <button class="btn" id="btnStart">Breach</button>
   <button class="btn" id="btnAbort" style="display:none; background:#7a2b2b; margin-top:10px;">Restart Mission</button>
   <button class="btn" id="btnRetreat" style="display:none; background:#7a5a2b; margin-top:6px;">Retreat &mdash; fail the mission, keep your people</button>
@@ -9910,6 +9912,7 @@ const densPickEl = document.getElementById("densPick");
 const ammoPickEl = document.getElementById("ammoPick");
 const primPickEl = document.getElementById("primPick");
 const kitPickEl = document.getElementById("kitPick");
+const presetPickEl = document.getElementById("presetPick");
 const squadPickEl = document.getElementById("squadPick");
 const armorPickEl = document.getElementById("armorPick");
 const suppPickEl = document.getElementById("suppPick");
@@ -9923,7 +9926,106 @@ function mkBtn(parent, key, title, sub, onPick) {
   parent.appendChild(b);
   return b;
 }
+// ---------------------------------------------------------------- loadout memory
+// The kit you took last time is the kit you probably want this time. Six picks
+// plus difficulty and density is a lot of clicking to redo every launch, and
+// none of it is a decision you want to make twice.
+//
+// EVERY FIELD IS VALIDATED against the live tables on the way back in. A saved
+// value is only a string somebody's browser wrote months ago: rename a primary
+// or drop a squad template and an unchecked restore would put the menu into a
+// state that does not exist, which fails later and somewhere else. Anything
+// unrecognised falls back to the default that was already there.
+function saveLoadout() {
+  try {
+    localStorage.setItem("tdt_loadout", JSON.stringify({
+      ...game.loadout, diffIndex: game.diffIndex, densityIndex: game.densityIndex,
+    }));
+  } catch (e) {}
+}
+function loadLoadout() {
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem("tdt_loadout") || "null"); } catch (e) { v = null; }
+  applyLoadoutSnapshot(v, true);
+}
+// The one validator, shared by the auto-restore and by every named preset, so
+// a preset saved last month is checked exactly as hard as the last-used kit.
+function applyLoadoutSnapshot(v, withDifficulty) {
+  if (!v || typeof v !== "object") return false;
+  const L = game.loadout;
+  if (PRIMARIES[v.primary]) L.primary = v.primary;
+  if (UTILITY_KITS[v.kit]) L.kit = v.kit;
+  if (SQUAD_TEMPLATES[v.squad]) L.squad = v.squad;
+  if (ARMOR[v.armor]) L.armor = v.armor;
+  if (typeof v.can === "boolean") L.can = v.can;
+  // ammunition is only valid FOR THE GUN it is loaded into, so it is checked
+  // against that gun's own list rather than the whole table — otherwise a
+  // preset saved with a shotgun puts buckshot in a carbine.
+  const gun = PRIMARIES[L.primary];
+  if (gun && gun.ammo.includes(v.ammo)) L.ammo = v.ammo;
+  else if (gun) L.ammo = gun.ammo[0];
+  if (withDifficulty) {
+    if (Number.isInteger(v.diffIndex) && DIFFICULTIES[v.diffIndex]) game.diffIndex = v.diffIndex;
+    if (Number.isInteger(v.densityIndex) && DENSITY[v.densityIndex]) game.densityIndex = v.densityIndex;
+  }
+  return true;
+}
+
+// ---- named loadouts. Up to PRESET_MAX of them, kept beside the last-used kit.
+const PRESET_MAX = 8;
+function loadPresets() {
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem("tdt_presets") || "null"); } catch (e) { v = null; }
+  return (v && typeof v === "object" && !Array.isArray(v)) ? v : {};
+}
+function savePresets(o) {
+  try { localStorage.setItem("tdt_presets", JSON.stringify(o)); } catch (e) {}
+}
+function presetLabel(v) {
+  const g = PRIMARIES[v.primary], a = AMMO[v.ammo], t = SQUAD_TEMPLATES[v.squad];
+  return [g && g.name, a && a.name, t && t.name, v.can ? "SUPPRESSED" : null]
+         .filter(Boolean).join(" · ");
+}
+
+// The saved-kit row, rebuilt on every refresh because its contents change as
+// you save and delete. Clicking one loads it; shift-clicking deletes it, which
+// is why the note says so rather than leaving you to discover it.
+function refreshPresets() {
+  if (!presetPickEl) return;
+  presetPickEl.innerHTML = "";
+  const P = loadPresets(), names = Object.keys(P).sort();
+  for (const n of names) {
+    const b = mkBtn(presetPickEl, "preset:" + n, n, presetLabel(P[n]), (ev) => {
+      if (ev && ev.shiftKey) {
+        const all = loadPresets(); delete all[n]; savePresets(all); refreshMenu(); return;
+      }
+      applyLoadoutSnapshot(P[n], false);
+      refreshMenu();
+    });
+    b.title = "click to load · shift-click to delete";
+  }
+  if (names.length < PRESET_MAX) {
+    mkBtn(presetPickEl, "preset:__save", "+ SAVE CURRENT",
+          names.length ? "shift-click a saved kit to delete it" : "keep this kit under a name",
+          () => {
+      const raw = window.prompt("Name this loadout", "KIT " + (names.length + 1));
+      if (raw === null) return;
+      const name = raw.trim().slice(0, 24);
+      if (!name) return;
+      const all = loadPresets();
+      if (!all[name] && Object.keys(all).length >= PRESET_MAX) return;
+      all[name] = { ...game.loadout };      // the kit only; difficulty is not part of a loadout
+      savePresets(all); refreshMenu();
+    });
+  } else {
+    mkBtn(presetPickEl, "preset:__full", "SLOTS FULL",
+          PRESET_MAX + " saved — shift-click one to delete it", () => {});
+  }
+}
+
 function refreshMenu() {
+  saveLoadout();          // every pick funnels through here, so this is the one hook
+  refreshPresets();
   const bests = loadBests();
   const dk = DIFFICULTIES[game.diffIndex].key;
   // Read the mission index off the button, NEVER off its position. The buttons
@@ -10061,6 +10163,7 @@ Object.entries(SQUAD_TEMPLATES).forEach(([k, v]) =>
   mkBtn(squadPickEl, k, v.name,
         (v.roles.length ? v.roles.map(r => ROLES[r].name[0]).join(" · ") : "NO SUPPORT") + " — " + v.note,
         () => { game.loadout.squad = k; refreshMenu(); }));
+loadLoadout();     // last mission's kit, before the menu paints
 refreshMenu();
 
 function startMission(fresh) {
@@ -11217,6 +11320,25 @@ requestAnimationFrame(frame);
     broke and the suite caught.
     The sight wedge is unchanged: 1380px through a 26-degree slot, blocked by
     masonry like any other eye.
+  v0.65 (2026-08-17): THE KIT YOU TOOK LAST TIME IS THE KIT YOU GET. Six picks
+    plus difficulty and density was a lot of clicking to redo on every launch,
+    and none of it is a decision worth making twice. The whole menu state now
+    persists to localStorage and comes back on load. Every pick funnels through
+    refreshMenu, so that is the single hook it saves from.
+    And you can KEEP kits under a name — up to eight, in a row under the squad
+    picker, each showing its own contents so you can tell them apart without
+    loading one. Click to load, shift-click to delete, and the note says so
+    rather than leaving it to be discovered. A named kit stores the LOADOUT
+    only: difficulty and density are how hard you want it, not what you are
+    carrying, so a saved kit does not quietly change the mission.
+    EVERYTHING IS VALIDATED ON THE WAY BACK IN, by one function shared between
+    the auto-restore and the presets, so a kit saved months ago is checked as
+    hard as the last one used. A saved value is only a string a browser wrote:
+    rename a primary or drop a squad template and an unchecked restore would
+    put the menu in a state that does not exist and fail later, somewhere else.
+    Ammunition is checked against ITS OWN GUN's list rather than the whole
+    table, so a preset saved with a shotgun cannot load buckshot into a
+    carbine — it falls back to that gun's first round instead.
 -->
 </body>
 </html>
