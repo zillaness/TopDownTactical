@@ -1009,6 +1009,7 @@ const TUNE = {
   // hoverGrab, he KEEPS the cursor out to the larger hoverHold, and a rival
   // has to be hoverSwap nearer than him — not a pixel nearer — to take it.
   hoverGrab: 30, hoverHold: 46, hoverSwap: 12,
+  fpvRadius: 5,                     // the bird has a body; walls stop it
   // seconds of grace at mission start before a SIGHTING alone can raise the
   // alarm. Noise and gunfire are never covered by it — you can still start a
   // fight instantly, you just cannot be handed one before you have moved.
@@ -2728,6 +2729,9 @@ function visibleToPlayerSide(ent) {
     const eye = game.eye || game.player;
     if (canSee(eye.x, eye.y, ent.x, ent.y, TUNE.playerViewDist)) return "direct";
   }
+  // The bird is a pair of eyes on your side while it is up. This is what makes
+  // it worth flying somewhere rather than just flying it INTO something.
+  if (game.fpv && canSee(game.fpv.x, game.fpv.y, ent.x, ent.y, TUNE.fpvSee)) return "drone";
   for (const s of game.squad) {
     if (s.alive && canSee(s.x, s.y, ent.x, ent.y, TUNE.aiViewDistAlert, s.face, deg(160))) return "squad";
   }
@@ -3420,16 +3424,39 @@ function updateFPV(dt) {
   let dx = (held("d") ? 1 : 0) - (held("a") ? 1 : 0);
   let dy = (held("s") ? 1 : 0) - (held("w") ? 1 : 0);
   if (dx || dy) {
-    const len = Math.hypot(dx, dy);
-    f.x += dx / len * TUNE.fpvSpeed * dt;                  // it flies OVER walls
-    f.y += dy / len * TUNE.fpvSpeed * dt;
+    // IT DOES NOT FLY THROUGH WALLS. It used to add straight to x and y, so
+    // you could drive it into a sealed room and detonate on a man behind two
+    // feet of brick — the building stopped meaning anything the moment the
+    // goggles went down. It has a body now and moveCircle slides it along
+    // walls the same way it slides a man, so it flies through DOORWAYS and
+    // WINDOWS and open ground, which is exactly what the thing is for.
+    const len = Math.hypot(dx, dy), step = TUNE.fpvSpeed * dt;
+    const res = moveCircle(f.x, f.y, TUNE.fpvRadius,
+                           dx / len * step, dy / len * step, solidForMove);
+    f.x = res.x; f.y = res.y;
     f.x = clamp(f.x, 8, level.w * TILE - 8); f.y = clamp(f.y, 8, level.h * TILE - 8);
   }
   if (f.buzzT <= 0) { f.buzzT = 0.5; addNoise(f.x, f.y, TUNE.fpvBuzz, "steps", "player"); }
-  // reveal the small circle it can actually see
+  // reveal the small circle it can actually see — but only what it can SEE.
+  // Sitting in a corridor should not paint the rooms either side of it.
   const R = TUNE.fpvSee, t0 = tileAt(f.x - R, f.y - R), t1 = tileAt(f.x + R, f.y + R);
   for (let ty = t0.ty; ty <= t1.ty; ty++) for (let tx = t0.tx; tx <= t1.tx; tx++) {
-    if (inBounds(tx, ty) && dist(f.x, f.y, tx * TILE + 16, ty * TILE + 16) < R) seen.grid[ty][tx] = 1;
+    if (!inBounds(tx, ty)) continue;
+    const cx = tx * TILE + 16, cy = ty * TILE + 16;
+    if (dist(f.x, f.y, cx, cy) >= R) continue;
+    if (lineOfSight(f.x, f.y, cx, cy, opaque) || level.wall[ty][tx]) seen.grid[ty][tx] = 1;
+  }
+  // AND IT SEES PEOPLE. A camera that reports terrain but not men is a camera
+  // nobody would carry. Anyone inside its circle with a clear line to the lens
+  // gets a live last-known mark, the same currency the ISR bird deals in — so
+  // flying the hallway before you enter it is worth doing for the picture and
+  // not only for the warhead.
+  const now = game.stats ? game.stats.time : 0;
+  for (const e of [...game.enemies, ...game.hostages, ...game.civilians]) {
+    if (!e.alive || dist(f.x, f.y, e.x, e.y) > R) continue;
+    if (!lineOfSight(f.x, f.y, e.x, e.y, opaque)) continue;
+    e.lastSeen = { x: e.x, y: e.y, t: now, face: e.face };
+    e.spottedByDrone = now;
   }
   const boom = pressed("lmb") || f.t <= 0;
   if (boom) {

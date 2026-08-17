@@ -2977,6 +2977,35 @@ console.log('  under HOLD FIRE they stay put: ' + stayed + '/' + t3.length,
 console.log('COVER UNDER FIRE TEST DONE');
 })();
 
+(function droneTests(){
+console.log('--- the drone: eyes, and a body ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE SHOOT HOUSE');
+initGame(); game.state = 'play';
+launchFPV();
+let insideWall = 0;
+input.keys.clear(); input.keys.add('d');
+for (let i = 0; i < 60 * 4 && game.fpv; i++) {
+  updateFPV(1 / 60);
+  if (!game.fpv) break;
+  const t2 = tileAt(game.fpv.x, game.fpv.y);
+  if (inBounds(t2.tx, t2.ty) && level.wall[t2.ty][t2.tx]) insideWall++;
+}
+input.keys.clear();
+console.log('  frames inside a wall while flying straight at one: ' + insideWall,
+            insideWall === 0 ? 'CORRECT (it does not pass through)' : 'WRONG');
+initGame(); game.state = 'play';
+launchFPV();
+const g = game.fpv, foe = game.enemies.find(e => e.alive);
+foe.lastSeen = null;
+g.x = foe.x + 40; g.y = foe.y;
+updateFPV(1 / 60);
+console.log('  a man beside the bird is reported: ' + !!foe.lastSeen,
+            foe.lastSeen ? 'CORRECT (it sees people)' : 'WRONG');
+console.log('  and reads as live, not remembered: ' + visibleToPlayerSide(foe),
+            visibleToPlayerSide(foe) === 'drone' ? 'CORRECT' : 'WRONG');
+console.log('DRONE TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
