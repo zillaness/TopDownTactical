@@ -3,7 +3,7 @@ file: BURNDOWN.md (top-down-tactical)
 version: 1.0
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-14
+last_updated: 2026-08-18
 description: Living ranked backlog and checkpoint ledger for the top-down-tactical project, compatible with the token-burndown skill's ledger format.
 ai_update: Update last_updated in this frontmatter (filename stays BURNDOWN.md). Keep the ▶ NEXT line current at all times. Append ✅ ledger lines with commit hashes as units finish; never delete finished lines. Bump version only on structural changes to this file.
 ---
@@ -409,6 +409,60 @@ Suggested next session starting points (PRD §6, ranked):
 4. Game title decision — mechanics are proven; theming is unblocked.
 
 Phase 0 (token-burndown skill): still pending — no live meter tonight.
+
+## Session handoff — 2026-08-18, playtest + systems S3 (through v0.73)
+
+Everything below is SHIPPED and live on Pages. Tree clean, branch and main
+both at 15546d3, suite 518 CORRECT / 0 WRONG / 0 update errors.
+
+Shipped this session: v0.71 pistol + body bunker; v0.72 the ring gun moved onto
+the Humvee's painted hatch (plus the sight exemption that makes a ring gunner
+able to see at all) and the bunker redrawn as an overhead edge; v0.73 Sam's two
+art notes — gun forward of the hoop and smaller, bunker curve across the torso —
+and the NVG bump taken off the bunker sprite.
+
+### Open, ranked
+
+1. ☐ **Trees and cars are permanently dimmed through the fog — DIAGNOSED, NOT
+   FIXED.** This is the "tree clumps reveal raggedly" complaint and the cause is
+   not raggedness, it is that `inAnyView` is asked at the object's own centre.
+   A thing that STOPS sight sits exactly ON the boundary of every visibility
+   polygon that reaches it, so that question always answers NO. Measured at
+   mission start: BROKEN ARROW 0 of 3 cars and 0 of 30 trees "lit"; THE TREELINE
+   0 of 184 trees; after walking into the wood, 32 tiles seen and still 0 lit.
+   Windows are the exception and the proof — they are transparent, so 1 of 6
+   came back lit. So `TUNE.rememberedAlpha` (0.62) is in practice the ONLY alpha
+   any opaque world object has ever drawn at, and the "live at full strength,
+   remembered dimmed" contract written in the comment above `drawWorldObjects`
+   has never once fired.
+   The fix, worked out but not written: ask whether you can see the GROUND the
+   object stands on — the centre plus four points one tile out — and memoise
+   per tile per frame, because a canopy asks about its neighbours and its
+   neighbours ask right back. Same helper serves the canopy pass, the vehicle
+   pass, `drawSightBlockers`'s `lit()` and `drawProps`. Asking one tile out also
+   fixes the second half: 29 of 32 seen tree tiles have unseen tree neighbours
+   (66 holes), and a canopy is 48–64px — 1.5 to 2 tiles — so a crown that
+   overhangs ground you HAVE seen should draw.
+   There is no frame counter on `game` yet; the memo needs one.
+2. ☐ Props back into maps — `floorAt` (parseLevel's local) and `isFloorG`
+   disagree about what counts as standable, and prop placement was parked on it.
+3. ☐ The stutter with many people on screen. Never reproduced. Note that item 1's
+   memo is the first real per-frame cost reduction in the render path and may be
+   worth measuring against this.
+4. ☐ Byte ceiling: 2,259,049 against CLAUDE.md's ~1.5–2MB. Measure per art key
+   before cutting anything.
+5. ☐ **BLOCKED — sound effects.** `N:\gun sound effects` is a Windows drive on
+   Sam's machine; no mount exists in the container. `SOUND_ART` is already wired
+   to take them one key at a time; they need committing to the repo (e.g.
+   `assets/incoming/sound/`) or attaching.
+6. ☐ **ASK FIRST — destructive.** The repo is ~681MB (raw art in
+   `assets/incoming/` plus the same again in history) against a ~2.2MB
+   deliverable. Purging is unresolved.
+
+Open question left with Sam: the NVG goggle group is r=1.5 in a 64px frame,
+which is a 0.94px circle at the 40px a man actually blits at — below one pixel.
+It is off the bunker sprite; every other sprite still carries it. Sam has not
+said whether to strip it everywhere.
 
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial backlog seeded at project start.
