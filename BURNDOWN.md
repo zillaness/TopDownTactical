@@ -575,3 +575,45 @@ Still open and belonging to Sam: the repo purge (see CLAUDE.md for the three
 options and what each costs), and the sound files, which need copying from
 `N:\gun sound effects` into `assets/incoming/sound/` — everything else about
 that drop is done and `tools/inline_sound.py` finishes it in one command.
+
+## Session note — 2026-08-18, S4: shipped v0.79 → v0.86 off live playtest
+
+Item 1 (opaque objects permanently dimmed through the fog) closed early — the
+other session had already fixed it with a better canopy gate, so mine was
+dropped rather than merged. Everything after that came out of Sam playing and
+reporting mid-session. Shipped: BROKEN ARROW cover and the Humvee laager, the
+`crest` low-cover system and its directional/braced rules, HESCO and modular
+procedural fortifications, walking wounded, FLIGHT 214 rebuilt (geometry, seats,
+`absorb`, roof cutaway, multiple simultaneous entries), siege/hold mode and two
+defence maps, elevation over cover for ring gunners, the 40mm arming run, the
+bleed clock pausing under hands, crosshair honesty, and the wedge/trigger split.
+
+### Two traps this session added to the list
+
+- **`updateRoofs()` shipped in v0.83 defined and never called.** The tests
+  called it directly, so they were green while the mechanic was dead in play.
+  A test that calls a function the game does not call is testing nothing. If a
+  system has an entry point, assert the entry point runs.
+- **Door orientation was read off the `#` glyph alone** (fixed v0.86). Every
+  aircraft cabin door sits in sheet metal, `%`, so all six were oriented ninety
+  degrees wrong — and the stack, the pie slices, the points of domination and
+  the sprite all take their normal from that. It was invisible for three
+  versions because the map that has non-concrete walls is the newest one.
+  Generalises: **anything that switches on a single glyph will break the first
+  time a map is built out of a different material.** Derive the set.
+
+### Still open after v0.86
+
+- **Item 8, the balance pass, is still not started.** Unchanged above; read it.
+- **Audit the other maps for the v0.78 automated-prop problem.** Only the
+  aircraft cabin was stripped by hand; nobody has looked at the rest.
+- **THE LANDING hitches on Sam's machine and not here** (680 frames over 33ms
+  against 1.1% in this container). v0.86 splits the frame into sim/vision/draw
+  in the debrief; the next report should say which third.
+- **Casualty health** — Sam tabled it explicitly, do not reopen unasked.
+- Belongs to Sam: the sound files, the repo purge, both Codex art drops
+  (`ART_PROMPT_FORTIFICATIONS_v1.0.md`, `ART_PROMPT_AIRCRAFT_v1.2.md`).
+
+Build 2,078,071 bytes — 19,081 of headroom, and shrinking every version. The
+next art drop of any size needs `tools/reencode_art.py` run first, not after.
+Suite 598 CORRECT / 0 WRONG / 0 update errors.

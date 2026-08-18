@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.85.html
-  version: 0.85
+  file: top_down_tactical_v0.86.html
+  version: 0.86
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.85 (working title)</title>
+<title>Top-Down Tactical v0.86 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.85 prototype &mdash; working title &mdash; twenty-two missions</h2>
+  <h2>v0.86 prototype &mdash; working title &mdash; twenty-two missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1512,6 +1512,27 @@ class MinHeap {
 // count as wall: a shrub has a material but never blocks a body.
 const WALL_GLYPHS = Object.keys(GLYPH_MAT)
   .filter(g => { const p = PROPS[GLYPH_MAT[g]]; return !p || p.solid !== false; }).join("");
+// A door or a window is oriented by the WALL IT SITS IN, so that test has to
+// know every structural glyph and not just concrete. Six aircraft doors were
+// read as vertical for a whole version because the fuselage is `%` — which
+// silently pointed every stack, pie slice and point of domination on that map
+// through the side of the hull. Derived: a glyph is structure if it has a
+// material and no PROPS entry, minus the two that are objects rather than
+// building. D/L/W count too — the neighbour of one leaf is the other leaf.
+const STRUCT_GLYPHS = Object.keys(GLYPH_MAT)
+  .filter(g => !PROPS[GLYPH_MAT[g]] && GLYPH_MAT[g] !== "engine" && GLYPH_MAT[g] !== "tree")
+  .join("") + "DLW";
+// Count structure either side on both axes and take the busier one: an opening
+// in a horizontal wall has masonry left and right, one in a vertical wall has
+// masonry above and below. Ties keep the old concrete-only reading so the
+// hundred doors that were already right stay right.
+function wallRunIsHoriz(rows, x, y) {
+  const at = (cx, cy) => (rows[cy] && rows[cy][cx]) || "";
+  const w = (cx, cy) => (STRUCT_GLYPHS.includes(at(cx, cy)) ? 1 : 0);
+  const alongX = w(x - 1, y) + w(x + 1, y), alongY = w(x, y - 1) + w(x, y + 1);
+  if (alongX !== alongY) return alongX > alongY;
+  return at(x - 1, y) === "#" || at(x + 1, y) === "#";
+}
 const MAP_GLYPHS = Object.keys(GLYPH_MAT).join("") + Object.keys(FLOOR_DECALS).join("")
                  + ",.kMQwaSBDLWPsgphcTEVX";
 // escape the characters that mean something inside a character class
@@ -2461,9 +2482,9 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,t,,Znn,,,nnZ,,,,,,,,,,,,,,,,,,,,~,*,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,ttt,,n,,s,,,n,,,t,,,,,,,,,,*,,,~,,,,,,,#",
 "#,,,,,,,,,,,~,,,,,,,,,,t,,,,,,P,,,,,,ttto,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,~,,,,,,,s,,,s,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,XXX,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,*#",
+"#,,,,,,,,,,,,,,,,,,,~,,,,,,XsXXXs,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,XXXXXX,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,XXXXXX,,,,,,,,,,,,,,,,,,,,,,,,,,,*#",
 "##############################################################"
 ] },
 { name: "THE OUTPOST", ground: "ground_dirt", roofed: false, siege: { sizes: [4, 6, 8, 11, 14], gap: 26, first: 20, kinds: [["guard"],["guard","guard","elite"],["guard","elite"],["elite","guard","guard"],["elite","elite","guard"]] }, advice: "You are already in the position and you are not leaving it. Five waves, each bigger than the last, coming across open ground from every side — the wire buys you seconds and the hescos buy you the fight. Fight FROM the sandbag bays: braced on a parapet your rounds clear it and theirs mostly do not. The lull between waves is the mission — reload, drag your wounded behind the wall, tie them off, and be back on the line. Lose the centre for seven seconds and you have lost the outpost.", brief: "Patrol base under attack — five waves, hold the centre", type: "HOLD THE POSITION", objectives: ["hold"], src: [
@@ -2682,12 +2703,12 @@ function parseLevel() {
     if (FLOOR_DECALS[ch]) level.decalsFloor.push({ tx: x, ty: y, art: FLOOR_DECALS[ch] });
     if (ch === "W") {
       level.window[y][x] = 1;
-      const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#" || rows[y][x - 1] === "W" || rows[y][x + 1] === "W");
+      const horiz = wallRunIsHoriz(rows, x, y);
       level.windowAt.set(x + "," + y, { tx: x, ty: y, orient: horiz ? "h" : "v", broken: false });
       continue;
     }
     if (ch === "D" || ch === "L") {
-      const horiz = (rows[y][x - 1] === "#" || rows[y][x + 1] === "#");
+      const horiz = wallRunIsHoriz(rows, x, y);
       // The MATERIAL is captured here and never again, because `locked` is not
       // a material — it is cleared the moment the door is opened OR breached,
       // so keying the art off it would turn a security door into plywood at
@@ -3678,7 +3699,15 @@ function updatePlayer(p, dt) {
   // The trigger lives in the world. A press that began on the squad bar was a
   // selection, not a shot, and holding the cursor over the roster is not aiming.
   const onChrome = !!game.barDrag || !!squadCardAt(input.mouse.x, input.mouse.y);
-  if (input.mouse.down && !onChrome && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging && !game.tq) {
+  // COMMAND TIME IS NOT SHOOTING TIME. Sam: "i accidentally shot someone trying
+  // to manage to move everyone around." Of course he did — opening a wheel puts
+  // the game into 15% timescale precisely so that choosing is not a dexterity
+  // test, and then left-clicking anywhere in that deliberate, mouse-heavy
+  // moment fired a live round into whatever the cursor was over. The roster
+  // cards have been excluded from the trigger since v0.9 for exactly this
+  // reason; the wheels were not, and they are the bigger surface.
+  const commanding = !!game.wheel || !!game.nadeWheel;
+  if (input.mouse.down && !onChrome && !commanding && p.blind <= 0 && p.stagger <= 0 && p.swapT <= 0 && !p.dragging && !game.tq) {
     let fa = aimAngle(p, input.mouse.wx, input.mouse.wy);
     if (p.turret) fa = clampToArc(p.turret, fa);   // the mount decides, not the wrist
     tryFire(p, fa);
@@ -6645,12 +6674,60 @@ function formationSlot(i, n) {
 
 // The station bearing eases rather than snapping, or whipping the mouse would
 // send three men sprinting a lap around you.
+// WHICH WAY THE FORMATION IS FACING, WHICH IS NOT WHERE YOU ARE LOOKING.
+//
+// Sam: "my own men scurry out of the way when my muzzle sweeps over where they
+// are ... so i can't command them with right click." The wedge was pinned to
+// p.face, and p.face is the mouse. So checking a corner — moving the cursor,
+// which costs nothing and commits to nothing — swung four men bodily around
+// you, and by the time the pointer arrived on the man you wanted, he had walked
+// out from under it. The formation was dancing to the aim.
+//
+// A wedge forms on the AXIS OF ADVANCE, which is the doctrine and also the fix.
+// It tracks where you are walking, and when you stop it holds — stand still and
+// spin the mouse all you like, nobody moves. Sectors stay on p.face, because
+// having the team's ATTENTION follow yours is free and useful; it is their feet
+// that must not.
+function squadHeading(dt) {
+  const p = game.player;
+  if (game.heading === undefined) game.heading = p.face;
+  if (game._headTick !== game.simTick) {
+    game._headTick = game.simTick;
+    const vx = p.x - (p._hx === undefined ? p.x : p._hx);
+    const vy = p.y - (p._hy === undefined ? p.y : p._hy);
+    p._hx = p.x; p._hy = p.y;
+    if (Math.hypot(vx, vy) > 0.6) {                 // walking, not jostling
+      game.heading = angLerp(game.heading, Math.atan2(vy, vx), clamp((dt || 0) * 3, 0, 1));
+    }
+  }
+  return game.heading;
+}
+
 function wedgeStation(s, dt) {
   const p = game.player, w = formationSlot(s.slot, ableCount());   // stretchers do not widen the wedge (review catch)
-  const want = p.face + w.bear;
+  const want = squadHeading(dt) + w.bear;
   if (s._wedgeAng === undefined) s._wedgeAng = want;
   else s._wedgeAng = angLerp(s._wedgeAng, want, clamp((dt || 0) * 2.2, 0, 1));
   const pt = nearestPassable(p.x + Math.cos(s._wedgeAng) * w.d, p.y + Math.sin(s._wedgeAng) * w.d);
+  // GET OUT OF THE LINE WHEN THE LINE IS HOT, and not a moment before.
+  //
+  // Anchoring the wedge to the heading bought back the right-click, but it also
+  // gave up the old guarantee that came free with chasing the aim: nobody was
+  // ever downrange of you. Both things Sam reported are on this one line — men
+  // scattering when he points at them, and a man catching a round when he did
+  // not mean it — and they pull in opposite directions only if you think the
+  // MUZZLE is the danger. It is not; the trigger is. So a man whose station
+  // falls in your bore slides twenty degrees off it while you are FIRING, and
+  // stands perfectly still while you are merely looking at him.
+  if (typeof input !== "undefined" && input.mouse && input.mouse.down && p.alive) {
+    const toSt = angleTo(p.x, p.y, pt.x, pt.y);
+    const off = angDiff(p.face, toSt);
+    if (Math.abs(off) < deg(16)) {
+      const a2 = toSt + deg(24) * (off >= 0 ? 1 : -1);
+      const alt = nearestPassable(p.x + Math.cos(a2) * w.d, p.y + Math.sin(a2) * w.d);
+      pt.x = alt.x; pt.y = alt.y;
+    }
+  }
   pt.sector = p.face + w.sector;
   return pt;
 }
@@ -8233,8 +8310,23 @@ function fogLayer() {
 // scales with people, fx or rounds moved the frame time on this machine, so
 // the next useful thing is a number from the machine where it happens rather
 // than another guess. The debrief says so only if the mission actually stuttered.
+// Where the time actually went. The count alone told us a run hitched and
+// nothing else, which on a machine none of us can profile is half a bug report.
+// These accumulate per phase so the debrief can name the expensive one.
+const FRAME_PHASES = ["sim", "vision", "draw"];
+function phaseTime(name, fn) {
+  const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : 0;
+  const r = fn();
+  if (game.stats && t0) {
+    game.stats.phase = game.stats.phase || { sim: 0, vision: 0, draw: 0 };
+    game.stats.phase[name] += performance.now() - t0;
+  }
+  return r;
+}
+
 function noteFrameTime(ms) {
   const st = game.stats; if (!st) return;
+  st.frameCount = (st.frameCount || 0) + 1;
   // Two exclusions, both because they would make the number lie. The opening
   // beat is the mission loading and the art decoding — measured at 333ms on
   // the first frame, which is not the thing Sam is reporting. And anything past
@@ -10848,6 +10940,7 @@ function initGame() {
   game.mission = MAPS[game.mapIndex] || MAPS[0];
   game._parseFloor = 0;
   game.roofOpen = new Set();          // every mission starts buttoned up
+  game.heading = undefined;           // the wedge re-forms on the new mission's axis
   MAP_SRC = game.mission.src;
   parseLevel(); seen.init();
   game.floors = [{ levelSnap: snapshotLevel(), seenGrid: seen.grid }];
@@ -10956,7 +11049,8 @@ function initGame() {
   game.overrunT = 0; game._overrunWarned = false;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0,
-    enemiesEngaged: 0, worstFrame: 0, longFrames: 0, positionLostT: 0 };
+    enemiesEngaged: 0, worstFrame: 0, longFrames: 0, positionLostT: 0,
+    frameCount: 0, phase: { sim: 0, vision: 0, draw: 0 } };
   prewarmArt();
 }
 
@@ -11451,10 +11545,15 @@ function endMission(won, reason) {
   // the frame at 16.7ms — so rather than guess again, the mission reports what
   // its own worst frame was on HIS machine. A run that never dropped a frame
   // says nothing at all.
-  if (st.longFrames > 2)
+  if (st.longFrames > 2) {
+    const ph = st.phase, n = Math.max(1, st.frameCount || 1);
+    const where = ph
+      ? ` &nbsp;·&nbsp; per frame: sim ${(ph.sim / n).toFixed(1)}ms, vision ${(ph.vision / n).toFixed(1)}ms, draw ${(ph.draw / n).toFixed(1)}ms`
+      : "";
     rows.push(`<div class="stat" style="color:#e8b53a">Frames over 33ms: ${st.longFrames}` +
-              ` &nbsp;·&nbsp; worst ${st.worstFrame.toFixed(0)}ms` +
+              ` &nbsp;·&nbsp; worst ${st.worstFrame.toFixed(0)}ms` + where +
               `<span style="color:#7f8b96"> — this run hitched; worth reporting</span></div>`);
+  }
   // WHY THAT LETTER. The arithmetic, itemised, so the grade is something you
   // can aim at next run rather than a verdict handed down.
   if (won) {
@@ -11631,7 +11730,7 @@ function frame(now) {
       // A thrown exception here must never take the render loop with it: the
       // frame would stop being rescheduled and the game would freeze silently.
       try {
-        update(game.slowmo ? dt * 0.15 : dt);
+        phaseTime("sim", () => update(game.slowmo ? dt * 0.15 : dt));
       } catch (err) {
         game.simError = (err && err.message) || String(err);
         if (!game._loggedSimError) { console.error("simulation error:", err); game._loggedSimError = true; }
@@ -11642,6 +11741,7 @@ function frame(now) {
     if (game.player) {
       const eye = eyePoint(game.player);   // you see from the muzzle, not your belly button
       game.eye = eye;
+      phaseTime("vision", () => {
       game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
       game.scopePoly = scoped() ? scopePolygon() : null;
       refreshSquadCones();
@@ -11649,8 +11749,9 @@ function frame(now) {
         ? computeVisCone(game.snake.x, game.snake.y, TUNE.snakeRange, game.snake.face, TUNE.snakeArc, 40)
         : null;
       rememberSightings();
+      });
     }
-    render();
+    phaseTime("draw", () => render());
   } else if (game.state === "aar") {
     const a = game.aar;
     a.t += dt;
@@ -13823,6 +13924,48 @@ requestAnimationFrame(frame);
     and quietly lied. Cap raised past the screen, and the whole crosshair now
     goes amber while the gun is unsettled, the way CHECK FIRE already does. The
     fix for a mechanic nobody can see is to show it, not to delete it.
+  v0.86 (2026-08-18): THE MUZZLE IS NOT THE TRIGGER, AND SIX DOORS FACED THE
+    WRONG WAY.
+    YOU CAN POINT AT A MAN AGAIN. "no my own men scurry out of the way ... so i
+    can't command them with right click." Found it, and my earlier answer was
+    the wrong half of the problem: nothing on the enemy side reacts to being
+    aimed at, but the SQUAD did. The wedge was anchored to `p.face`, so the
+    formation was rigidly welded to the mouse — every station rotated with the
+    crosshair and a man you tried to click on had already left. The wedge hangs
+    off a movement heading now, smoothed off actual displacement and only when
+    you are actually moving, which is what a wedge has always meant. Measured:
+    standing still and sweeping the muzzle a full turn moves the squad 0px.
+    But the old arrangement did guarantee one useful thing — nobody stood
+    downrange — so that guarantee is kept where it belongs, on the trigger.
+    Hold fire on a man and he steps off the bore: 0 degrees to 20. Off the
+    trigger he stays where you can click him. Closest station to the bore over
+    twelve headings is 145 degrees, and no two men share a bearing (35 degrees
+    of separation at the tightest).
+    COMMAND TIME IS NOT SHOOTING TIME. "i accidentally shot someone trying to
+    manage to move everyone around." The order wheel and the grenade wheel are
+    both held on the mouse, so opening one and picking from it was also pulling
+    the trigger. Firing is gated while either wheel is up.
+    SIX AIRCRAFT DOORS POINTED THROUGH THE SIDE OF THE HULL. The parser decided
+    a door's orientation by looking for concrete either side of it — literally
+    the `#` glyph. The fuselage on FLIGHT 214 is sheet metal, `%`, so all six
+    cabin doors were read as sitting in a vertical wall when they sit in a
+    horizontal one. Everything downstream took the normal from that: the stack,
+    the pie slices, the points of domination, and the door sprite itself were
+    all computed at ninety degrees to the actual opening. The test now counts
+    structure on both axes and takes the busier one, off a derived glyph set so
+    it cannot drift again, and windows and the far leaf of a double door count
+    as part of the run. Exactly six doors changed across twenty-two maps and no
+    window changed at all, so nothing that was right has moved. There is a
+    standing assertion now that every door is hinged in the wall it sits in.
+    ROOM ON THE EXFIL PAD. "the exfil area is too small for all the people who
+    need to exfil in broken arrow." It was three tiles for a squad plus five
+    recovered casualties. Sixteen now.
+    AND THE HITCH IS INSTRUMENTED RATHER THAN GUESSED AT. "on the landing
+    Frames over 33ms: 680 · worst 50ms." It does not reproduce here — this
+    container sees 1.1% of frames over 33ms at about 2.7ms a frame — so rather
+    than optimise something at random the debrief now splits the frame into
+    sim, vision and draw and prints the per-frame cost of each. Next time it
+    hitches, the readout says which third of the frame did it.
 -->
 </body>
 </html>

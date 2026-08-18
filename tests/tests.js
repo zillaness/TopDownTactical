@@ -630,11 +630,15 @@ console.log('FEEDBACK TEST DONE');
 (function playbookTests(){
 console.log('--- playbook: formation geometry and points of domination ---');
 
-// the wedge must never put a man on the point man's firing line
+// The wedge must never put a man on the point man's firing line — measured
+// against the HEADING, which is what the formation is built on since v0.86.
+// It used to be built on p.face, so it swung bodily every time the cursor
+// moved; the geometric property is the same one, asked about the right axis.
 game.mapIndex = 0; initGame(); game.state = 'play';
 let worstBore = 180, minPair = 999;
 for (let f = 0; f < 12; f++) {
-  game.player.face = (f / 12) * TAU;
+  game.heading = (f / 12) * TAU;
+  game.player.face = game.heading;
   const st = game.squad.map(s => { s._wedgeAng = undefined; return wedgeStation(s, 1); });
   st.forEach(p => {
     const off = Math.abs(angDiff(game.player.face, angleTo(game.player.x, game.player.y, p.x, p.y))) * 180 / Math.PI;
@@ -650,6 +654,64 @@ console.log('  closest wedge station to your bore, over 12 headings: ' + worstBo
             worstBore > 35 ? 'CORRECT (nobody downrange of you)' : 'WRONG');
 console.log('  smallest bearing gap between two teammates: ' + minPair.toFixed(0) + '°',
             minPair > 25 ? 'CORRECT (no two share a bearing)' : 'WRONG');
+
+// ...and the two halves of Sam's report, which pull opposite ways only if you
+// think the muzzle is the danger rather than the trigger.
+{
+  game.mapIndex = 0; initGame(); game.state = 'play';
+  const P = game.player;
+  for (let i = 0; i < 120; i++) update(1/60);          // let them form up
+  const before = game.squad.map(s => ({ x: s.x, y: s.y }));
+  input.mouse.down = false;
+  for (let i = 0; i < 180; i++) {
+    P.face = (i / 180) * TAU;
+    input.mouse.wx = P.x + Math.cos(P.face) * 200; input.mouse.wy = P.y + Math.sin(P.face) * 200;
+    update(1/60);
+  }
+  const swept = Math.max(...game.squad.map((s, i) => Math.hypot(s.x - before[i].x, s.y - before[i].y)));
+  console.log('  standing still and sweeping the muzzle a full turn moves them ' + swept.toFixed(0) + 'px',
+              swept < 8 ? 'CORRECT (you can point at a man to command him)' : 'WRONG');
+  // now hold the trigger on one of them: THAT he gets out of the way of
+  const victim = game.squad.find(s => s.alive);
+  P.face = angleTo(P.x, P.y, victim.x, victim.y);
+  const bore0 = Math.abs(angDiff(P.face, angleTo(P.x, P.y, victim.x, victim.y))) * 180 / Math.PI;
+  input.mouse.down = true;
+  for (let i = 0; i < 150; i++) {
+    input.mouse.wx = P.x + Math.cos(P.face) * 200; input.mouse.wy = P.y + Math.sin(P.face) * 200;
+    update(1/60);
+  }
+  input.mouse.down = false;
+  const bore1 = Math.abs(angDiff(P.face, angleTo(P.x, P.y, victim.x, victim.y))) * 180 / Math.PI;
+  console.log('  but holding the trigger on one moves him off the bore: ' +
+              bore0.toFixed(0) + '° -> ' + bore1.toFixed(0) + '°',
+              bore1 > 15 ? 'CORRECT (the trigger is the danger, not the muzzle)' : 'WRONG');
+}
+
+// A door's normal has to point THROUGH it. Six aircraft doors pointed out
+// through the side of the fuselage because the orientation test only knew
+// about concrete, and every stack, slice and domination point on FLIGHT 214
+// was computed against that wrong axis.
+{
+  let checked = 0, wrong = [];
+  for (let m = 0; m < MAPS.length; m++) {
+    game.mapIndex = m; initGame();
+    for (const d of level.doors) {
+      const alongX = d.orient === "h";                 // masonry to left and right
+      const jamb = alongX ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]];
+      const thru = alongX ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+      // a window or the other leaf of a double door is still the wall run
+      const struct = ([dx, dy]) => isWall(d.tx + dx, d.ty + dy) ||
+        !!level.doorAt.get((d.tx + dx) + "," + (d.ty + dy)) ||
+        !!level.windowAt.get((d.tx + dx) + "," + (d.ty + dy));
+      checked++;
+      if (!jamb.every(struct)) wrong.push(MAPS[m].name + " " + d.tx + "," + d.ty + " no jambs");
+      else if (thru.every(struct)) wrong.push(MAPS[m].name + " " + d.tx + "," + d.ty + " opens into a wall");
+    }
+  }
+  console.log('  ' + checked + ' doors hinged in the wall they sit in: ' +
+              (wrong.length ? wrong.length + ' WRONG -> ' + wrong.slice(0, 4).join('; ')
+                            : 'all CORRECT (the normal points through the gap)'));
+}
 
 // points of domination: opposite sides, out of the funnel, inside the room
 let tested = 0, bad = [], sameRoom = 0;
