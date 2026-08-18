@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.78.html
-  version: 0.78
+  file: top_down_tactical_v0.79.html
+  version: 0.79
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.78 (working title)</title>
+<title>Top-Down Tactical v0.79 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.78 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.79 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1013,6 +1013,11 @@ const TUNE = {
          range: 1200, spreadBase: 0.023, spreadMove: 0.023, recoil: 0.009,
          recoilMax: 0.09, recoilDecay: 0.10, penMul: 2.2, ammo: "fmj" },
   turretArc: deg(110), turretReach: 44,
+  // How close you have to be to a chest-high barrier for your own muzzle to be
+  // past its crest. Measured from the MUZZLE to the tile centre, so leaning out
+  // counts and standing back does not. 50 reaches the eight tiles around you
+  // (a diagonal centre is 45px away) and nothing further.
+  crestReach: 50,
   // FIELD TEST — BROKEN ARROW. Men already down when you arrive get a longer
   // clock than a fresh casualty: shock has set in, the bleeding is slower, and
   // the mission is the distance between you and them.
@@ -1164,7 +1169,19 @@ const VEH_ARMOR = {
 // from every bearing because a raycast from inside it returns distance zero.
 // Concealment is the only honest thing a standable tile can offer.
 Object.assign(MATERIALS, {
-  sandbags:    { name: "sandbags", resist: 40, opaque: false, spall: 4, defl: deg(3), dmgKeep: 0.25, col: "#7a6f4e" },
+  // LOW COVER. `crest` is the fraction of the rounds arriving at this barrier
+  // that it actually stops; the rest clear the top of it. A wall is a wall and
+  // has no crest — you are behind it or you are not. A sandbag wall is chest
+  // high, and both things that follow from that are the mechanic:
+  //   - you shoot OVER it, so a man braced on the parapet is a firing position
+  //     and not a man hiding behind a rock (see resolveBarrier),
+  //   - and it is COVER, not immunity: some of what comes back clears the crest
+  //     and finds you. Sam: "maybe not full safety, but it provides some
+  //     protection."
+  // Hesco is taller and thicker than sandbags on both counts.
+  sandbags:    { name: "sandbags", resist: 40, opaque: false, spall: 4, defl: deg(3), dmgKeep: 0.25, col: "#7a6f4e", crest: 0.72 },
+  sandbagring: { name: "a sandbag emplacement", resist: 40, opaque: false, spall: 4, defl: deg(3), dmgKeep: 0.25, col: "#7a6f4e", crest: 0.80 },
+  hesco:       { name: "a HESCO barrier", resist: 999, opaque: false, spall: 3, defl: 0, dmgKeep: 0, col: "#9a8f6b", crest: 0.88 },
   oildrums:    { name: "an oil drum", resist: 14, opaque: true, spall: 8, defl: deg(8), dmgKeep: 0.5, col: "#4f5b52" },
   bookshelf:   { name: "a bookshelf", resist: 8, opaque: true, spall: 2, defl: deg(5), dmgKeep: 0.7, col: "#6b5233" },
   fridge:      { name: "a refrigerator", resist: 12, opaque: true, spall: 6, defl: deg(6), dmgKeep: 0.6, col: "#9aa3a8" },
@@ -1197,14 +1214,23 @@ const GLYPH_MAT = {
   "#": "concrete", "=": "brick", "-": "drywall", "%": "sheetmetal", "@": "engine", "t": "tree",
   n: "sandbags", o: "oildrums", b: "bookshelf", f: "fridge", d: "desk", u: "counter",
   G: "guardshack", "&": "pillbox", H: "hvac", J: "jersey", U: "dumpster",
-  "*": "shrub", "~": "hedgerow", x: "wire",
+  "*": "shrub", "~": "hedgerow", x: "wire", N: "sandbagring", Z: "hesco",
 };
 // Presentation and topology. `solid:false` is the whole of tier 2: the tile gets
 // a material but never gets level.wall, so it blocks the eye and nothing else.
 // `z` decides which side of the canopy pass it draws on — ground clutter under
 // the crowns, tall objects over them.
 const PROPS = {
-  sandbags:   { art: "sandbags",        solid: true,  z: "over" },
+  // The inlined "sandbags" sprite is a horseshoe GUN PIT seen from above, which
+  // is right for an emplacement and wrong for a wall — laid in a run it reads as
+  // a line of doughnuts, which is exactly what Sam said looked wrong. So the two
+  // uses are two glyphs now: `n` is a modular wall segment, drawn in code and
+  // oriented off its neighbours, and `N` keeps the sprite for the pit it always
+  // was. When Codex delivers the modular art, `n` swaps `drawn` for `art` and
+  // nothing else changes.
+  sandbags:   { art: null,              solid: true,  z: "over", drawn: "sandbags" },
+  sandbagring:{ art: "sandbags",        solid: true,  z: "over" },
+  hesco:      { art: null,              solid: true,  z: "over", drawn: "hesco" },
   oildrums:   { art: "oil_drums",       solid: true,  z: "over" },
   bookshelf:  { art: "bookshelf",       solid: true,  z: "over" },
   fridge:     { art: "refrigerator",    solid: true,  z: "over" },
@@ -1451,7 +1477,7 @@ class MinHeap {
 const WALL_GLYPHS = Object.keys(GLYPH_MAT)
   .filter(g => { const p = PROPS[GLYPH_MAT[g]]; return !p || p.solid !== false; }).join("");
 const MAP_GLYPHS = Object.keys(GLYPH_MAT).join("") + Object.keys(FLOOR_DECALS).join("")
-                 + ",.kMQwSBDLWPsgphcTEVX";
+                 + ",.kMQwaSBDLWPsgphcTEVX";
 // escape the characters that mean something inside a character class
 const MAP_CHAR_RE = new RegExp("^[" + MAP_GLYPHS.replace(/[\]\\^-]/g, "\\$&") + "]+$");
 
@@ -1867,15 +1893,15 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,U,,,,,,,U,,,,,,,,,,,J,,,,,,,,,,,U,,,,,,#",
 "#,,,,#####D#######W###############W#######,,,#",
-"#,,,,##.......#.......#.d.....#..........#,,,#",
-"#J#####.......#..h....#......d#..p.......#,,,#",
-"#,#...#..p....#.......#..g...h#.........f#,,,#",
-"#,#.T.#.......#....c..#.......#......c..u#,,,#",
-"#,#...L.................................d#,,,#",
+"#,,,,##.......#.......#.......#..........#,,,#",
+"#J#####.......#..h....#.......#..p.......#,,,#",
+"#,#...#..p....#.......#..g...h#..........#,,,#",
+"#,#.T.#.......#....c..#.......#......c...#,,,#",
+"#,#...L..................................#,,,#",
 "#J#...#..................................#J,,#",
 "#,#.h.#.....g.#.....h.#.......#..........#,,,#",
-"#,#.b.#.......#b......#....c.d#..........#,,,#",
-"#,#####.......#f.c....#d......#....g.....#,,~#",
+"#,#.b.#.......#.......#....c..#..........#,,,#",
+"#,#####.......#..c....#.......#....g.....#,,~#",
 "#,,,,##.......#.......#.......#..........#,,,#",
 "#,,,,#####################W#########D#####,,,#",
 "#,,,,,,,,U,,,U,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -2335,7 +2361,12 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################"
 ] },
-{ name: "BROKEN ARROW", beta: true, advice: "A convoy was ambushed on that road and two of ours are down in the wreckage, bleeding on a clock you can hear. You are the QRF. Fight up the road or through the buildings, tie them off, and bring everyone home — the mission fails the moment one of them dies.",
+{ name: "BROKEN ARROW", beta: true,
+  // An ambushed convoy is gun trucks and a load, not a taxi rank. Without this
+  // the position hash handed the wrecks a taxi, a panel van and a police
+  // cruiser, parked in a firefight in the middle of nowhere.
+  vehBodies: ["humvee", "humvee", "humvee", "box_truck"],
+  advice: "A convoy was ambushed on that road and two of ours are down in the wreckage, bleeding on a clock you can hear. You are the QRF. Fight up the road or through the buildings, tie them off, and bring everyone home — the mission fails the moment one of them dies.",
   brief: "You are the QRF — two men down in an ambushed convoy, reach them and bring them home",
   type: "QUICK REACTION FORCE", objectives: ["stabilize", "extract"], src: [
 "##############################################################",
@@ -2351,23 +2382,23 @@ const MAPS = [
 "#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#.............b#,,,,,#",
 "#*,,,,#.............#,,,,,,,,,,,,,,,,,,,#...b..........#,,,,,#",
 "#,,,,,#######D#######,,,,,g,,,,,,,,,,,,,#######D########,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,U,,,,,,,,@%%%,~p,,,,oJ,,,,,,,,,,U,,,,,,,,#",
-"#,*,,,*,,,,,,,,,,,*,,,,,,,,,,@%%%,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#~,t,,,,,,,,,,,,,,,,,,,,,,,,,,,w,n*,,t,,,,*,,,,,,,,,,,,,,,t,,#",
-"#,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,n,,ttt,,,,,,,,,,,,,,,,,,ttt,#",
-"#,,t,,,,,o,,,,,,,,,,,,,,,,,,%%%@M,,,,t,*,,,,,U,,,,,,,,,,,,t,,#",
-"#,~,,,######D######,,,,*,,,,%%%@,,,,,U,,*,######D#######,,,,,#",
-"#,,,,,#...........#,,,,,,,,n,w,,,*,,,,,,,,#.d..........#J*,,,#",
-"#,,,,o#........g..#,,,,,,,,n,@%%%,,,,,,,,,#............#,,,*,#",
-"#,,,,,#...........#,,,,,,,,,,@%%%,,,,,,,,,#...g........#,,,,,#",
-"#,,,,,#u.g........W,,,*,,,,,,,,,,,,g,,,,,,#............#,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,U,,,,,%%,@%%%,~p,,,,oJ,,,,,,,,,,U,,,,,,,,#",
+"#,*,,,*,,,,,,,,,,,*,,,,,,,%%,@%%%,@@,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#~,t,,,,,,,,,,,,,,,,,,,,,,%%,,,w,,%%,t,,,,*,,,,,,,,,,,,,,,t,,#",
+"#,ttt,,,,,,,,,,,,,,,,,a,,,@@,,,,,,%%ttt,,,,,,,,,,,,,,,,,,ttt,#",
+"#,,t,,,,,o,,,,,,,,,,,,,,,,,,%%%@M,%%,t,*,,,,,U,,,,,,,,,,,,t,,#",
+"#,~,,,######D######,,,,*%%,,%%%@,,,,,U,,*,######D#######,,,,,#",
+"#,,,,,#...........#,,,,,%%,n,w,,,*@@,,,,,,#.d..........#J*,,,#",
+"#,,,,o#........g..#,,,,,%%,n,@%%%,%%,,a,,,#............#,,,*,#",
+"#,,,,,#...........#,,,,,@@,,,@%%%,%%,,,,,,#...g........#,,,,,#",
+"#,,,,,#u.g........W,,,*,,,,,,,,,,,%%,g,,,,#............#,,,,,#",
 "#,,,,,#...........#,,,,,,p,,,,,,,,,,,,,,,,W............#,~,,,#",
 "#,,,,,#...........#,,,,,,,,,,,,,,,,,,,,~,,#.........p..#,,,,,#",
 "#,,,,,#.......f...#,,,,,,,,,,,,,,,,,,,,,,,#............#,,,,,#",
 "#,,,,,#############,,,,,,,,,,,,,,,,,,,,,,,#....f.b.....#,,,,~#",
 "#,,,,,,,,,oU,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##############,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,t,,,n,,,,,,n,,,,,,,,,,,,,,,,,,,,~,*,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,t,,Znn,,,nnZ,,,,,,,,,,,,,,,,,,,,~,*,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,ttt,,n,,s,,,n,,,t,,,,,,,,,,*,,,~,,,,,,,#",
 "#,,,,,,,,,,,~,,,,,,,,,,t,,,,,,P,,,,,,ttto,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,~,,,,,,,s,,,s,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
@@ -2478,7 +2509,7 @@ function parseLevel() {
   level.doors = []; level.doorAt = new Map(); level.windowAt = new Map(); level.extraction = []; level.cameras = []; level.turrets = []; level.stairs = [];
   level.window = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.mat = Array.from({ length: level.h }, () => new Array(level.w).fill(null));
-  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [], wounded: [] };
+  level.spawns = { player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [], qrf: [], wounded: [], walking: [] };
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.room = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
@@ -2549,6 +2580,12 @@ function parseLevel() {
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
+    // The WALKING wounded. Not every man you come for is flat on his back —
+    // some got themselves behind something and are still there, hurt, out of
+    // the fight, and not going home on their own. He costs you nothing to
+    // treat and everything to forget, which is a different kind of pressure
+    // from the bleed clock.
+    if (ch === "a") level.spawns.walking.push({ x: cx, y: cy });
     if (ch === "S") level.stairs.push({ tx: x, ty: y });
     if (ch === "k") {
       // mounted on the adjacent wall, watching the other way
@@ -2641,7 +2678,12 @@ function parseLevel() {
     v.dmg = 0; v.scuff = 0; v.state = "intact";
     // Which car it is, from a hash of its own corner: one body per vehicle,
     // stable across replays, and a lane of parked cars is not five clones.
-    v.body = VEH_BODIES[tileHash(v.x0, v.y0) % VEH_BODIES.length];
+    // A map may say what its traffic IS. BROKEN ARROW is an ambushed military
+    // convoy, and picking from the full civilian table gave it a taxi and a
+    // panel van parked in the middle of a firefight. Still hashed by position,
+    // so it is deterministic and identical on every replay.
+    const bodyTable = (game.mission && game.mission.vehBodies) || VEH_BODIES;
+    v.body = bodyTable[tileHash(v.x0, v.y0) % bodyTable.length];
     // A .50 on a ring mount is not bolted to a hatchback. The parser already
     // grants near-full traverse to a gun bolted beside bodywork; if a vehicle
     // is carrying one it IS the gun truck, so it gets the Humvee body — and
@@ -4121,6 +4163,22 @@ function updateDemo(p, dt) {
   }
 }
 
+// A man who is hurt and holding does not radio you, he waits to be found. Get
+// within arm's reach and he falls in behind you — no keypress, because the
+// keypress is already overloaded four ways and because "I have got you" is not
+// a thing you should have to remember to press.
+function updateWalkingWounded() {
+  if (!game.player || !game.player.alive) return;
+  for (const s2 of game.squad) {
+    if (!s2.needsRescue || !s2.alive) continue;
+    if (dist(s2.x, s2.y, game.player.x, game.player.y) > TUNE.tqReach * 1.6) continue;
+    s2.needsRescue = false;
+    s2.order = { type: "follow" };
+    bark(s2, "ON YOUR SIX — I CAN WALK");
+    game.hint = s2.name + " is up and with you — walk him to the exfil";
+  }
+}
+
 function playerInteract(p) {
   // priority: casualty > cuff surrendered > secure hostage > door
   const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed && !s.stabilized);
@@ -4334,6 +4392,38 @@ function applySpall(x, y, mat, side) {
 function resolveBarrier(b, hit) {
   const t = hitTile(hit, b.ang);
   const mat = materialAt(t.tx, t.ty);
+
+  // ---- CHEST-HIGH COVER, which is a different thing from a wall.
+  //
+  // Sandbags and HESCO are not walls, they are parapets, and the whole reason
+  // you put one in front of you is that you can shoot over it while the man
+  // shooting back mostly cannot. Two rules, and they run BEFORE the spark and
+  // the spall, because a round that clears the crest never touched the barrier.
+  //
+  //   1. YOUR OWN MUZZLE IS PAST IT. Measured from where the round left the
+  //      barrel — b.ox/b.oy, which the AAR already records — so bracing on the
+  //      parapet clears it and standing three tiles back does not. This is the
+  //      answer to the TREELINE problem written down in CLAUDE.md, where cover
+  //      near a spawn ate the squad's own rounds: cover you are ON is a firing
+  //      position, cover you are NEAR is an obstacle.
+  //   2. IT IS COVER, NOT A ROOF. Some proportion of what comes back clears the
+  //      crest and finds you anyway — 28% of it at sandbags, 12% at HESCO. Sam,
+  //      setting the dial: "maybe not full safety, but it provides some
+  //      protection." Rolled per round, exactly as ARMOR.cover already decides
+  //      whether a hit found the plate or the gap around it.
+  if (mat.crest) {
+    const cx = t.tx * TILE + TILE / 2, cy = t.ty * TILE + TILE / 2;
+    const braced = b.ox !== undefined && dist(b.ox, b.oy, cx, cy) < TUNE.crestReach;
+    if (braced || Math.random() > mat.crest) {
+      const skip = TILE * 1.05;                  // over the top and still going
+      b.x = hit.x + Math.cos(b.ang) * skip;
+      b.y = hit.y + Math.sin(b.ang) * skip;
+      b.traveled += skip;
+      b.overCrest = (b.overCrest || 0) + 1;
+      return;
+    }
+  }
+
   game.fx.push({ kind: "spark", x: hit.x, y: hit.y, t: 0.12, max: 0.12 });
   applySpall(hit.x, hit.y, mat, b.side);
 
@@ -8928,6 +9018,124 @@ function drawWorldObjects(x0, y0, x1, y1) {
   drawSightBlockers();
   drawProps(x0, y0, x1, y1, "over");
   drawWire(x0, y0, x1, y1);
+  drawFortifications(x0, y0, x1, y1);
+}
+
+// Sandbag walls and HESCO, drawn rather than blitted, and MODULAR: each tile
+// reads its four neighbours and draws the piece that fits — a straight run, an
+// end cap, a corner, a T or a cross. That is the thing Sam asked Codex for and
+// this is the same contract in code, so the maps can be authored against it
+// now and the art can drop in later without a single map edit.
+//
+// The `sandbags` sprite already in the file is a horseshoe gun pit seen from
+// above. Laid in a line it read as a row of doughnuts, which is what looked
+// wrong. It keeps its own glyph (`N`) for the emplacement it actually is.
+function fortiNeighbours(tx, ty, kind) {
+  const same = (x, y) => inBounds(x, y) && level.mat[y][x] === kind;
+  return { n: same(tx, ty - 1), s: same(tx, ty + 1), w: same(tx - 1, ty), e: same(tx + 1, ty) };
+}
+
+function drawFortifications(x0, y0, x1, y1) {
+  if (!level.mat) return;
+  for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
+    for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+      const kind = level.mat[ty][tx];
+      if ((kind !== "sandbags" && kind !== "hesco") || !seen.grid[ty][tx]) continue;
+      const nb = fortiNeighbours(tx, ty, kind);
+      const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+      ctx.save();
+      ctx.globalAlpha = lookedAt(tx, ty) ? 1 : TUNE.rememberedAlpha;
+      ctx.translate(cx, cy);
+      if (kind === "hesco") drawHescoTile(tx, ty, nb);
+      else drawSandbagTile(tx, ty, nb);
+      ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A HESCO unit is a wire-mesh cage lined with geotextile and filled with what
+// the ground is made of, so it draws as a square cell: mesh frame, the fill
+// showing through, and a shadow on the two sides the light does not reach. A
+// run of them shares its walls, which is why the frame is drawn per EDGE and
+// the shared edges are drawn once — a row reads as a bastion, not as a line of
+// separate boxes.
+function drawHescoTile(tx, ty, nb) {
+  const h = tileHash(tx, ty), H = TILE / 2 - 1;
+  ctx.fillStyle = "rgba(12,14,16,0.5)";                 // it is a metre tall
+  ctx.fillRect(-H + 2, -H + 3, TILE - 2, TILE - 2);
+  // the earth fill, mottled so a long wall does not read as flat paint
+  ctx.fillStyle = "#9a8f6b";
+  ctx.fillRect(-H, -H, H * 2, H * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  for (let i = 0; i < 5; i++) {
+    const px = -H + ((h >>> (i * 3)) % (TILE - 8)), py = -H + ((h >>> (i * 3 + 11)) % (TILE - 8));
+    ctx.fillRect(px, py, 5, 4);
+  }
+  // the mesh: a coarse grid, which is the thing that says HESCO and not crate
+  ctx.strokeStyle = "rgba(60,62,52,0.55)"; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  for (let g = -H + 5; g < H; g += 6) {
+    ctx.moveTo(g, -H); ctx.lineTo(g, H);
+    ctx.moveTo(-H, g); ctx.lineTo(H, g);
+  }
+  ctx.stroke();
+  // the frame, per edge, and only where the cell is NOT sharing that wall
+  ctx.strokeStyle = "#5d5f4c"; ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  if (!nb.n) { ctx.moveTo(-H, -H); ctx.lineTo(H, -H); }
+  if (!nb.s) { ctx.moveTo(-H,  H); ctx.lineTo(H,  H); }
+  if (!nb.w) { ctx.moveTo(-H, -H); ctx.lineTo(-H, H); }
+  if (!nb.e) { ctx.moveTo( H, -H); ctx.lineTo( H, H); }
+  ctx.stroke();
+  // corner posts on the free corners only — a shared corner has no post
+  ctx.fillStyle = "#4a4c3c";
+  const post = (sx, sy, on) => { if (on) ctx.fillRect(sx * H - (sx > 0 ? 3 : 0), sy * H - (sy > 0 ? 3 : 0), 3, 3); };
+  post(-1, -1, !nb.n && !nb.w); post(1, -1, !nb.n && !nb.e);
+  post(-1,  1, !nb.s && !nb.w); post(1,  1, !nb.s && !nb.e);
+}
+
+// A sandbag wall is courses of bags laid long-ways along the run, staggered
+// course to course like brickwork, because that is how one is actually built
+// and it is also the only way a row of tiles reads as one wall. The run
+// direction comes from the neighbours: a lone bag pile is a lone bag pile, a
+// straight run lies along itself, and a corner turns.
+function drawSandbagTile(tx, ty, nb) {
+  const h = tileHash(tx, ty), H = TILE / 2;
+  const horiz = (nb.w || nb.e), vert = (nb.n || nb.s);
+  // A corner draws BOTH arms, each stopping at the centre, so 90 degrees closes
+  // properly instead of leaving a notch. That is the corner connector piece.
+  const arms = [];
+  if (horiz && vert) {
+    if (nb.w) arms.push(["h", -1]); if (nb.e) arms.push(["h", 1]);
+    if (nb.n) arms.push(["v", -1]); if (nb.s) arms.push(["v", 1]);
+  } else if (vert) arms.push(["v", 0]);
+  else arms.push(["h", 0]);                              // straight run, or a lone pile
+
+  const bag = (bx, by, bw, bh, seed) => {
+    const jx = ((seed >>> 2) % 3) - 1, jy = ((seed >>> 5) % 3) - 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx + jx - bw / 2, by + jy - bh / 2, bw, bh, Math.min(bw, bh) * 0.45);
+    else ctx.ellipse(bx + jx, by + jy, bw / 2, bh / 2, 0, 0, TAU);
+    ctx.fill(); ctx.stroke();
+  };
+
+  ctx.strokeStyle = "rgba(40,35,22,0.65)"; ctx.lineWidth = 0.9;
+  for (const [axis, dir] of arms) {
+    // three courses across the tile; each course is two or three bags long
+    for (let c = 0; c < 3; c++) {
+      const t2 = -H + 6 + c * 10;                        // offset across the wall
+      const stagger = (c % 2) ? 5 : 0;                   // brickwork
+      ctx.fillStyle = c === 1 ? "#867a56" : "#796e4d";   // the middle course catches light
+      for (let i = 0; i < 3; i++) {
+        const along = -H + 5 + stagger + i * 11;
+        if (dir < 0 && along > 2) continue;              // an arm stops at the centre
+        if (dir > 0 && along < -6) continue;
+        if (axis === "h") bag(along, t2, 12, 8, h + c * 7 + i * 3);
+        else               bag(t2, along, 8, 12, h + c * 7 + i * 3);
+      }
+    }
+  }
 }
 
 // Concertina, drawn rather than blitted. A coil is overlapping circles with
@@ -9401,7 +9609,9 @@ function drawSquadBar() {
       // the same key does both jobs, so the card has to keep asking for it: tie
       // him off, then haul him — a stable man still on the ground is unfinished
       const cue = !s.stabilized ? "[E] hold"
-        : (s.qrfCasualty && game.mission.objectives.includes("extract") && !inExtraction(s)) ? "[E] haul" : "";
+        : (s.qrfCasualty && !s.walkingWounded && game.mission.objectives.includes("extract") && !inExtraction(s)) ? "[E] haul"
+        : (s.walkingWounded && s.needsRescue) ? "go to him"
+        : "";
       if (cue) {
         ctx.fillStyle = COLORS.hud; ctx.textAlign = "right";
         ctx.fillText(cue, R, c.y + 39);
@@ -10121,6 +10331,25 @@ function initGame() {
     s2.hp = 0; s2.r = 7; s2.order = { type: "down" }; s2.qrfCasualty = true;
     game.squad.push(s2);
   });
+  // ...and the ones who are still on their feet. Same men, same roster, same
+  // "he was the mission" failure — but he is standing, so he needs no
+  // tourniquet and there is nothing to drag. What he needs is for you to get
+  // to him, because he is not moving until somebody comes.
+  (level.spawns.walking || []).forEach((sp, wi) => {
+    const s2 = makeSquaddie(sp, game.squad.length);
+    const rn = RECRUIT_NAMES.find(n => !loadRosterOrder().includes(n) && !usedRecruits.includes(n))
+            || ("STRAY " + (level.spawns.wounded.length + wi + 1));
+    s2.name = rn; usedRecruits.push(rn); s2.recruitCandidate = !rn.startsWith("STRAY");
+    s2.xp = 150; s2.rank = rankFor(150);
+    s2.qrfCasualty = true; s2.walkingWounded = true;
+    s2.stabilized = true;                 // nothing bleeding, nothing to tie
+    s2.downed = false;
+    s2.hp = Math.round(s2.maxHp * 0.28);  // up, and in no state to lead an assault
+    s2.needsRescue = true;                // holds where he is until you reach him
+    s2.order = { type: "hold" };
+    s2.roe = "return";                    // he will defend himself and nothing more
+    game.squad.push(s2);
+  });
   game.density = DENSITY[game.densityIndex] || DENSITY[1];
   game.enemies = applyDensity(level.spawns.enemies, game.density.mul).map(makeEnemy);
   if (upperSpawns) {
@@ -10224,6 +10453,7 @@ function update(dt) {
   updatePosts(dt);
   updatePeel(dt);
   updateQRF(dt);
+  updateWalkingWounded();
   updateBound(dt);
   updatePie();
   updateFx(dt);
@@ -10302,14 +10532,23 @@ const OBJECTIVES = {
   // BROKEN ARROW: the objective IS the men. Tie off every one of them; lose
   // one and the mission is lost with him.
   stabilize: {
+    // Only the men who are DOWN are on this clock. A walking casualty has
+    // nothing to tie off — he is still one of the men you came for, and the
+    // failure below still counts him, but he does not belong in a count of
+    // tourniquets that would otherwise start at 2/3 done.
     label() {
-      const w = game.squad.filter(s2 => s2.qrfCasualty);
+      const w = game.squad.filter(s2 => s2.qrfCasualty && !s2.walkingWounded);
       const ok2 = w.filter(s2 => s2.alive && s2.stabilized).length;
-      return "WOUNDED " + ok2 + "/" + w.length + " STABLE";
+      const up = game.squad.filter(s2 => s2.walkingWounded && s2.alive);
+      const held = up.filter(s2 => s2.needsRescue).length;
+      return "WOUNDED " + ok2 + "/" + w.length + " STABLE"
+           + (up.length ? "  ·  WALKING " + (up.length - held) + "/" + up.length + " REACHED" : "");
     },
     done() {
-      const w = game.squad.filter(s2 => s2.qrfCasualty);
-      return w.length > 0 && w.every(s2 => s2.alive && s2.stabilized);
+      const w = game.squad.filter(s2 => s2.qrfCasualty && !s2.walkingWounded);
+      return w.every(s2 => s2.alive && s2.stabilized) &&
+             game.squad.filter(s2 => s2.walkingWounded).every(s2 => s2.alive && !s2.needsRescue) &&
+             game.squad.some(s2 => s2.qrfCasualty);
     },
     failed() {
       const lost = game.squad.find(s2 => s2.qrfCasualty && !s2.alive);
@@ -11122,6 +11361,15 @@ function toMissionSelect() {
 document.getElementById("btnDebriefMenu").addEventListener("click", toMissionSelect);
 window.addEventListener("keydown", e => {
   if (e.key === "Escape" && game.state === "debrief") toMissionSelect();
+  // Sam: "can R restart once a mission has failed". It could not — the debrief
+  // and the after-action review both had mouse-only controls, so losing meant
+  // reaching for the pointer every single time, which on a mission you are
+  // going to lose ten times in a row is the whole difference between iterating
+  // and giving up. R runs it again from either screen.
+  if ((e.key === "r" || e.key === "R") && (game.state === "debrief" || game.state === "aar")) {
+    if (game.state === "aar") { game.state = "debrief"; }
+    startMission(true);
+  }
 });
 
 requestAnimationFrame(frame);
@@ -12649,6 +12897,70 @@ requestAnimationFrame(frame);
     blits at is a 0.94px circle — below one pixel, so noise rather than
     information. The five _nvg night variants keep theirs, because goggles down
     is the entire reason those exist.
+  v0.79 (2026-08-18): COVER YOU CAN FIGHT FROM, AND A CONVOY THAT LOOKS LIKE ONE.
+    All of it from Sam playing v0.77.
+    CHEST-HIGH COVER IS NOT A WALL, and the engine had no way to say so. Every
+    barrier in the game was all-or-nothing: it stopped a round or it did not,
+    from either side, at any range. So a sandbag wall in front of your own men
+    ate their fire exactly as thoroughly as it ate the enemy's — which is the
+    TREELINE lesson written down in CLAUDE.md, and the reason v0.77 had to shove
+    the start-line cover out onto the flanks where it was no use to anybody.
+    Materials now carry `crest`: the fraction of the rounds arriving that the
+    barrier actually stops. Two things follow, and they are the whole mechanic.
+      · YOU SHOOT OVER IT. A round is measured from where it left the muzzle —
+        b.ox/b.oy, which the after-action review already recorded — so a man
+        braced on the parapet clears it every time and a man three tiles back
+        does not. Cover you are ON is a firing position; cover you are NEAR is
+        an obstacle. That is the distinction the engine could not previously
+        draw, and it is what lets cover come back to the start line.
+      · IT IS COVER, NOT A ROOF. Sam, setting the dial: "maybe not full safety,
+        but it provides some protection." 28% of incoming clears a sandbag
+        crest, 12% clears HESCO. Rolled per round, on the same arithmetic
+        ARMOR.cover already uses to decide whether a hit found the plate or the
+        gap beside it. Measured over 4,000 rounds per material, both within
+        0.3 points of the number in the table.
+    HESCO BARRIERS, a new material: a wire cage full of earth, resist 999 and
+    crest 0.88 — nothing gets through it and one round in eight goes over.
+    MODULAR SANDBAGS. The inlined sandbag sprite is a horseshoe GUN PIT seen
+    from above. Laid in a run it read as a line of doughnuts, which is what Sam
+    meant by "it looks like a circle of sandbags you'd put a mounted gun in,
+    not a modular sandbag wall". So it is two things now: `n` is a wall segment
+    that reads its four neighbours and draws the piece that fits — straight run,
+    end cap, corner, T, cross, courses staggered like brickwork — and `N` keeps
+    the sprite for the emplacement it always was. Both the wall and the HESCO
+    are drawn in code, so they cost nothing against the byte ceiling, and the
+    Codex handoff in ART_PROMPT_FORTIFICATIONS_v1.0.md specifies the art to a
+    contract the engine already computes.
+    THE LAAGER. Sam: "the downed soldiers still don't have enough cover, they
+    should be surrounded by humvees." They had hull fore and aft and open ground
+    east and west — which is precisely where the two buildings full of shooters
+    are. Four more vehicles close both flanks on both casualties. A test asserts
+    the rule rather than the placement: every casualty has cover on all four
+    cardinal bearings. Maps can also declare `vehBodies` now, because the
+    position hash had been parking a taxi, a panel van and a police cruiser in
+    an ambushed military convoy.
+    COVER AT THE START LINE, which v0.77 removed and Sam asked back for. With a
+    crest it is safe to put it where it belongs: HESCO anchoring each end,
+    sandbag walls running in, a gap in the middle to move through, and returns
+    making it a horseshoe. The test changed with the rule — it no longer demands
+    the ground up-range be clear, it demands that anything there is something
+    you can shoot over.
+    THE WALKING WOUNDED. Sam: "maybe have some members who are already up and
+    need rescuing, not just downed." Two of them. Nothing to tie off and nothing
+    to drag; they are on their feet at 28% and they will not move until somebody
+    reaches them. Walk to him and he falls in — no keypress, because that key is
+    already overloaded four ways. He still counts for the exfil and losing him
+    still loses the mission.
+    R RESTARTS. Sam: "can R restart once a mission has failed". It could not —
+    the debrief and the after-action review were both mouse-only, which on a
+    mission you are going to lose ten times running is the difference between
+    iterating and giving up.
+    And the office furniture is out of the aeroplane. Sam: "why is there an
+    office desk in an airplane". Because v0.78's prop pass classified the cabin
+    as an interior and furnished it as one — five desks, two bookshelves, two
+    fridges. Stripped. The cabin's real problem is its geometry and that is a
+    separate job: it is a 37x11 box of rectangular rooms, and a 737 cabin is
+    3.5m wide.
 -->
 </body>
 </html>

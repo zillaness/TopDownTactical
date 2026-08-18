@@ -3110,14 +3110,17 @@ for (let m = 0; m < MAPS.length; m++) {
       if (i === 60) { padCycleSelection(); selectedSquaddies(); squadBarCards(); squadBarBottom(); }
       if (i === 90) { game.selected.add(0); issueOrders(); game.selected.clear(); }
     }
-    // BROKEN ARROW's casualties are squaddies and exist whether or not you
-    // brought anyone — they are the objective, not support.
-    const want = MAPS[m].name === 'BROKEN ARROW' ? 2 : 0;
-    if (game.squad.length !== want) wrongSize.push(MAPS[m].name + '=' + game.squad.length);
+    // A map's casualties are squaddies and exist whether or not you brought
+    // anyone — they are the objective, not support. Counted off the map source
+    // rather than hard-coded: the count is a fact about BROKEN ARROW that has
+    // already changed once, and a magic 2 here fails the day it changes again.
+    const cnt = ch => MAPS[m].src.reduce((n, r) => n + r.split(ch).length - 1, 0);
+    const want = cnt('w') + cnt('a');
+    if (game.squad.length !== want) wrongSize.push(MAPS[m].name + '=' + game.squad.length + ' want ' + want);
   } catch (e) { threw++; wrongSize.push(MAPS[m].name + ' THREW ' + e.message); }
 }
 console.log('  twenty maps run solo, exceptions: ' + threw, threw === 0 ? 'CORRECT' : 'WRONG');
-console.log('  squad empty everywhere except BROKEN ARROW (2 casualties): ' +
+console.log('  solo squad is exactly the map\'s own casualties, nobody else: ' +
             (wrongSize.length ? wrongSize.join(' ') : 'yes'),
             wrongSize.length === 0 ? 'CORRECT' : 'WRONG');
 game.loadout.squad = prevSquad;
@@ -3736,16 +3739,42 @@ localStorage.clear();
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
 game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
 
-const wounded = game.squad.filter(s2 => s2.qrfCasualty);
-console.log('  deployed ' + game.squad.length + ' (3 up + ' + wounded.length + ' already down), clocks: ' +
+const casualties = game.squad.filter(s2 => s2.qrfCasualty);
+const wounded = casualties.filter(s2 => !s2.walkingWounded);      // flat on their backs
+const walking = casualties.filter(s2 => s2.walkingWounded);       // up, hurt, holding
+const mapSrc = MAPS[game.mapIndex].src;
+const cnt = ch => mapSrc.reduce((n, r) => n + r.split(ch).length - 1, 0);
+console.log('  deployed ' + game.squad.length + ' (' + (game.squad.length - casualties.length) + ' up + ' +
+            wounded.length + ' down + ' + walking.length + ' walking), clocks: ' +
             wounded.map(s2 => s2.bleedT + 's').join(', '),
-            wounded.length === 2 && wounded.every(s2 => s2.downed && !s2.stabilized && s2.bleedT === TUNE.brokenBleed)
+            wounded.length === cnt('w') && walking.length === cnt('a') &&
+            wounded.every(s2 => s2.downed && !s2.stabilized && s2.bleedT === TUNE.brokenBleed)
               ? 'CORRECT (the mission is the men)' : 'WRONG');
-console.log('  they are strangers: ' + wounded.map(s2 => s2.name).join(', '),
-            wounded.every(s2 => RECRUIT_NAMES.includes(s2.name) && s2.recruitCandidate)
+// A man on his feet has nothing to tie off and nothing to drag. What he has is
+// that he will not move until somebody reaches him.
+console.log('  the walking wounded are up, stable, and holding: ' +
+            walking.map(s2 => s2.name + '(' + s2.hp + 'hp)').join(', '),
+            walking.length > 0 && walking.every(s2 =>
+              s2.alive && !s2.downed && s2.stabilized && s2.needsRescue &&
+              s2.order.type === 'hold' && s2.hp > 0 && s2.hp < s2.maxHp)
+              ? 'CORRECT' : 'WRONG');
+console.log('  they are strangers: ' + casualties.map(s2 => s2.name).join(', '),
+            casualties.every(s2 => RECRUIT_NAMES.includes(s2.name) && s2.recruitCandidate)
               ? 'CORRECT (recruit pool — save them and they can sign)' : 'WRONG');
 console.log('  objective reads: "' + OBJECTIVES.stabilize.label() + '", done=' + OBJECTIVES.stabilize.done(),
-            /WOUNDED 0\/2/.test(OBJECTIVES.stabilize.label()) && !OBJECTIVES.stabilize.done() ? 'CORRECT' : 'WRONG');
+            OBJECTIVES.stabilize.label().indexOf('WOUNDED 0/' + wounded.length) === 0 &&
+            !OBJECTIVES.stabilize.done() ? 'CORRECT' : 'WRONG');
+// walking to him is the whole interaction — no keypress, he just falls in
+{
+  const m2 = walking[0];
+  const px = game.player.x, py = game.player.y;
+  game.player.x = m2.x + 10; game.player.y = m2.y;
+  updateWalkingWounded();
+  console.log('  reaching him falls him in: needsRescue=' + m2.needsRescue + ', order=' + m2.order.type,
+              !m2.needsRescue && m2.order.type === 'follow' ? 'CORRECT (no keypress needed)' : 'WRONG');
+  game.player.x = px; game.player.y = py;
+  walking.slice(1).forEach(w2 => { w2.needsRescue = false; w2.order = { type: 'follow' }; });
+}
 
 // distance is the enemy: they are a real trip away
 const st0 = tileAt(level.spawns.player.x, level.spawns.player.y);
@@ -3766,7 +3795,8 @@ const bez = level.extraction[0];
 game.player.x = bez.tx * TILE + 16; game.player.y = bez.ty * TILE + 16;
 console.log('  you stand on the exfil, both of them still at the wrecks: extract=' + OBJECTIVES.extract.done() +
             ', reads "' + OBJECTIVES.extract.label() + '"',
-            !OBJECTIVES.extract.done() && /0\/2 HAULED/.test(OBJECTIVES.extract.label())
+            !OBJECTIVES.extract.done() &&
+            OBJECTIVES.extract.label().indexOf('EXFIL 0/' + casualties.length + ' HAULED') === 0
               ? 'CORRECT (you do not leave them where they fell)' : 'WRONG');
 
 // and it has to be the real verb that gets them there: hold [E] and MOVE drags
@@ -3786,13 +3816,16 @@ console.log('  a stabilized man still drags: moved ' + dist(hauled.x, hauled.y, 
 
 // one on the tile, one still out: short a man is short a man
 wounded[0].x = bez.tx * TILE + 16; wounded[0].y = bez.ty * TILE + 16;
-console.log('  one hauled in, one still out: extract=' + OBJECTIVES.extract.done() +
+console.log('  one hauled in, the rest still out: extract=' + OBJECTIVES.extract.done() +
             ', reads "' + OBJECTIVES.extract.label() + '"',
-            !OBJECTIVES.extract.done() && /1\/2 HAULED/.test(OBJECTIVES.extract.label()) ? 'CORRECT' : 'WRONG');
+            !OBJECTIVES.extract.done() &&
+            OBJECTIVES.extract.label().indexOf('EXFIL 1/' + casualties.length + ' HAULED') === 0
+              ? 'CORRECT' : 'WRONG');
 
-// both of them on the exfil with you: NOW it is over
+// everyone on the exfil with you: NOW it is over. The walking ones walk there
+// themselves, which is the whole difference between them and a stretcher case.
 const bez2 = level.extraction[level.extraction.length - 1];
-wounded[1].x = bez2.tx * TILE + 16; wounded[1].y = bez2.ty * TILE + 16;
+casualties.slice(1).forEach(c2 => { c2.x = bez2.tx * TILE + 16; c2.y = bez2.ty * TILE + 16; });
 game.player.x = bez.tx * TILE + 16; game.player.y = bez.ty * TILE + 16;
 console.log('  everyone on the tile: extract=' + OBJECTIVES.extract.done() +
             ', reads "' + OBJECTIVES.extract.label() + '"',
@@ -4962,4 +4995,167 @@ console.log('  and the face count never goes back down: ' +
             v.faces >= 2 ? 'CORRECT (a car cannot un-learn it was hit from two sides)' : 'WRONG');
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('MULTI FRAME TEST DONE');
+})();
+
+(function crestCoverTests(){
+console.log('--- chest-high cover: you shoot over it, and it is not a roof ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+
+// The table itself: only the low stuff has a crest, and a wall never does.
+const withCrest = Object.keys(MATERIALS).filter(k => MATERIALS[k].crest);
+const walls = ['concrete', 'brick', 'drywall', 'sheetmetal', 'engine', 'tree', 'wood'];
+console.log('  crest is on the low cover only: ' + withCrest.join(','),
+            withCrest.length > 0 && walls.every(w => !MATERIALS[w].crest) ? 'CORRECT' : 'WRONG');
+console.log('  and a crest is a fraction, not a flag: ' +
+            withCrest.map(k => k + '=' + MATERIALS[k].crest).join(' '),
+            withCrest.every(k => MATERIALS[k].crest > 0 && MATERIALS[k].crest < 1)
+              ? 'CORRECT (never 1 — that would be a roof)' : 'WRONG');
+
+// Fire a round AT a sandbag tile from far away, many times, and count what
+// gets through. It must be most-but-not-all, and it must match the crest.
+function throughRate(kind, fromDist, n) {
+  // a clean synthetic lane: one barrier tile, nothing else in the way
+  const tx = 5, ty = 5;
+  const save = level.mat[ty][tx], saveW = level.wall[ty][tx];
+  level.mat[ty][tx] = kind; level.wall[ty][tx] = 1;
+  const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+  let through = 0;
+  for (let i = 0; i < n; i++) {
+    const b = { x: cx - fromDist, y: cy, ox: cx - fromDist, oy: cy, ang: 0,
+                dmg: 30, pen: 26, side: 'player', traveled: 0, range: 900,
+                alive: true, speed: 900 };
+    resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+    if (b.alive && !b.penetrated) through++;
+  }
+  level.mat[ty][tx] = save; level.wall[ty][tx] = saveW;
+  return through / n;
+}
+for (const kind of ['sandbags', 'hesco']) {
+  const want = 1 - MATERIALS[kind].crest;
+  const got = throughRate(kind, 300, 4000);
+  const ok = Math.abs(got - want) < 0.04;
+  console.log('  ' + kind + ' from 300px: ' + (got * 100).toFixed(1) + '% clear the crest (want ~' +
+              (want * 100).toFixed(0) + '%)', ok ? 'CORRECT (cover, not immunity)' : 'WRONG');
+}
+// ...and from right behind it, every round of yours goes over. This is the
+// firing-position half, and it is the thing that makes cover near a spawn
+// usable instead of a blindfold — the TREELINE lesson, answered.
+for (const kind of ['sandbags', 'hesco']) {
+  const got = throughRate(kind, TUNE.crestReach - 8, 500);
+  console.log('  ' + kind + ' braced on it: ' + (got * 100).toFixed(0) + '% of YOUR rounds clear',
+              got === 1 ? 'CORRECT (your muzzle is past it)' : 'WRONG');
+}
+// and one tile further back you are not braced any more
+{
+  const got = throughRate('sandbags', TUNE.crestReach + 30, 2000);
+  console.log('  but two tiles back you are just a man behind a wall: ' + (got * 100).toFixed(0) + '% clear',
+              got < 0.4 ? 'CORRECT' : 'WRONG');
+}
+// A round that clears the crest must keep its damage — it never touched it.
+{
+  const cx = 5 * TILE + TILE / 2, cy = 5 * TILE + TILE / 2;
+  const save = level.mat[5][5]; level.mat[5][5] = 'hesco'; level.wall[5][5] = 1;
+  let kept = true;
+  for (let i = 0; i < 200; i++) {
+    const b = { x: cx - 40, y: cy, ox: cx - 40, oy: cy, ang: 0, dmg: 30, pen: 26,
+                side: 'player', traveled: 0, range: 900, alive: true, speed: 900 };
+    resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+    if (b.dmg !== 30 || b.pen !== 26) kept = false;
+  }
+  level.mat[5][5] = save; level.wall[5][5] = 0;
+  console.log('  a round over the top loses nothing:', kept ? 'CORRECT' : 'WRONG (it is being resisted anyway)');
+}
+// You still cannot walk through it, and you can still see over it.
+for (const kind of ['sandbags', 'hesco']) {
+  console.log('  ' + kind + ' is solid to a man and clear to the eye:',
+              PROPS[kind].solid === true && MATERIALS[kind].opaque === false ? 'CORRECT' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('CREST COVER TEST DONE');
+})();
+
+(function convoyAndSpawnCoverTests(){
+console.log('--- the laager, and cover you can actually use at the start line ---');
+const bi = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.mapIndex = bi; game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+
+// Sam: "they should be surrounded by humvees." Every casualty must have hull
+// between him and every cardinal direction he can be shot from.
+const cas = game.squad.filter(s2 => s2.qrfCasualty && !s2.walkingWounded);
+const bad = [];
+for (const c of cas) {
+  const t = tileAt(c.x, c.y);
+  for (const [dx, dy, name] of [[1,0,'E'],[-1,0,'W'],[0,1,'S'],[0,-1,'N']]) {
+    let found = false;
+    for (let d = 1; d <= 6 && !found; d++) {
+      const x = t.tx + dx * d, y = t.ty + dy * d;
+      if (!inBounds(x, y)) { found = true; break; }
+      if (level.vehAt && level.vehAt.has(x + ',' + y)) found = true;
+      else if (level.wall[y][x]) found = true;      // sandbags count too
+    }
+    if (!found) bad.push(c.name + ' open to the ' + name);
+  }
+}
+console.log('  every casualty has cover on all four sides: ' + (bad.length ? bad.join(', ') : 'yes'),
+            bad.length === 0 ? 'CORRECT (a laager, not a car park)' : 'WRONG');
+
+// A convoy is military vehicles, not a taxi rank.
+const bodies = (level.vehicles || []).map(v => v.body);
+console.log('  the convoy is ' + bodies.length + ' vehicles: ' + [...new Set(bodies)].join(','),
+            bodies.length >= 6 && bodies.every(b => ['humvee', 'box_truck'].includes(b))
+              ? 'CORRECT' : 'WRONG (civilian traffic in an ambushed convoy)');
+// and every one of them is still a legal 4x2
+const shapes = (level.vehicles || []).map(v => (v.x1 - v.x0 + 1) + 'x' + (v.y1 - v.y0 + 1));
+console.log('  and every one is 4x2 or 2x4: ' + [...new Set(shapes)].join(','),
+            shapes.every(sh => sh === '4x2' || sh === '2x4') ? 'CORRECT' : 'WRONG (two merged)');
+
+// Sam: "the spawn point should still have cover." Under the old rules cover in
+// front of a spawn was a blindfold; with a crest it is a firing position. So
+// the rule is no longer "keep it clear", it is "whatever is there must be
+// something you can shoot over".
+{
+  const lanes = level.spawns.squad.map(s2 => tileAt(s2.x, s2.y));
+  lanes.push(tileAt(level.spawns.player.x, level.spawns.player.y));
+  let covered = 0;
+  const blind = [];
+  for (const t of lanes) {
+    for (let d = 1; d <= 3; d++) {
+      const y = t.ty - d;                       // the fight is NORTH on this map
+      if (!inBounds(t.tx, y)) continue;
+      const m = level.mat[y][t.tx];
+      if (!m || !level.wall[y][t.tx]) continue;
+      if (MATERIALS[m] && MATERIALS[m].crest) covered++;
+      else blind.push(m + '@' + t.tx + ',' + y);
+    }
+  }
+  console.log('  nothing up-range of a spawn that you cannot shoot over: ' +
+              (blind.length ? blind.join(' ') : 'none'),
+              blind.length === 0 ? 'CORRECT' : 'WRONG');
+  // and there IS cover, which is the actual ask
+  let near = 0;
+  for (const t of lanes)
+    for (let dy = -2; dy <= 1; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const x = t.tx + dx, y = t.ty + dy;
+      if (!inBounds(x, y)) continue;
+      const m = level.mat[y][x];
+      if (m && MATERIALS[m] && MATERIALS[m].crest) near++;
+    }
+  console.log('  and the start line has ' + near + ' tiles of usable cover around it',
+              near >= 8 ? 'CORRECT' : 'WRONG (Sam asked for cover at the spawn)');
+}
+// the mission still has to be walkable end to end
+{
+  const st = tileAt(level.spawns.player.x, level.spawns.player.y);
+  const goals = [...level.spawns.wounded, ...(level.spawns.walking || [])];
+  const un = [];
+  for (const g of goals) {
+    const gt = tileAt(g.x, g.y);
+    if (!astar(st.tx, st.ty, gt.tx, gt.ty, passForPath, pathCostSquad)) un.push(gt.tx + ',' + gt.ty);
+  }
+  console.log('  every man you came for is still reachable: ' + (un.length ? un.join(' ') : 'yes'),
+              un.length === 0 ? 'CORRECT' : 'WRONG (the laager sealed somebody in)');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('LAAGER / SPAWN COVER TEST DONE');
 })();
