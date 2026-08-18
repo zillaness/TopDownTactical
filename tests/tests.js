@@ -4294,6 +4294,102 @@ game.mapIndex = 0; initGame();
 console.log('FOG ALPHA TEST DONE');
 })();
 
+// Sam has reported a stutter with many people on screen since session 1 and it
+// has never reproduced. It still does not: 0, 8, 16, 24, 32 and 48 bodies
+// around the player all held p50 at 16.7ms in Chromium, and so did a thousand
+// effects and three hundred rounds in flight. The two things that came OUT of
+// chasing it are testable, so they are tested.
+(function stutterTests(){
+console.log('--- the stutter: what chasing it actually produced ---');
+game.diffIndex = 1; game.densityIndex = 1; game.mapIndex = 0; initGame(); game.state = 'play';
+
+// 1. every mission now carries its own worst frame, and the opening beat —
+//    which is the art decoding, measured at 333ms on frame one — is excluded,
+//    or the number would report loading rather than stuttering.
+const st = game.stats;
+st.time = 0.4; noteFrameTime(120);
+const duringLoad = st.worstFrame;
+st.time = 9.0; noteFrameTime(48); noteFrameTime(19); noteFrameTime(900);
+console.log('  the loading beat is not a stutter: worst after a 120ms frame at t=0.4 is ' + duringLoad,
+            duringLoad === 0 ? 'CORRECT' : 'WRONG');
+console.log('  a real hitch is: worst=' + st.worstFrame.toFixed(0) + 'ms, over-33ms frames=' + st.longFrames,
+            st.worstFrame === 48 && st.longFrames === 1
+              ? 'CORRECT (and the 900ms one is a sleeping tab, not a frame)' : 'WRONG');
+
+// 2. prewarmArt has to be safe with no Image at all, because that is exactly
+//    the situation the suite and the bots run in — and it is called from
+//    initGame, so getting this wrong takes every test down with it.
+let threw = null;
+try { prewarmArt(); } catch (e) { threw = e.message; }
+console.log('  prewarmArt is a no-op headless: ' + (threw || 'no throw'),
+            threw === null ? 'CORRECT (guarded on typeof Image)' : 'WRONG');
+console.log('STUTTER TEST DONE');
+})();
+
+// Props have been sitting in the file unplaced — twelve prop sprites and two
+// environment ones that no map uses — because dropping one next to a building
+// moved that building's walls. This is why.
+(function propGroundTests(){
+console.log('--- props: a hedge that is indoors at one end ---');
+
+// A hedge laid to the LEFT of the floor it touches, which is against the scan
+// order the inheritance pass runs in.
+const HEDGE = [
+  '############',
+  '#....#~~~~.#',
+  '#....#~~~~.#',
+  '#..P.#...g.#',
+  '#....#.....#',
+  '############',
+];
+MAP_SRC = HEDGE; parseLevel();
+const depths = [6, 7, 8, 9].map(x => level.interior[1][x]);
+console.log('  a four-tile hedge is indoors all the way through: ' + depths.join(','),
+            depths.every(Boolean) ? 'CORRECT (0,0,0,1 before: one pass only carries it downstream)' : 'WRONG');
+console.log('  and the wall beside it reads as the partition it is: ' + level.mat[1][5],
+            level.mat[1][5] === 'drywall' ? 'CORRECT (concrete before — a hedge was moving the wall)' : 'WRONG');
+console.log('  the hedge is still walkable and still a material: wall=' + level.wall[1][7] +
+            ' mat=' + level.mat[1][7],
+            !level.wall[1][7] && level.mat[1][7] === 'hedgerow' ? 'CORRECT' : 'WRONG');
+
+// THE INVARIANT THAT MATTERS: the briefing's floor plan and the world must
+// agree about what every wall is made of. Comparing the two material grids
+// needs no copy of either floor predicate, so it cannot drift with them — and
+// the plan telling you a wall is shoot-through when it is not is the dangerous
+// direction of any disagreement.
+game.diffIndex = 1; game.densityIndex = 1;
+let bad = 0, tiles = 0;
+for (let i = 0; i < MAPS.length; i++) {
+  game.mapIndex = i; initGame();
+  const sv = surveyMap(MAPS[i].src, 1, null);
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    if (sv.mat[y][x] === null && level.mat[y][x] === null) continue;
+    tiles++;
+    if (sv.mat[y][x] !== level.mat[y][x]) bad++;
+  }
+}
+console.log('  the plan hatches exactly what the world hatches: ' + bad + ' of ' + tiles + ' tiles disagree',
+            bad === 0 ? 'CORRECT' : 'WRONG');
+
+// and the two floor predicates agree tile for tile, which is what keeps it that
+// way as maps change. 99 tiles disagreed before — every one of them a doorway.
+let pd = 0;
+for (let i = 0; i < MAPS.length; i++) {
+  game.mapIndex = i; initGame();
+  const rows = MAPS[i].src;
+  const at = (x, y) => (y >= 0 && y < rows.length && x >= 0 && x < rows[y].length) ? rows[y][x] : '#';
+  const planFloor = (x, y) => !WALL_GLYPHS.includes(at(x, y)) &&
+    at(x, y) !== 'W' && at(x, y) !== ',' && at(x, y) !== 'D' && at(x, y) !== 'L';
+  const worldFloor = (x, y) => inBounds(x, y) && !level.wall[y][x] && !level.window[y][x] && level.interior[y][x];
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++)
+    if (!!planFloor(x, y) !== !!worldFloor(x, y)) pd++;
+}
+console.log('  and the two ideas of "floor" agree: ' + pd + ' tiles differ across ' + MAPS.length + ' maps',
+            pd === 0 ? 'CORRECT (every one of the 99 was a doorway)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('PROP GROUND TEST DONE');
+})();
+
 (function overwatchTests(){
 console.log('--- elevated overwatch: the man in the window ---');
 localStorage.clear();
