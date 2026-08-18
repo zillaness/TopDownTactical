@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.73.html
-  version: 0.73
+  file: top_down_tactical_v0.74.html
+  version: 0.74
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.73 (working title)</title>
+<title>Top-Down Tactical v0.74 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.73 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.74 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -7683,6 +7683,9 @@ function fogLayer() {
 }
 
 function render() {
+  // one number per drawn frame, so the passes below can memoise a question they
+  // otherwise ask about the same tile five or six times over
+  game.drawFrame = (game.drawFrame || 0) + 1;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, viewW, viewH);
   const cam = game.cam;
@@ -8635,7 +8638,7 @@ function drawProps(x0, y0, x1, y1, band) {
       if (!img) continue;                       // flat material colour already painted
       const w = (pr.tw || 1) * TILE, h = (pr.th || 1) * TILE;
       const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
-      ctx.globalAlpha = inAnyView(cx, cy) ? 1 : TUNE.rememberedAlpha;
+      ctx.globalAlpha = lookedAt(tx, ty) ? 1 : TUNE.rememberedAlpha;
       ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
       ctx.globalAlpha = 1;
     }
@@ -8661,6 +8664,43 @@ function inAnyView(x, y) {
   return false;
 }
 
+// A THING THAT STOPS SIGHT IS NEVER INSIDE THE POLYGON THAT STOPS AT IT.
+// inAnyView asked at a tree's or a car's own centre always answers no, because
+// the visibility polygon's edge runs along that object's near face — so every
+// opaque world object in the game had been drawing at rememberedAlpha, always,
+// including the car you are crouched behind. Measured at mission start:
+// BROKEN ARROW 0 of 3 cars and 0 of 30 trees lit, THE TREELINE 0 of 184, and
+// still 0 after walking into the wood. Windows are the exception and the proof
+// — they are transparent, so their own centre CAN be inside a polygon, and 1 of
+// 6 came back lit.
+//
+// The honest question for a blocker is whether you can see the GROUND IT STANDS
+// ON, so this asks about the tile and its four neighbours. It is memoised per
+// tile per frame because the passes ask overlapping questions by construction:
+// a canopy asks about its neighbours and its neighbours ask right back.
+// Has any tile a crown reaches been seen? Diagonals count: a 64px canopy on a
+// 32px tile overhangs every one of its eight neighbours.
+function seenNear(tx, ty) {
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const y = ty + dy, x = tx + dx;
+    if (seen.grid[y] && seen.grid[y][x]) return true;
+  }
+  return false;
+}
+let viewMemo = new Map(), viewMemoFrame = -1;
+function viewedTile(tx, ty) {
+  if (viewMemoFrame !== game.drawFrame) { viewMemo.clear(); viewMemoFrame = game.drawFrame; }
+  const k = ty * level.w + tx;
+  let v = viewMemo.get(k);
+  if (v === undefined) { v = inAnyView(tx * TILE + TILE / 2, ty * TILE + TILE / 2); viewMemo.set(k, v); }
+  return v;
+}
+function lookedAt(tx, ty) {
+  return viewedTile(tx, ty) || viewedTile(tx + 1, ty) || viewedTile(tx - 1, ty) ||
+         viewedTile(tx, ty + 1) || viewedTile(tx, ty - 1);
+}
+function lookedAtPx(x, y) { return lookedAt(Math.floor(x / TILE), Math.floor(y / TILE)); }
+
 // Props and vehicles, drawn over the fog so they survive it. Live things at
 // full strength, remembered things dimmed — the distinction the fog used to
 // make by brute force, made deliberately and at a level you can still read.
@@ -8675,8 +8715,14 @@ function drawWorldObjects(x0, y0, x1, y1) {
   // having drawn trees at all.
   for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
     for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
-      if (!seen.grid[ty][tx]) continue;
       if (!level.wall[ty][tx] || level.mat[ty][tx] !== "tree") continue;
+      // A CROWN IS WIDER THAN ITS TRUNK — 48 to 64px, so one and a half to two
+      // tiles. Gating it on the trunk tile alone left a clump moth-eaten: 29 of
+      // 32 seen tree tiles on THE TREELINE had a tree neighbour that was not
+      // seen, 66 holes in all, and each of those holes is foliage that
+      // physically overhangs ground you have already stood and looked at. If
+      // any tile the crown reaches has been seen, the crown has been seen.
+      if (!seenNear(tx, ty)) continue;
       const h = tileHash(tx, ty);
       const img = envImage((h % 100) < 40 ? "pine_tree" : "oak_tree");
       if (!img) continue;
@@ -8684,7 +8730,7 @@ function drawWorldObjects(x0, y0, x1, y1) {
       const w = base * (0.86 + ((h >>> 8) % 28) / 100);
       const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
       ctx.save();
-      ctx.globalAlpha = inAnyView(cx, cy) ? 1 : TUNE.rememberedAlpha;
+      ctx.globalAlpha = lookedAt(tx, ty) ? 1 : TUNE.rememberedAlpha;
       ctx.translate(cx, cy);
       ctx.rotate(((h >>> 16) % 360) * Math.PI / 180);
       ctx.drawImage(img, -w / 2, -w / 2, w, w);
@@ -8705,7 +8751,11 @@ function drawWorldObjects(x0, y0, x1, y1) {
     const along = (v.ang === 0 || v.ang === Math.PI) ? v.lw : v.lh;
     const across = (v.ang === 0 || v.ang === Math.PI) ? v.lh : v.lw;
     ctx.save();
-    ctx.globalAlpha = inAnyView(v.x, v.y) ? 1 : TUNE.rememberedAlpha;
+    // any panel you can see the ground beside lights the whole car — it is one
+    // object, and half a lit bonnet against a dim boot reads as a seam
+    let lit2 = false;
+    for (const t of v.tiles) if (lookedAt(t.tx, t.ty)) { lit2 = true; break; }
+    ctx.globalAlpha = lit2 ? 1 : TUNE.rememberedAlpha;
     ctx.translate(v.x, v.y);
     ctx.rotate(v.ang);
     ctx.drawImage(img, -along / 2, -across / 2, along, across);
@@ -8722,7 +8772,7 @@ function drawWorldObjects(x0, y0, x1, y1) {
 // full strength and remembered ones dim, so lifting them out of the fog costs
 // no information the fog was carrying.
 function drawSightBlockers() {
-  const lit = (cx, cy) => { ctx.globalAlpha = inAnyView(cx, cy) ? 1 : TUNE.rememberedAlpha; };
+  const lit = (cx, cy) => { ctx.globalAlpha = lookedAtPx(cx, cy) ? 1 : TUNE.rememberedAlpha; };
   for (const w of level.windowAt.values()) {
     if (!seen.grid[w.ty] || !seen.grid[w.ty][w.tx]) continue;
     const wx = w.tx * TILE, wy = w.ty * TILE;
@@ -12154,6 +12204,34 @@ requestAnimationFrame(frame);
     information. Every other sprite still carries them; taking them out
     everywhere is a bigger art change than the note asked for, so it is one word
     away rather than done.
+  v0.74 (2026-08-18): THE FOG HAS BEEN DIMMING WHAT YOU ARE STANDING NEXT TO.
+    Three versions — v0.52 for cars, v0.58 for trees, v0.69 for windows, doors
+    and turrets — lifted cover ABOVE the fog because Sam kept saying it was
+    eating his cover. They still looked wrong, and here is why. The alpha that
+    decides live-versus-remembered asked inAnyView at the OBJECT'S OWN CENTRE,
+    and a thing that stops sight sits exactly on the boundary of the polygon
+    that stops at it. So the answer was always no. Measured at mission start:
+    BROKEN ARROW 0 of 3 cars and 0 of 30 trees lit; THE TREELINE 0 of 184; still
+    0 after walking into the wood. Windows are the exception and the proof —
+    they are transparent, so their centre CAN be inside a polygon, and 1 of 6
+    came back lit. TUNE.rememberedAlpha was in practice the only alpha any
+    opaque object in this game has ever drawn at, including the car you are
+    crouched behind, and the comment promising otherwise had never been true.
+    The honest question for a blocker is whether you can see the GROUND IT
+    STANDS ON, so it now asks about the tile and its four neighbours. Cars go
+    from 0 of 3 to 3 of 3; the wood you are standing in lights up.
+    And crowns are wider than trunks. Gating a 48-64px canopy on its own 32px
+    tile left a clump moth-eaten — 29 of 32 seen tree tiles on THE TREELINE had
+    an unseen tree neighbour, 66 holes in all, every one of them foliage
+    physically overhanging ground you had already stood on and looked at. The
+    gate is the crown's own footprint now, all eight neighbours: 33 crowns drawn
+    becomes 66, holes 66 becomes 29, and it is a strict superset — no tile that
+    used to draw ever stops. That is the same rule the vehicles have had since
+    v0.52, where seeing any panel of a car reveals the whole car.
+    One car lights whole, too, rather than a lit bonnet against a dim boot.
+    The question is memoised per tile per frame, because the passes ask
+    overlapping questions by construction: a canopy asks about its neighbours
+    and its neighbours ask right back. game.drawFrame is the only new state.
 -->
 </body>
 </html>

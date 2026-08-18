@@ -4194,6 +4194,106 @@ game.mapIndex = 0; initGame();
 console.log('RING MOUNT TEST DONE');
 })();
 
+// Sam has said twice that cover which the fog eats is the thing that annoys him
+// most, and v0.52/v0.58/v0.69 all lifted objects ABOVE the fog to fix it. They
+// still looked wrong, and this is why: the alpha that decides live-vs-remembered
+// was asked at the object's own centre, and a thing that STOPS sight sits
+// exactly on the boundary of the polygon that stops at it. So the answer was
+// always "not visible" and every opaque object in the game drew dimmed, forever.
+(function fogAlphaTests(){
+console.log('--- the fog dims what you are standing next to ---');
+game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
+
+function look() {
+  // what frame() does before it calls render(), which the suite never does
+  const eye = eyePoint(game.player);
+  game.eye = eye;
+  game.visPoly = computeVisPolygon(eye.x, eye.y, TUNE.playerViewDist);
+  game.squadPolys = [];
+  game.drawFrame = (game.drawFrame || 0) + 1;
+}
+function census() {
+  const r = { cars: 0, carsOld: 0, carsNew: 0, trees: 0, tOld: 0, tNew: 0, drawnOld: 0, drawnNew: 0 };
+  for (const v of (level.vehicles || [])) {
+    r.cars++;
+    if (inAnyView(v.x, v.y)) r.carsOld++;
+    if (v.tiles.some(t => lookedAt(t.tx, t.ty))) r.carsNew++;
+  }
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    if (level.mat[y][x] !== 'tree') continue;
+    r.trees++;
+    if (seen.grid[y][x]) r.drawnOld++;
+    if (seenNear(x, y)) r.drawnNew++;
+    if (inAnyView(x * TILE + 16, y * TILE + 16)) r.tOld++;
+    if (lookedAt(x, y)) r.tNew++;
+  }
+  return r;
+}
+
+// Park the player right up against a car, which is the case that made the bug
+// obvious: you are crouched behind a wing and it renders as a memory.
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
+const car = level.vehicles[0];
+game.player.x = car.x - car.lw / 2 - 20; game.player.y = car.y;
+game.player.face = 0;
+look();                            // computeVisPolygon paints seen.grid as it casts
+const A = census();
+console.log('  a car you are 20px from, by its own centre: ' + A.carsOld + '/' + A.cars + ' lit',
+            A.carsOld === 0 ? 'CORRECT (this is the bug: never, on any map, at any moment)' : 'WRONG');
+console.log('  and by the ground it stands on: ' + A.carsNew + '/' + A.cars + ' lit',
+            A.carsNew > 0 ? 'CORRECT' : 'WRONG');
+
+game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE'); initGame(); game.state = 'play';
+// Stand him on open ground one tile off a tree, looking at it — the case Sam
+// actually complains about. Walking him in by hand is not the test: it measures
+// wherever the walk happened to stop.
+let stood = null;
+for (let y = 1; y < level.h - 1 && !stood; y++) for (let x = 1; x < level.w - 1 && !stood; x++) {
+  if (level.mat[y][x] !== 'tree') continue;
+  for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+    if (level.wall[y + dy][x + dx]) continue;
+    stood = { tx: x, ty: y, px: (x + dx) * TILE + 16, py: (y + dy) * TILE + 16, ang: Math.atan2(-dy, -dx) };
+    break;
+  }
+}
+game.player.x = stood.px; game.player.y = stood.py; game.player.face = stood.ang;
+look();
+const B = census();
+console.log('  THE TREELINE, ' + B.trees + ' trees, by their own centres: ' + B.tOld + ' lit',
+            B.tOld === 0 ? 'CORRECT (a canopy is never inside the polygon it truncates)' : 'WRONG');
+console.log('  by the ground they stand on: ' + B.tNew + ' lit, including the one he is looking at: ' +
+            lookedAt(stood.tx, stood.ty),
+            B.tNew > 0 && lookedAt(stood.tx, stood.ty)
+              ? 'CORRECT (the tree a metre in front of him is lit now)' : 'WRONG');
+console.log('  and the wider crown gate draws more of the clump: ' + B.drawnOld + ' -> ' + B.drawnNew,
+            B.drawnNew > B.drawnOld ? 'CORRECT (a 64px crown overhangs all eight neighbours)' : 'WRONG');
+
+// the gate only ever ADDS — a tile that was drawn must never stop being drawn
+let dropped = 0;
+for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++)
+  if (level.mat[y][x] === 'tree' && seen.grid[y][x] && !seenNear(x, y)) dropped++;
+console.log('  and never takes one away: ' + dropped + ' dropped',
+            dropped === 0 ? 'CORRECT (seenNear is a superset of seen)' : 'WRONG');
+
+// the memo has to be a pure speed-up, and it has to expire
+let agree = 0, checked = 0;
+for (let y = 2; y < level.h - 2; y += 3) for (let x = 2; x < level.w - 2; x += 3) {
+  checked++;
+  if (viewedTile(x, y) === inAnyView(x * TILE + 16, y * TILE + 16)) agree++;
+}
+console.log('  the per-frame memo answers what inAnyView answers: ' + agree + '/' + checked,
+            agree === checked ? 'CORRECT' : 'WRONG');
+const before = viewedTile(4, 4);
+game.player.x = level.spawns.player.x; game.player.y = level.spawns.player.y;
+look();                                     // new frame, new eye
+const after = viewedTile(4, 4);
+console.log('  and it expires with the frame: cached=' + before + ' -> refreshed=' + after +
+            ', matching live=' + inAnyView(4 * TILE + 16, 4 * TILE + 16),
+            after === inAnyView(4 * TILE + 16, 4 * TILE + 16) ? 'CORRECT (a stale memo would freeze the fog)' : 'WRONG');
+game.mapIndex = 0; initGame();
+console.log('FOG ALPHA TEST DONE');
+})();
+
 (function overwatchTests(){
 console.log('--- elevated overwatch: the man in the window ---');
 localStorage.clear();
