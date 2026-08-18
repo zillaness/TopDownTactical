@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.79.html
-  version: 0.79
+  file: top_down_tactical_v0.80.html
+  version: 0.80
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.79 (working title)</title>
+<title>Top-Down Tactical v0.80 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.79 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.80 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1204,6 +1204,15 @@ Object.assign(MATERIALS, {
   // because a coil of wire is circles and the byte census is still an open
   // question — this way it costs nothing at all.
   wire:        { name: "concertina wire", resist: 0, opaque: false, spall: 0, defl: 0, dmgKeep: 1, col: "#6d7378" },
+  // A BANK OF AIRLINER SEATS. The weakest crest in the game on purpose: an
+  // economy seat is foam and a thin plastic shell and it stops almost nothing,
+  // so half of what is fired across it arrives anyway. It is still SOLID —
+  // you do not walk through a row of seats, you go down the aisle — and it is
+  // still transparent, because a cabin you cannot see down is not a cabin.
+  // resist 6 means rounds punch through and keep going, which is the whole
+  // hazard FLIGHT 214 is built around and the reason its briefing has always
+  // recommended hollow point.
+  seats:       { name: "a row of seats", resist: 6, opaque: false, spall: 1, defl: deg(2), dmgKeep: 0.8, col: "#4a5560", crest: 0.5 },
 });
 
 // ONE table. The glyph-to-material mapping used to be written out four separate
@@ -1214,7 +1223,7 @@ const GLYPH_MAT = {
   "#": "concrete", "=": "brick", "-": "drywall", "%": "sheetmetal", "@": "engine", "t": "tree",
   n: "sandbags", o: "oildrums", b: "bookshelf", f: "fridge", d: "desk", u: "counter",
   G: "guardshack", "&": "pillbox", H: "hvac", J: "jersey", U: "dumpster",
-  "*": "shrub", "~": "hedgerow", x: "wire", N: "sandbagring", Z: "hesco",
+  "*": "shrub", "~": "hedgerow", x: "wire", N: "sandbagring", Z: "hesco", e: "seats",
 };
 // Presentation and topology. `solid:false` is the whole of tier 2: the tile gets
 // a material but never gets level.wall, so it blocks the eye and nothing else.
@@ -1244,6 +1253,7 @@ const PROPS = {
   shrub:      { art: "shrub_cluster",   solid: false, z: "under" },
   hedgerow:   { art: null,              solid: false, z: "under" },
   wire:       { art: null,              solid: true,  z: "over", drawn: "wire" },
+  seats:      { art: null,              solid: true,  z: "over", drawn: "seats" },
 };
 function propAt(tx, ty) {
   const m = level.mat && level.mat[ty] && level.mat[ty][tx];
@@ -1881,38 +1891,40 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################"
 ] },
-{ name: "FLIGHT 214", advice: "A packed tube with no cover. Over-penetration will kill hostages; consider hollow point.", brief: "Airliner cabin — dense hostages, no cover, cockpit locked",
+{ name: "FLIGHT 214", advice: "Seventy-two metres of aeroplane and two aisles a man wide. You cannot pass your own point man, so whoever goes first goes all the way. The seats stop about half of what is fired across them and nothing more — every round you send down an aisle is travelling through the cabin whether it hits or not, so bring hollow point and mean it. The flight deck is locked and there is somebody in it.", brief: "Airliner — two single-file aisles, hostages between the seat banks, flight deck locked",
   type: "AIRCRAFT ASSAULT", objectives: ["rescue", "neutralize"], src: [
-"##############################################",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,~,,,,,*,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,~,,,,,,,,,,,,,,,,,,,,,~,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,~,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,U,,,,,,,U,,,,,,,,,,,J,,,,,,,,,,,U,,,,,,#",
-"#,,,,#####D#######W###############W#######,,,#",
-"#,,,,##.......#.......#.......#..........#,,,#",
-"#J#####.......#..h....#.......#..p.......#,,,#",
-"#,#...#..p....#.......#..g...h#..........#,,,#",
-"#,#.T.#.......#....c..#.......#......c...#,,,#",
-"#,#...L..................................#,,,#",
-"#J#...#..................................#J,,#",
-"#,#.h.#.....g.#.....h.#.......#..........#,,,#",
-"#,#.b.#.......#.......#....c..#..........#,,,#",
-"#,#####.......#..c....#.......#....g.....#,,~#",
-"#,,,,##.......#.......#.......#..........#,,,#",
-"#,,,,#####################W#########D#####,,,#",
-"#,,,,,,,,U,,,U,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,P,,,,,,,,#",
-"#,,,,,,,,,,,,~,,,,,,,,,,~,,,,,,,,,,s,s,,,,,,,#",
-"#,,,,,,,,,~,,,,,,,,,,,,,,,,,,,,,,,,,s,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"##############################################"
+"################################################################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,%%%D%%%%%%%%%%%%%%%%%%%%%%D%%%%%%%%%%%%%%%%%%%%%%%%D%%%%%,,,,,,,,,,#",
+"#,,,,,,,,%%%..u.ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#.%%%,,,,,,,#",
+"#,,,,,,,%.......ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#....%%,,,,,#",
+"#,,,,%%%...............h...g.....T.c..........h.........g.c........#......%%,,,#",
+"#,,,%............eeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeee.....L.......%,,,#",
+"#,,,%%...........eeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeee.....#...E...%,,,#",
+"#,,,,,%............c...........h...........g......c..h......c......#......%%,,,#",
+"#,,,,,,%%%......ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#...%%%,,,,,#",
+"#,,,,,,,,,%...u.ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#.%%,,,,,,,,#",
+"#,,,,,,,,,,%%%%D%%%%%%%%%%%%%%%%%%%%%%D%%%%%%%%%%%%%%%%%%%%%%%%D%%%%%,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,J,J,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,Z,,,,,,,Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,Z,,,P,,,Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,s,s,s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,xxxxxxxxxxxxxx,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"################################################################################"
 ] },
 { name: "HIGH VALUE", advice: "The principal must live. Shotguns and buckshot are the wrong tool for a capture.", brief: "Take the principal alive and walk him to the vehicle",
   type: "CAPTURE & EXTRACT", objectives: ["capture", "extract"], src: [
@@ -2381,17 +2393,17 @@ const MAPS = [
 "#,,,,,W...g.........#,,,,,,,,,,,,,,,,,,J#.........g....#,,,,,#",
 "#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#.............b#,,,,,#",
 "#*,,,,#.............#,,,,,,,,,,,,,,,,,,,#...b..........#,,,,,#",
-"#,,,,,#######D#######,,,,,g,,,,,,,,,,,,,#######D########,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,U,,,,,%%,@%%%,~p,,,,oJ,,,,,,,,,,U,,,,,,,,#",
+"#,,,,,#######D#######,,,,,g,,M,,,,,,,,,,#######D########,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,U,,,,M%%,@%%%,~p,,,,oJ,,,,,,,,,,U,,,,,,,,#",
 "#,*,,,*,,,,,,,,,,,*,,,,,,,%%,@%%%,@@,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#~,t,,,,,,,,,,,,,,,,,,,,,,%%,,,w,,%%,t,,,,*,,,,,,,,,,,,,,,t,,#",
+"#~,t,,,,,,,,,,,,,,,,,,,,,,%%,,,w,M%%,t,,,,*,,,,,,,,,,,,,,,t,,#",
 "#,ttt,,,,,,,,,,,,,,,,,a,,,@@,,,,,,%%ttt,,,,,,,,,,,,,,,,,,ttt,#",
-"#,,t,,,,,o,,,,,,,,,,,,,,,,,,%%%@M,%%,t,*,,,,,U,,,,,,,,,,,,t,,#",
+"#,,t,,,,,o,,,,,,,,,,,,,,M,,,%%%@M,%%,t,*,,,,,U,,,,,,,,,,,,t,,#",
 "#,~,,,######D######,,,,*%%,,%%%@,,,,,U,,*,######D#######,,,,,#",
 "#,,,,,#...........#,,,,,%%,n,w,,,*@@,,,,,,#.d..........#J*,,,#",
-"#,,,,o#........g..#,,,,,%%,n,@%%%,%%,,a,,,#............#,,,*,#",
+"#,,,,o#........g..#,,,,,%%,nM@%%%,%%,,a,,,#............#,,,*,#",
 "#,,,,,#...........#,,,,,@@,,,@%%%,%%,,,,,,#...g........#,,,,,#",
-"#,,,,,#u.g........W,,,*,,,,,,,,,,,%%,g,,,,#............#,,,,,#",
+"#,,,,,#u.g........W,,,*,,,,,,,,,,M%%,g,,,,#............#,,,,,#",
 "#,,,,,#...........#,,,,,,p,,,,,,,,,,,,,,,,W............#,~,,,#",
 "#,,,,,#...........#,,,,,,,,,,,,,,,,,,,,~,,#.........p..#,,,,,#",
 "#,,,,,#.......f...#,,,,,,,,,,,,,,,,,,,,,,,#............#,,,,,#",
@@ -2564,8 +2576,14 @@ function parseLevel() {
           if (rr && "#=-%@t".includes(rr[x + ox])) { face = Math.atan2(-oy, -ox); found = true; break; }
         }
       }
-      // a gun bolted to a VEHICLE (engine block or sheet metal beside it) is a
-      // ring mount: near-full traverse, per Sam's Humvee ask
+      // A gun bolted to a VEHICLE (engine block or sheet metal beside it) is a
+      // ring mount, and a ring mount traverses the whole circle. It was 300
+      // degrees, which sounds generous until you park the truck in a laager:
+      // Sam, on the v0.79 convoy — "they should just go 360 instead of having
+      // limited traversal, because then the turret isn't useful because the
+      // other humvees are in the way." The dead 60 degrees was always pointed
+      // at whichever friendly vehicle happened to be behind him. A real ring
+      // has no stop; the gunner just turns round.
       let ring = false;
       for (const [ox, oy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
         const rr = rows[y + oy];
@@ -2576,7 +2594,7 @@ function parseLevel() {
       // the gun goes up onto the vehicle's roof hatch below, and this M tile
       // stays behind as the step you climb on and the ground you come back to.
       level.turrets.push({ x: cx, y: cy, sx: cx, sy: cy, tx: x, ty: y, face0: face,
-                          manned: null, arc: ring ? deg(300) : TUNE.turretArc, ring });
+                          manned: null, arc: ring ? TAU : TUNE.turretArc, ring });
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
@@ -4180,19 +4198,29 @@ function updateWalkingWounded() {
 }
 
 function playerInteract(p) {
-  // priority: casualty > cuff surrendered > secure hostage > door
-  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed && !s.stabilized);
-  if (cas) return;                            // the [E] HOLD owns this — do not open a door over him
+  // Priority: a man on the ground beats everything, then people, then things.
+  //
+  // ANY downed man in reach owns [E], stabilized or not. It used to be only the
+  // ones still bleeding, on the reasoning that a tied-off man needs nothing —
+  // but he does, he needs HAULING, and the haul is the same hold-[E]. Sam, once
+  // the v0.79 laager put a gun truck around every casualty: "struggling to drag
+  // injured members near a humvee turret, i just get into the turret instead of
+  // dragging." Two things caused that and this is the first; the second is that
+  // the gun used to be checked before the cuffs and the hostages, which is the
+  // wrong order for the same reason — a person in front of you outranks a
+  // weapon system beside you.
+  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach, s => s.alive && s.downed);
+  if (cas) return;                            // the [E] HOLD owns this — treat him or drag him
   if (p.turret) { dismountTurret(p); game.hint = "Off the gun"; return; }
   const cam = nearestEntity(level.cameras, p.x, p.y, 42, c2 => c2.alive);
   if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
-  const trt = reachableTurret(p);
-  if (trt) { mountTurret(p, trt); return; }
-  if (useStairs(p)) return;
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
   const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
   if (hos) { trySecureHostage(hos); return; }
+  if (useStairs(p)) return;
+  const trt = reachableTurret(p);
+  if (trt) { mountTurret(p, trt); return; }
   const brk = breachableAt(p, input.mouse.wx, input.mouse.wy);
   if (brk && p.charges > 0 && !game.wallCharge) { plantWallCharge(p, brk); return; }
   const d = nearestDoor(p.x, p.y, 50);
@@ -5466,6 +5494,17 @@ function breachableAt(p, wx, wy) {
   if (!isWall(t.tx, t.ty)) return null;
   if (t.tx <= 0 || t.ty <= 0 || t.tx >= level.w - 1 || t.ty >= level.h - 1) return null;
   if (doorAt(t.tx, t.ty)) return null;
+  // A WALL CHARGE IS FOR WALLS. Sam, on the v0.79 laager: "i shouldn't be able
+  // to put charges on a friendly humvee, i kept on accidentally putting charges
+  // on my own humvees." Of course he did — the convoy is now parked around the
+  // casualties, so the bodywork is the nearest solid thing to the cursor for
+  // most of the mission, and blowing a hole in a vehicle was never a thing the
+  // charge was for. Vehicles are out, and so is anything you are meant to fight
+  // FROM rather than through: a sandbag wall you can already shoot over does
+  // not need a doorway cut in it.
+  if (level.vehAt && level.vehAt.has(t.tx + "," + t.ty)) return null;
+  const m = materialAt(t.tx, t.ty);
+  if (m && m.crest) return null;
   if (dist(p.x, p.y, t.tx * TILE + TILE / 2, t.ty * TILE + TILE / 2) > TUNE.chargeReach) return null;
   return { tx: t.tx, ty: t.ty };
 }
@@ -8641,7 +8680,8 @@ function drawTurret(t) {
   // never offered anything, so the only way to learn a turret was mountable was
   // to be told. Shown exactly when the press would work, so the prompt doubles
   // as the reach indicator.
-  if (!t.manned && game.player && game.player.alive && reachableTurret(game.player) === t) {
+  if (!t.manned && game.player && game.player.alive && reachableTurret(game.player) === t &&
+      !nearestEntity(game.squad, game.player.x, game.player.y, TUNE.tqReach, s2 => s2.alive && s2.downed)) {
     const k = 1 / game.zoom;
     ctx.save();
     ctx.textAlign = "center";
@@ -9040,13 +9080,14 @@ function drawFortifications(x0, y0, x1, y1) {
   for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
     for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
       const kind = level.mat[ty][tx];
-      if ((kind !== "sandbags" && kind !== "hesco") || !seen.grid[ty][tx]) continue;
+      if ((kind !== "sandbags" && kind !== "hesco" && kind !== "seats") || !seen.grid[ty][tx]) continue;
       const nb = fortiNeighbours(tx, ty, kind);
       const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
       ctx.save();
       ctx.globalAlpha = lookedAt(tx, ty) ? 1 : TUNE.rememberedAlpha;
       ctx.translate(cx, cy);
       if (kind === "hesco") drawHescoTile(tx, ty, nb);
+      else if (kind === "seats") drawSeatTile(tx, ty, nb);
       else drawSandbagTile(tx, ty, nb);
       ctx.restore();
     }
@@ -9093,6 +9134,31 @@ function drawHescoTile(tx, ty, nb) {
   const post = (sx, sy, on) => { if (on) ctx.fillRect(sx * H - (sx > 0 ? 3 : 0), sy * H - (sy > 0 ? 3 : 0), 3, 3); };
   post(-1, -1, !nb.n && !nb.w); post(1, -1, !nb.n && !nb.e);
   post(-1,  1, !nb.s && !nb.w); post(1,  1, !nb.s && !nb.e);
+}
+
+// A bank of passenger seats, seen from straight down. The nose is +X, which is
+// the house rule for everything that has a front, so the passengers face RIGHT:
+// headrest at the right of each unit, then the back, then the pan.
+//
+// Two seats per tile here against three per two tiles in the art contract. The
+// art is the more detailed of the two and replaces this when it lands; nobody
+// counts seats at a 32px tile, and what has to read at that size is "a bank of
+// seats with an aisle beside it", which two units per tile says fine.
+function drawSeatTile(tx, ty, nb) {
+  const h = tileHash(tx, ty), H = TILE / 2;
+  for (let i = 0; i < 2; i++) {
+    const cy = -H + H / 2 + i * H;            // two units stacked across the tile
+    ctx.fillStyle = "#39424c";                // the pan, in shadow
+    ctx.fillRect(-H + 3, cy - 6, TILE - 7, 12);
+    ctx.fillStyle = (h >>> (i * 4)) % 5 ? "#4a5560" : "#515c68";   // the back
+    ctx.fillRect(-H + 6, cy - 6, TILE - 12, 12);
+    ctx.fillStyle = "#5c6874";                // the headrest, forward of it
+    ctx.fillRect(H - 9, cy - 5, 6, 10);
+    ctx.strokeStyle = "rgba(15,18,22,0.55)"; ctx.lineWidth = 0.8;
+    ctx.strokeRect(-H + 3.5, cy - 6.5, TILE - 8, 13);
+    ctx.fillStyle = "rgba(20,24,28,0.7)";     // armrests between the units
+    ctx.fillRect(-H + 4, cy - 7.5, TILE - 9, 1.4);
+  }
 }
 
 // A sandbag wall is courses of bags laid long-ways along the run, staggered
@@ -12961,6 +13027,66 @@ requestAnimationFrame(frame);
     fridges. Stripped. The cabin's real problem is its geometry and that is a
     separate job: it is a 37x11 box of rectangular rooms, and a 737 cabin is
     3.5m wide.
+  v0.80 (2026-08-18): FLIGHT 214 IS AN AEROPLANE NOW, AND EVERY GUN TRUCK HAS
+    A GUN.
+    Sam: "the scale makes no sense. also why is there an office desk in an
+    airplane." Measured, and it was worse than that. The old FLIGHT 214 was a
+    37x11 box partitioned into six rectangular rooms with doors between them.
+    At one tile per metre the LENGTH was about right against a 737's 39.5m and
+    the width was 2.9x too big against a 3.54m cabin. No nose, no tail, no
+    wings, no taper, no aisle, no seat rows. It was a building with the word
+    "flight" on it.
+    Rebuilt from a real airframe. Sam chose the shape: "lets do wide body, and
+    we can make it a little wider than a real plane for the sake of fun. but it
+    should still read as a narrow plane body." So:
+      · 8-tile cabin interior against a real 777's 5.87m — 36% wider, and all
+        of the extra spent on the SEAT BLOCKS.
+      · The aisles stay at ONE tile, which is the number that matters. A man is
+        r=9, which is 0.56 tiles, so an aisle is single file: you cannot pass
+        your own point man, the stack is a real stack, and every seat back is
+        cover at arm's length. Widening that is what would have cost the thing
+        Sam asked to keep.
+      · 72 tiles long against a 10-tile fuselage is 7.2:1 — the wide side of a
+        C-17 (7.7) and nowhere near anything that reads as a bus. The two
+        numbers hold each other: widening the tube without lengthening it is
+        exactly how this stops looking like an aircraft.
+      · Tapered tailcone and a blunter radome, so the silhouette is an
+        aeroplane from the minimap up.
+      · Three seat banks, two aisles, cross-cabin breaks at the galleys and the
+        overwing exit row, hull doors fore, aft and overwing, and the flight
+        deck behind a locked bulkhead with somebody in it.
+    Verified: the hull is sealed (0 leaks with the doors shut), the whole cabin
+    floor is reachable once the aft door opens, 252 tiles of seats against 108
+    walkable, and the 72-tile run of aluminium is NOT mistaken for a vehicle.
+    A NEW MATERIAL, `seats`: the weakest crest in the game at 0.5, because an
+    economy seat is foam and a plastic shell. Solid, so you go down the aisle;
+    transparent, so you can see the length of the cabin; resist 6, so rounds
+    punch through and keep going — which is the over-penetration hazard this
+    mission has always been briefed around. The hull is sheet metal, not
+    masonry, so rounds leave through the skin too.
+    360-DEGREE RING MOUNTS, and a gun on every truck. Sam, on the v0.79 laager:
+    "maybe all the humvees should have turrets in the broken arrow level, and
+    they should just go 360 instead of having limited traversal. because then
+    the turret isn't useful because the other humvees are in the way." Exactly
+    right — the dead 60 degrees of a 300-degree mount was always pointed at
+    whichever friendly vehicle was parked behind it. A real ring has no stop;
+    the gunner turns round. All seven convoy vehicles carry one now.
+    A WALL CHARGE IS FOR WALLS. Sam: "i shouldn't be able to put charges on a
+    friendly humvee, i kept on accidentally putting charges on my own humvees."
+    Of course he did — the convoy is parked around the casualties, so bodywork
+    is the nearest solid thing to the cursor for most of the mission. Vehicles
+    are out, and so is any low cover with a crest: a sandbag wall you can
+    already shoot over does not need a doorway cut in it.
+    AND [E] PRIORITY, which the laager broke and Sam found within minutes:
+    "struggling to drag injured members near a humvee turret, i just get into
+    the turret instead of dragging." Two causes. The casualty guard only held
+    [E] for men who were still BLEEDING, on the reasoning that a tied-off man
+    needs nothing — but he does, he needs hauling, and the haul is the same
+    hold-[E]. And the gun was checked before the cuffs and the hostages, which
+    is the wrong order for the same reason: a person in front of you outranks a
+    weapon system beside you. Any downed man in reach now owns the key, and the
+    turret sits below cuffing and securing. The [E] GUN prompt was taught the
+    same priority, so it stops offering a press that will not happen.
 -->
 </body>
 </html>

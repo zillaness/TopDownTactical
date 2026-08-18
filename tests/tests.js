@@ -4150,13 +4150,31 @@ P.gunIndex = 1; P.reloading = 0; cycleAmmo(P);
 console.log('  sidearm out: "' + game.hint.slice(0, 30) + '"',
             /sidearm/i.test(game.hint) ? 'CORRECT (only the primary cycles)' : 'WRONG');
 
-// the wreck gun swings nearly full circle
+// a ring mount swings the WHOLE circle
 game.loadout.primary = 'carbine'; game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
 initGame(); game.state = 'play';
 const ringGun = level.turrets.find(t => t.ring);
-console.log('  BROKEN ARROW wreck gun: ring=' + !!ringGun + ', arc=' +
-            (ringGun ? (ringGun.arc * 180 / Math.PI).toFixed(0) : '—') + '°',
-            ringGun && Math.abs(ringGun.arc - deg(300)) < 0.01 ? 'CORRECT (a Humvee ring mount)' : 'WRONG');
+console.log('  BROKEN ARROW ring guns: ' + level.turrets.filter(t => t.ring).length +
+            ', arc=' + (ringGun ? (ringGun.arc * 180 / Math.PI).toFixed(0) : '—') + '°',
+            ringGun && Math.abs(ringGun.arc - TAU) < 0.01
+              ? 'CORRECT (a ring has no stop — the gunner turns round)' : 'WRONG');
+// Sam: "they should just go 360 instead of having limited traversal, because
+// then the turret isn't useful because the other humvees are in the way." So
+// prove it: no bearing may be refused by the mount.
+{
+  const blockedBearings = [];
+  for (let i = 0; i < 360; i += 5) {
+    const want = deg(i);
+    if (Math.abs(angDiff(clampToArc(ringGun, want), want)) > 1e-6) blockedBearings.push(i);
+  }
+  console.log('  and no bearing is refused by the mount: ' +
+              (blockedBearings.length ? blockedBearings.length + ' blocked' : 'all 72 sampled clear'),
+              blockedBearings.length === 0 ? 'CORRECT' : 'WRONG');
+}
+// every gun truck in the convoy carries a gun, not just the one
+console.log('  every convoy vehicle has a ring gun: ' + level.turrets.filter(t => t.ring).length +
+            ' guns for ' + level.vehicles.length + ' vehicles',
+            level.turrets.filter(t => t.ring).length === level.vehicles.length ? 'CORRECT' : 'WRONG');
 game.mapIndex = MAPS.findIndex(m => m.name === 'THE STANDOFF'); initGame();
 console.log('  THE STANDOFF police truck: ' + level.turrets.filter(t => t.ring).length + ' ring mount',
             level.turrets.filter(t => t.ring).length === 1 ? 'CORRECT' : 'WRONG');
@@ -4213,7 +4231,11 @@ for (let i = 0; i < 360; i++) {
 console.log('  from the ring he sees ' + bearings + '/360 bearings at 120px',
             bearings > 60 ? 'CORRECT (his own hull is under him, not in front of him)' : 'WRONG');
 
-// ...but the exemption is the RING, not "inside a car". A wreck is still a wreck.
+// ...but the exemption is the RING, not "inside a car". A wreck is still a
+// wreck — checked on a map that still HAS an ordinary car, since every vehicle
+// in BROKEN ARROW's convoy is a gun truck now.
+const ringMap = game.mapIndex;
+game.mapIndex = MAPS.findIndex(m => m.name === 'DOWNTOWN EXCHANGE'); initGame(); game.state = 'play';
 const plain = level.vehicles.find(v => !v.ring);
 let throughAPlainCar = 0;
 if (plain) {
@@ -4225,6 +4247,7 @@ if (plain) {
 }
 console.log('  a car with no ring still blocks from inside: ' + throughAPlainCar + '/360',
             plain && throughAPlainCar === 0 ? 'CORRECT (the loose version of this let a man see through a wreck)' : 'WRONG');
+game.mapIndex = ringMap; initGame(); game.state = 'play';
 
 // mount from the step, come off onto the step
 const man = game.squad[0];
@@ -5158,4 +5181,91 @@ console.log('  and every one is 4x2 or 2x4: ' + [...new Set(shapes)].join(','),
 }
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('LAAGER / SPAWN COVER TEST DONE');
+})();
+
+(function chargeTargetTests(){
+console.log('--- a wall charge is for walls ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const p = game.player;
+p.charges = 2;
+// Sam: "i shouldn't be able to put charges on a friendly humvee, i kept on
+// accidentally putting charges on my own humvees." Of course he did — the
+// convoy is parked around the casualties, so bodywork is the nearest solid
+// thing to the cursor for most of the mission.
+let veh = null;
+for (const [k] of level.vehAt) { const [x, y] = k.split(',').map(Number); veh = { x, y }; break; }
+p.x = veh.x * TILE + TILE / 2 + TILE; p.y = veh.y * TILE + TILE / 2;
+console.log('  standing at a Humvee, cursor on its hull:',
+            breachableAt(p, veh.x * TILE + 16, veh.y * TILE + 16) === null
+              ? 'CORRECT (you do not breach your own truck)' : 'WRONG');
+// nor on cover you can already shoot over
+let low = null;
+for (let y = 0; y < level.h && !low; y++) for (let x = 0; x < level.w && !low; x++) {
+  const m = level.mat[y][x];
+  if (m && MATERIALS[m] && MATERIALS[m].crest && level.wall[y][x]) low = { x, y };
+}
+p.x = low.x * TILE + TILE / 2 + TILE; p.y = low.y * TILE + TILE / 2;
+console.log('  and not on a sandbag wall you can shoot over:',
+            breachableAt(p, low.x * TILE + 16, low.y * TILE + 16) === null ? 'CORRECT' : 'WRONG');
+// but a real wall is still a real wall, or the charge has no job left
+{
+  game.mapIndex = 0; initGame(); game.state = 'play';
+  const q = game.player; q.charges = 2;
+  let wall = null;
+  for (let y = 1; y < level.h - 1 && !wall; y++) for (let x = 1; x < level.w - 1 && !wall; x++) {
+    if (!level.wall[y][x] || doorAt(x, y)) continue;
+    const m = level.mat[y][x];
+    if (m && MATERIALS[m] && MATERIALS[m].crest) continue;
+    if (level.vehAt && level.vehAt.has(x + ',' + y)) continue;
+    wall = { x, y };
+  }
+  q.x = wall.x * TILE + TILE / 2; q.y = wall.y * TILE + TILE / 2 + TILE;
+  const got = breachableAt(q, wall.x * TILE + 16, wall.y * TILE + 16);
+  console.log('  a masonry wall is still breachable: ' + (got ? got.tx + ',' + got.ty : 'null'),
+              got ? 'CORRECT (the charge still has a job)' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('CHARGE TARGET TEST DONE');
+})();
+
+(function interactPriorityTests(){
+console.log('--- [E] priority: a man on the ground beats a gun ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const p = game.player;
+const ring = level.turrets.find(t => t.ring && t.veh);
+const cas = game.squad.find(s2 => s2.qrfCasualty && s2.downed);
+// stand him ON the hull, with a casualty at his feet — the v0.79 laager makes
+// this the normal case rather than a corner one
+p.x = ring.veh.x0 * TILE - 8; p.y = (ring.veh.y0 + ring.veh.y1 + 1) / 2 * TILE;
+cas.x = p.x + 10; cas.y = p.y;
+console.log('  turret is in reach from here:', reachableTurret(p) === ring ? 'yes' : 'no');
+for (const stable of [false, true]) {
+  cas.stabilized = stable;
+  p.turret = null; ring.manned = null;
+  playerInteract(p);
+  console.log('  casualty ' + (stable ? 'already stable (the HAUL case)' : 'still bleeding') +
+              ': mounted=' + !!p.turret,
+              !p.turret ? 'CORRECT (the hold-[E] keeps him)' : 'WRONG (got in the gun instead)');
+}
+// with nobody down beside him it still mounts, or the fix broke the feature
+cas.x = p.x + 400; cas.y = p.y + 400;
+p.turret = null; ring.manned = null;
+playerInteract(p);
+console.log('  and with nobody at his feet it still mounts: ' + !!p.turret,
+            p.turret ? 'CORRECT' : 'WRONG');
+dismountTurret(p);
+// a surrendered man and a hostage also outrank the gun
+{
+  const e = game.enemies.find(x => x.alive);
+  e.state = 'surrender'; e.x = p.x + 12; e.y = p.y;
+  p.turret = null; ring.manned = null;
+  playerInteract(p);
+  console.log('  a surrendered suspect outranks the gun: mounted=' + !!p.turret + ', cuffed=' + (e.state === 'cuffed'),
+              !p.turret && e.state === 'cuffed' ? 'CORRECT' : 'WRONG');
+  if (p.turret) dismountTurret(p);
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('INTERACT PRIORITY TEST DONE');
 })();
