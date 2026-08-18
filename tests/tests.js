@@ -3274,6 +3274,55 @@ game.loadout.primary = prevGun; game.loadout.can = prevCan;
 console.log('CAN TEST DONE');
 })();
 
+(function reloadRingTests(){
+console.log('--- the reload ring ---');
+const prevGun = game.loadout.primary;
+game.mapIndex = 0; game.loadout.primary = 'carbine'; initGame(); game.state = 'play';
+const p = game.player; p.ammo = 0; tryReload(p);
+const seq = [];
+for (let i = 0; i < 90; i++) { const a = reloadArc(p); if (a && i % 20 === 0) seq.push(a.to / TAU); updateShooterWeapon(p, 1 / 60); }
+console.log('  a magazine gun sweeps once: ' + seq.map(v => v.toFixed(2)).join(' -> '),
+            seq.length > 1 && seq[seq.length - 1] > seq[0] ? 'CORRECT' : 'WRONG');
+// A TUBE GUN TICKS PER SHELL. The suite cannot call render(), which is exactly
+// why reloadArc exists as its own function — the numbers are assertable.
+game.loadout.primary = 'shotgun'; initGame(); game.state = 'play';
+const q = game.player; q.ammo = 0; tryReload(q);
+let resets = 0, prev = 1; const froms = new Set();
+for (let i = 0; i < 60 * 4; i++) {
+  const a = reloadArc(q);
+  if (a) { const f = a.to - a.from; if (f < prev - 0.05) resets++; prev = f; froms.add(a.from.toFixed(2)); }
+  updateShooterWeapon(q, 1 / 60);
+}
+console.log('  a tube gun ticks per shell: ' + resets + ' resets, ' + froms.size + ' start angles',
+            resets >= 3 && froms.size >= 4 ? 'CORRECT (ticks, not one long sweep)' : 'WRONG');
+// breaking off keeps the shells and clears the ring with the reload
+q.ammo = 0; q.reloading = 0; tryReload(q);
+for (let i = 0; i < 72; i++) updateShooterWeapon(q, 1 / 60);
+q.cooldown = 0; tryFire(q, 0);
+console.log('  breaking off clears the ring: ' + reloadArc(q),
+            reloadArc(q) === null ? 'CORRECT' : 'WRONG');
+// updateSquaddie returns before updateShooterWeapon for a downed man, so his
+// timer never ticks — a ring there would sit still and lie.
+game.loadout.primary = 'carbine'; initGame(); game.state = 'play';
+const s2 = game.squad[0]; s2.ammo = 0; tryReload(s2); s2.downed = true;
+console.log('  a downed man shows none (his clock is frozen): ' + reloadArc(s2),
+            reloadArc(s2) === null ? 'CORRECT' : 'WRONG');
+let bad = 0;
+for (const g of ['carbine', 'shotgun', 'smg', 'saw', 'dmr']) {
+  game.loadout.primary = g; initGame(); game.state = 'play';
+  const m = game.player; m.ammo = 0; tryReload(m);
+  for (let i = 0; i < 60 * 9; i++) {
+    const a = reloadArc(m);
+    if (a && (a.to < a.from || a.to > TAU + 1e-6 || a.from < 0)) bad++;
+    updateShooterWeapon(m, 1 / 60);
+  }
+}
+console.log('  arcs never invert or overflow, all five guns: ' + bad + ' faults',
+            bad === 0 ? 'CORRECT' : 'WRONG');
+game.loadout.primary = prevGun;
+console.log('RELOAD RING TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';

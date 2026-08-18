@@ -7681,6 +7681,16 @@ function render() {
     ctx.stroke();
   }
 
+  // Who cannot shoot right now, and for how much longer. Above the fog with
+  // the tourniquet ring and the alert markers, because this is information and
+  // not world geometry. Not in the AAR: nothing is ticking there, and a ring
+  // frozen over the debrief is a clock that has stopped.
+  if (game.state !== "aar") {
+    const rk = 1 / game.zoom;
+    drawReloadRing(game.player, rk);
+    for (const s of game.squad) drawReloadRing(s, rk);
+  }
+
   // shoulder pip: shows which side your eye is on, so the corner game is learnable
   if (game.player.alive && game.eye) {
     const p = game.player, k = 1 / game.zoom;
@@ -7991,6 +8001,67 @@ function sectorOf(s) {
     return { ang: game.player.face + w.sector, arc: deg(70), col: "63,194,126" };
   }
   return null;
+}
+
+// The arc a reload ring sweeps, in radians from twelve o'clock. It is its own
+// function because tests/run.sh never calls render(): the only way to assert
+// "the ring ticks per shell and resets" is to be able to ask for the numbers
+// without a canvas.
+//
+// A TUBE GUN TICKS PER SHELL. The bright wedge is the ONE shell going in, in
+// its own slot on the ring; everything before `from` is what is already banked.
+// Break off to fire and the wedge vanishes with those shells still in the tube,
+// which is exactly what tryFire already does. Per-shell is decided by the
+// length of THIS tick rather than by "is it a shotgun", because [X] on a
+// shotgun sets 0.7 * weapon.reload — 2.24s, not 0.55s — and that is one long
+// deliberate action, so it draws as one full sweep.
+function reloadArc(s) {
+  if (!s || !s.alive || s.downed || !s.weapon || s.reloading <= 0) return null;
+  const w = s.weapon;
+  // No stored duration. The longest thing the timer can legally hold IS the
+  // duration, so taking the max self-corrects for cycleAmmo's 0.7 * reload and
+  // for the mounted M2's borrowed 7s weapon without a second field to keep in
+  // sync across swapGun and mountTurret — both of which already stash
+  // `reloading` and would have had to learn to stash that number too.
+  const full = Math.max(s.reloading, w.shellReload || w.reload || 1);
+  const perShell = !!w.shellReload && full <= w.shellReload + 1e-6;
+  const seg = perShell ? TAU / w.mag : TAU;
+  const from = perShell ? seg * Math.min(s.ammo, w.mag - 1) : 0;
+  return { from, to: from + seg * clamp(1 - s.reloading / full, 0, 1), seg, full, perShell };
+}
+
+// A reload was the only timed action on a man with no picture. A tourniquet
+// draws a closing ring and so does a demolition charge; a reload had
+// "RELOADING" in the corner — yours alone — and a bark, once. _barkCd is 1.2s,
+// so a 6.2s belt change shouts and then says nothing for five seconds, and
+// BOUND and PEEL both hang on knowing who can shoot right now.
+//
+// The RADIUS is world-anchored and only the STROKE is 1/zoom. Everything this
+// must not collide with — the body at r, the selection ring at r + 6 — is
+// world-anchored, so a constant-screen radius crosses them at some zooms and
+// hides under the sprite at others. s.r + 3 sits inside the selection ring at
+// every zoom; the 11k floor is only reached below 1x, where 13 world units had
+// shrunk to about 7 screen pixels and a one-seventh wedge to about 3.
+//
+// Not enemies. "He is dry, push now" is a live tactical read the enemy AI has
+// no counterpart for — it cannot see yours — so that is a balance change in a
+// UI change's clothes, and it is declined here on purpose rather than missed.
+function drawReloadRing(s, k) {
+  const a = reloadArc(s);
+  // updateSquaddie returns before updateShooterWeapon for a downed man and for
+  // a man on another floor, so both hold `reloading` unchanged forever. A ring
+  // on either would sit perfectly still and lie about it.
+  if (!a || (s.floor || 0) !== (game.floor || 0)) return;
+  const rr = Math.max(s.r + 3, 11 * k), a0 = -Math.PI / 2;
+  ctx.lineWidth = 2.5 * k;
+  ctx.strokeStyle = "rgba(232,181,58,0.20)";               // the empty socket
+  ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, TAU); ctx.stroke();
+  if (a.from > 0) {                                        // shells already banked
+    ctx.strokeStyle = "rgba(232,181,58,0.50)";
+    ctx.beginPath(); ctx.arc(s.x, s.y, rr, a0, a0 + a.from); ctx.stroke();
+  }
+  ctx.strokeStyle = COLORS.accent;                         // the one going in now
+  ctx.beginPath(); ctx.arc(s.x, s.y, rr, a0 + a.from, a0 + a.to); ctx.stroke();
 }
 
 function drawSectors() {
