@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.82.html
-  version: 0.82
+  file: top_down_tactical_v0.83.html
+  version: 0.83
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.82 (working title)</title>
+<title>Top-Down Tactical v0.83 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.82 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.83 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1022,6 +1022,11 @@ const TUNE = {
   // counts and standing back does not. 50 reaches the eight tiles around you
   // (a diagonal centre is 45px away) and nothing further.
   crestReach: 50,
+  // How much of the fog survives inside a roofed space you have opened up. A
+  // tube is not a building: once the roof is off an airliner cabin you can see
+  // most of the length of it, so the veil is mostly lifted and what is left is
+  // just enough to say "you are not looking at this bit right now".
+  roofOpenFog: 0.72,
   // FIELD TEST — BROKEN ARROW. Men already down when you arrive get a longer
   // clock than a fresh casualty: shock has set in, the bleeding is slower, and
   // the mission is the distance between you and them.
@@ -1208,15 +1213,28 @@ Object.assign(MATERIALS, {
   // because a coil of wire is circles and the byte census is still an open
   // question — this way it costs nothing at all.
   wire:        { name: "concertina wire", resist: 0, opaque: false, spall: 0, defl: 0, dmgKeep: 1, col: "#6d7378" },
-  // A BANK OF AIRLINER SEATS. The weakest crest in the game on purpose: an
-  // economy seat is foam and a thin plastic shell and it stops almost nothing,
-  // so half of what is fired across it arrives anyway. It is still SOLID —
-  // you do not walk through a row of seats, you go down the aisle — and it is
-  // still transparent, because a cabin you cannot see down is not a cabin.
-  // resist 6 means rounds punch through and keep going, which is the whole
-  // hazard FLIGHT 214 is built around and the reason its briefing has always
-  // recommended hollow point.
-  seats:       { name: "a row of seats", resist: 6, opaque: false, spall: 1, defl: deg(2), dmgKeep: 0.8, col: "#4a5560", crest: 0.5 },
+  // A BANK OF AIRLINER SEATS. Not one seat back — a two-metre depth of frames,
+  // cushions, cabin baggage and the people sitting in them, which is what a
+  // round actually has to cross to reach the next aisle.
+  //
+  // Sam: "i should be able to fire over seats" and "i guess the seats should
+  // catch some shots." Both, and they are different halves of the same tile.
+  //   · crest 0.5 — half of what arrives clears the seat backs untouched, and
+  //     from the aisle beside them you are BRACED, so your own rounds clear
+  //     every time. That is firing over the seats.
+  //   · absorb 2 — the other half hits the bank, and the bank EATS it. Sam:
+  //     "maybe each seat blocks at least 1 shot." That is a much better model
+  //     than a probability, because it is a thing you can watch happen: a seat
+  //     stops the first rounds put into it and is chewed open by sustained
+  //     fire. Cover with a budget, spent per tile, and once it is gone the
+  //     hole stays. Everything else in the table is cover that never wears
+  //     out; this is the one that does, which is what a seat is.
+  //   · resist 6 once chewed through — hollow point (pen 4) is still caught by
+  //     the wreckage, everything harder gets on at 60% damage. That is what
+  //     keeps the briefing's hollow-point advice true rather than decorative.
+  // Still SOLID — you go down the aisle, not over the seats — and still
+  // transparent, because a cabin you cannot see down is not a cabin.
+  seats:       { name: "a row of seats", resist: 6, opaque: false, spall: 1, defl: deg(3), dmgKeep: 0.6, col: "#4a5560", crest: 0.5, absorb: 2 },
 });
 
 // ONE table. The glyph-to-material mapping used to be written out four separate
@@ -1895,7 +1913,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "##############################################"
 ] },
-{ name: "FLIGHT 214", advice: "Seventy-two metres of aeroplane and two aisles a man wide. You cannot pass your own point man, so whoever goes first goes all the way. The seats stop about half of what is fired across them and nothing more — every round you send down an aisle is travelling through the cabin whether it hits or not, so bring hollow point and mean it. The flight deck is locked and there is somebody in it.", brief: "Airliner — two single-file aisles, hostages between the seat banks, flight deck locked",
+{ name: "FLIGHT 214", roofed: true, advice: "Seventy-two metres of aeroplane and two aisles a man wide. You cannot pass your own point man, so whoever goes first goes all the way — but there are SIX doors, and two stacks on two of them go on one beat, so split the team and come at it from both ends. The seats stop the first rounds put into them and are chewed open by sustained fire; you can shoot over the bank you are standing against, not the one across the cabin. Every round you send down an aisle is travelling through the cabin whether it hits or not — bring hollow point and mean it. The flight deck is locked and there is somebody in it.", brief: "Airliner — two single-file aisles, hostages between the seat banks, flight deck locked",
   type: "AIRCRAFT ASSAULT", objectives: ["rescue", "neutralize"], src: [
 "################################################################################",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -1922,9 +1940,9 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,J,J,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,Z,,,,,,,Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,Z,,,P,,,Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,s,s,s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,Z,,,,,Z,Z,,,,,,,,,,,,,,Z,Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,Z,,,,,,,Z,,,,,,P,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,s,,,s,,,s,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,xxxxxxxxxxxxxx,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -2529,6 +2547,10 @@ function parseLevel() {
   level.wall = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.interior = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   level.room = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
+  // How many rounds each tile of chewable cover has left in it. Seats are the
+  // only thing that wears out today; the field is only allocated for materials
+  // that declare `absorb`, so it costs nothing on the other nineteen maps.
+  level.coverLeft = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
     const ch = rows[y][x];
     const cx = x * TILE + TILE / 2, cy = y * TILE + TILE / 2;
@@ -2541,6 +2563,8 @@ function parseLevel() {
       // materialAt reads level.mat and never consults level.wall, so the tile
       // blocks the eye, lets rounds through and lets a man walk across it.
       if (!pr || pr.solid !== false) level.wall[y][x] = 1;
+      const am = MATERIALS[gm];
+      if (am && am.absorb) level.coverLeft[y][x] = am.absorb;
       continue;
     }
     if (FLOOR_DECALS[ch]) level.decalsFloor.push({ tx: x, ty: y, art: FLOOR_DECALS[ch] });
@@ -4452,6 +4476,19 @@ function resolveBarrier(b, hit) {
       b.y = hit.y + Math.sin(b.ang) * skip;
       b.traveled += skip;
       b.overCrest = (b.overCrest || 0) + 1;
+      return;
+    }
+    // 3. AND SOME COVER IS SPENT RATHER THAN BEATEN. A round that did not clear
+    //    the crest has hit the thing, and if the thing still has anything left
+    //    in it, the thing stops it — outright, whatever the round was. That is
+    //    a seat: it takes the first rounds put into it and is chewed open by
+    //    sustained fire. Budget is per TILE, so a wide bank is not one seat's
+    //    worth of protection, and once it is gone it stays gone.
+    if (mat.absorb && level.coverLeft && level.coverLeft[t.ty] && level.coverLeft[t.ty][t.tx] > 0) {
+      level.coverLeft[t.ty][t.tx]--;
+      game.fx.push({ kind: "spark", x: hit.x, y: hit.y, t: 0.12, max: 0.12 });
+      applySpall(hit.x, hit.y, mat, b.side);
+      b.alive = false;
       return;
     }
   }
@@ -8157,6 +8194,19 @@ function render() {
     if (game.snake && game.snake.t > 0) punch(game.snakePoly);
     if (game.fpv) punch(circlePoly(game.fpv.x, game.fpv.y, TUNE.fpvSee));
     if (game.scopePoly) punch(game.scopePoly);   // the slot the glass sees down
+    // A tube you have opened is not a building you are peering into. Once the
+    // roof is off, most of the veil comes off the whole space with it — you can
+    // see down an aisle — and what is left is only enough to say "not looking
+    // at this bit right now". Sam: "shouldn't be much fog because its a tube."
+    if (game.roofOpen && game.roofOpen.size && level.room) {
+      f.globalAlpha = TUNE.roofOpenFog;
+      for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++)
+        for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+          const r = level.room[ty][tx];
+          if (r && game.roofOpen.has(r)) f.fillRect(tx * TILE, ty * TILE, TILE, TILE);
+        }
+      f.globalAlpha = 1;
+    }
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(fog, 0, 0, viewW, viewH);
@@ -8182,6 +8232,12 @@ function render() {
   // walked past are exactly the things you would still have in your head.
   drawSmoke();
   drawMemory(x0, y0, x1, y1);
+
+  // THE AIRFRAME, and it goes on LAST of everything that lives inside it —
+  // over the seats, over the men, over the never-seen black. A parked aeroplane
+  // is not something you have to discover: you can see it from the fence, and
+  // until somebody is inside it you can see nothing else of it.
+  drawRoofs(x0, y0, x1, y1);
 
   // light emitters and information rings go ON TOP of the fog: a muzzle flash
   // that is dimmed 86% is not a muzzle flash
@@ -8999,6 +9055,150 @@ function lookedAt(tx, ty) {
 }
 function lookedAtPx(x, y) { return lookedAt(Math.floor(x / TILE), Math.floor(y / TILE)); }
 
+// ---- THE ROOF, and taking it off.
+//
+// Sam, on the aircraft: "from the outside you should see the whole plane, but
+// then once you enter the roof disappears and you see the inside (with some
+// minor fog of course, but shouldn't be much fog because its a tube)."
+//
+// Every building in this game has been drawn open-topped since v0.1, and that
+// is right for a building — you are looking down into rooms. An aeroplane is
+// not a room, it is an OBJECT sitting on an apron, and a closed one is the
+// thing you walk up to. So this is opt-in per mission (`roofed: true`) rather
+// than a change to how the other nineteen maps look.
+//
+// Granularity is the ROOM, not the map, and that falls out of the flood fill
+// for free: the cabin is one room and the flight deck is another behind its
+// locked bulkhead. So opening the cabin does NOT show you the cockpit, which is
+// exactly the right answer and cost nothing to get.
+function roofedRooms() {
+  if (!game.mission || !game.mission.roofed || !level.room) return null;
+  if (level._roofRooms) return level._roofRooms;
+  // A room is under a roof only if EVERY tile of it is indoors. "Has an indoor
+  // tile" is not enough and the apron proved it: one stray interior tile out on
+  // the concrete put the exterior in the set, and the fill then claimed the
+  // hull from the OUTSIDE and roofed all 2,560 tiles of the map.
+  const tally = new Map();
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    const r = level.room[y][x];
+    if (!r) continue;
+    // A DOORWAY IS A BOUNDARY, NOT A ROOM TILE. Doors are handed a room id for
+    // lookups, and they sit IN the hull where nothing is marked indoors — so
+    // counting them made the cabin 215/218 and failed a rule that is otherwise
+    // exact. Skip them and the aircraft comes out 100% and the apron 0%.
+    if (level.doorAt.has(x + "," + y)) continue;
+    const rec = tally.get(r) || { n: 0, inside: 0 };
+    rec.n++; if (level.interior[y][x]) rec.inside++;
+    tally.set(r, rec);
+  }
+  const set = new Set();
+  for (const [r, rec] of tally) if (rec.n === rec.inside) set.add(r);
+  // Which room OWNS each tile of the shell. The flood fill only numbers tiles
+  // you can stand on, so seat blocks and the fuselage skin belong to no room —
+  // and a roof drawn only over the floor is a lid with the seats showing
+  // through it. Multi-source BFS out from every roofed floor tile, expanding
+  // through interior tiles that are nobody's floor, hands each piece of
+  // structure to the nearest space. The bulkhead between cabin and flight deck
+  // goes to whichever reaches it first, and one tile of wall either way does
+  // not matter; what matters is that the two spaces stay separate, so opening
+  // the cabin still does not open the cockpit.
+  const own = Array.from({ length: level.h }, () => new Array(level.w).fill(0));
+  const q = [];
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    const r = level.room[y][x];
+    if (r && set.has(r)) { own[y][x] = r; q.push([x, y, r, 0]); }
+  }
+  for (let i = 0; i < q.length; i++) {
+    const [x, y, r, d] = q[i];
+    for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + ox, ny = y + oy;
+      if (!inBounds(nx, ny) || own[ny][nx]) continue;
+      if (level.room[ny][nx]) continue;           // somebody else's floor
+      if (level.interior[ny][nx]) { own[ny][nx] = r; q.push([nx, ny, r, 0]); continue; }
+      // The SHELL. The interior pass marks what is INSIDE the hull but not the
+      // hull itself — it is the boundary, so the skin came out interior 0 and
+      // the roof stopped one tile short of the edge, leaving the fuselage drawn
+      // with a black stripe down each flank. Walls against the inside are part
+      // of the thing, so claim them; bounded to two steps so this can never run
+      // away along a wall shared with some other building on some other map.
+      if (level.wall[ny][nx] && d < 2) { own[ny][nx] = r; q.push([nx, ny, r, d + 1]); }
+    }
+  }
+  level._roofRooms = set; level._roofOwner = own;
+  return set;
+}
+
+// A roof comes off when one of YOUR people is under it, and stays off. Any
+// friendly, not just the player: vision is shared with the squad already, so a
+// man who steps into the cabin ahead of you has opened it for everybody.
+function updateRoofs() {
+  const roofs = roofedRooms();
+  if (!roofs) return;
+  if (!game.roofOpen) game.roofOpen = new Set();
+  for (const ent of [game.player, ...game.squad]) {
+    if (!ent || !ent.alive) continue;
+    const t = tileAt(ent.x, ent.y);
+    if (!inBounds(t.tx, t.ty)) continue;
+    const r = level.room[t.ty][t.tx];
+    if (!r || !roofs.has(r) || game.roofOpen.has(r)) continue;
+    game.roofOpen.add(r);
+    // Taking the lid off IS seeing inside. Mark the whole room explored so the
+    // layout reads at once — the seats, the galleys, where the aisles run.
+    // Only the LAYOUT: who is standing in it still goes through the normal
+    // visibility rules, so this reveals the cabin and never the people in it.
+    for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+      if (level.room[y][x] === r) {
+        seen.grid[y][x] = 1;
+        for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]])
+          if (inBounds(x + ox, y + oy)) seen.grid[y + oy][x + ox] = 1;   // and its walls
+      }
+    }
+  }
+}
+function roofIsOn(tx, ty) {
+  const roofs = roofedRooms();
+  if (!roofs || !level._roofOwner) return false;
+  const r = level._roofOwner[ty] && level._roofOwner[ty][tx];
+  return !!r && !(game.roofOpen && game.roofOpen.has(r));
+}
+
+// The closed airframe, seen from across the apron. Drawn over the never-seen
+// black, because an aeroplane parked in the open is not something you have to
+// discover — you can see it from the fence. When the art lands this is where
+// air_nose / air_cabin / air_tail go; until then it is skin, panel lines and a
+// window row, which is enough to read as a fuselage at any zoom.
+function drawRoofs(x0, y0, x1, y1) {
+  if (!roofedRooms()) return;
+  for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
+    for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+      if (!roofIsOn(tx, ty)) continue;
+      const px = tx * TILE, py = ty * TILE;
+      ctx.fillStyle = "#b9bfc4";
+      ctx.fillRect(px, py, TILE, TILE);
+      // longitudinal panel lines, and a hint of the crown highlight down the
+      // spine so the tube reads as round rather than as a flat plank
+      const spine = Math.abs((ty + 0.5) - roofSpine(tx));
+      ctx.fillStyle = spine < 1.1 ? "rgba(255,255,255,0.14)" : "rgba(0,0,0," + Math.min(0.22, spine * 0.05).toFixed(3) + ")";
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = "rgba(90,98,105,0.55)"; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(px, py + 0.5); ctx.lineTo(px + TILE, py + 0.5); ctx.stroke();
+      // cabin windows along the flanks, where the roof meets the hull
+      if (!roofIsOn(tx, ty - 1) || !roofIsOn(tx, ty + 1)) {
+        const wy = !roofIsOn(tx, ty - 1) ? py + 5 : py + TILE - 5;
+        ctx.fillStyle = "rgba(30,38,46,0.75)";
+        ctx.fillRect(px + 9, wy - 2, 5, 4); ctx.fillRect(px + 19, wy - 2, 5, 4);
+      }
+    }
+  }
+}
+// Which row is the top of the tube at this station? Used only for shading.
+function roofSpine(tx) {
+  let lo = null, hi = null;
+  const own = level._roofOwner;
+  if (own) for (let y = 0; y < level.h; y++) if (own[y][tx]) { if (lo === null) lo = y; hi = y; }
+  return lo === null ? 0 : (lo + hi + 1) / 2;
+}
+
 // Props and vehicles, drawn over the fog so they survive it. Live things at
 // full strength, remembered things dimmed — the distinction the fog used to
 // make by brute force, made deliberately and at a level you can still read.
@@ -9150,6 +9350,9 @@ function drawHescoTile(tx, ty, nb) {
 // seats with an aisle beside it", which two units per tile says fine.
 function drawSeatTile(tx, ty, nb) {
   const h = tileHash(tx, ty), H = TILE / 2;
+  const full = (MATERIALS.seats.absorb || 0);
+  const left = (level.coverLeft && level.coverLeft[ty]) ? level.coverLeft[ty][tx] : full;
+  const chewed = full > 0 ? 1 - left / full : 0;   // 0 intact, 1 shot to pieces
   for (let i = 0; i < 2; i++) {
     const cy = -H + H / 2 + i * H;            // two units stacked across the tile
     ctx.fillStyle = "#39424c";                // the pan, in shadow
@@ -9162,6 +9365,19 @@ function drawSeatTile(tx, ty, nb) {
     ctx.strokeRect(-H + 3.5, cy - 6.5, TILE - 8, 13);
     ctx.fillStyle = "rgba(20,24,28,0.7)";     // armrests between the units
     ctx.fillRect(-H + 4, cy - 7.5, TILE - 9, 1.4);
+    // what sustained fire does to it: holes first, then exposed foam
+    if (chewed > 0) {
+      const holes = Math.round(chewed * 5);
+      ctx.fillStyle = "rgba(12,14,17,0.8)";
+      for (let k = 0; k < holes; k++) {
+        const ox = -H + 5 + ((h >>> (k * 3 + i)) % (TILE - 10));
+        ctx.fillRect(ox, cy - 4 + ((h >>> (k * 2)) % 7), 2.5, 2.5);
+      }
+      if (chewed >= 1) {
+        ctx.fillStyle = "rgba(196,186,164,0.5)";      // stuffing
+        ctx.fillRect(-H + 8, cy - 2, TILE - 16, 3);
+      }
+    }
   }
 }
 
@@ -10355,6 +10571,7 @@ function useStairs(p) {
 function initGame() {
   game.mission = MAPS[game.mapIndex] || MAPS[0];
   game._parseFloor = 0;
+  game.roofOpen = new Set();          // every mission starts buttoned up
   MAP_SRC = game.mission.src;
   parseLevel(); seen.init();
   game.floors = [{ levelSnap: snapshotLevel(), seenGrid: seen.grid }];
@@ -13128,6 +13345,56 @@ requestAnimationFrame(frame);
     The test pins the RULE and not the placement: no bystander may stand in an
     aisle, every hostage must be within securing reach of one, and both aisles
     must run clear end to end.
+  v0.83 (2026-08-18): THE ROOF COMES OFF WHEN YOU GET IN, AND THE SEATS WEAR OUT.
+    Sam, with the aircraft art on the way: "from the outside you should see the
+    whole plane, but then once you enter the roof disappears and you see the
+    inside (with some minor fog of course, but shouldn't be much fog because its
+    a tube)."
+    Every building in this game has been drawn open-topped since v0.1, and that
+    is right for a building — you are looking down into rooms. An aeroplane is
+    not a room, it is an OBJECT parked on an apron, and a closed one is the
+    thing you walk up to. So `roofed: true` is opt-in per mission and only
+    FLIGHT 214 has it; the other nineteen maps are untouched.
+    The granularity is the ROOM, which fell out of the existing flood fill for
+    nothing: the cabin is one room and the flight deck is another behind its
+    locked bulkhead, so opening the cabin does NOT show you the cockpit. That
+    was free and it is exactly the right answer.
+    Opening it reveals the LAYOUT and not the people — the cabin is marked
+    explored so the seats and aisles read at once, while who is standing in it
+    still goes through the ordinary visibility rules. Measured: 5 of 5 enemies
+    still unseen the instant the lid comes off. Any friendly opens it, not just
+    the player, because squad vision has been shared since v0.9. And the veil
+    inside drops to a quarter, because a tube is not a building you peer into.
+    Three bugs on the way there, all found by looking at the picture:
+      · the roof only covered tiles you can STAND on, because the flood fill
+        only numbers those — so the fuselage drew as a lid with the seat banks
+        showing through it. A multi-source fill now hands every piece of
+        structure to the nearest space.
+      · then the hull SKIN stayed bare, because the interior pass marks what is
+        inside the hull and not the hull itself. Walls against the inside are
+        claimed too, bounded to two steps so it can never run away along a wall
+        shared with another building.
+      · then the whole 2,560-tile map went under a roof, because one stray
+        indoor tile out on the concrete put the APRON in the set and the fill
+        claimed the hull from outside. A room is roofed only if every tile of
+        it is indoors — doorways excepted, since a door is a boundary and sits
+        in the skin where nothing is marked indoors. Aircraft 100%, apron 0%.
+    SEATS WEAR OUT. Sam: "i should be able to fire over seats", "i guess the
+    seats should catch some shots", "maybe each seat blocks at least 1 shot."
+    The last one is the good idea and it replaced a probability with a thing you
+    can watch happen: every seat tile holds two rounds of cover, spends them one
+    per hit, and once they are gone the hole stays — and draws as holes and then
+    exposed stuffing. Cover with a budget. Everything else in the material table
+    is cover that never wears out; this is the one that does, which is what a
+    seat is. Braced against the bank beside you your own rounds still clear it
+    every time, chewed or not: 50 of 50.
+    MULTIPLE DOORS AT ONCE. Sam: "we should be able to enter from multiple
+    entrances of the plane at the same time." The engine has supported it since
+    the X key was removed — every ready plan fires on one beat and the men bark
+    BREACHING — TOGETHER. What stopped it was the APRON: the whole team spawned
+    under the aft door, so the second door was a walk nobody would take. The
+    start line moved to midway between the aft door and the overwing pair, so
+    both are the same distance and splitting is the obvious read.
 -->
 </body>
 </html>

@@ -5335,3 +5335,91 @@ for (const ay of AISLES) {
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('CABIN LANES TEST DONE');
 })();
+
+(function roofAndSeatWearTests(){
+console.log('--- the roof comes off when you get in, and seats wear out ---');
+const F = MAPS.findIndex(m => m.name === 'FLIGHT 214');
+game.mapIndex = F; game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+
+// buttoned up at mission start, and the cabin is NOT explored
+const cabinRoom = level.room[14][30];
+console.log('  starts buttoned up: roofOpen=' + game.roofOpen.size + ', cabin roofed=' + roofIsOn(30, 14),
+            game.roofOpen.size === 0 && roofIsOn(30, 14) ? 'CORRECT (you see a closed aeroplane)' : 'WRONG');
+console.log('  and the cabin is unexplored from outside: seen=' + !!seen.grid[14][30],
+            !seen.grid[14][30] ? 'CORRECT' : 'WRONG');
+// the flight deck is its own room behind the locked bulkhead
+const deckRoom = level.room[16][71];
+console.log('  the flight deck is a separate room: cabin=' + cabinRoom + ' deck=' + deckRoom,
+            cabinRoom && deckRoom && cabinRoom !== deckRoom ? 'CORRECT' : 'WRONG');
+
+// step inside: the cabin opens, the flight deck does NOT
+game.player.x = 30 * TILE + 16; game.player.y = 14 * TILE + 16;
+updateRoofs();
+console.log('  step into the cabin and the lid comes off: roofIsOn(cabin)=' + roofIsOn(30, 14),
+            !roofIsOn(30, 14) ? 'CORRECT' : 'WRONG');
+console.log('  ...and the whole cabin is now laid out: seen at the far end=' + !!seen.grid[17][58],
+            seen.grid[17][58] ? 'CORRECT (you can see down a tube)' : 'WRONG');
+console.log('  but the flight deck stays shut: roofIsOn(deck)=' + roofIsOn(71, 16),
+            roofIsOn(71, 16) ? 'CORRECT (the locked bulkhead is its own room)' : 'WRONG');
+// opening the layout must NOT hand you the people in it
+const hidden = game.enemies.filter(e => e.alive && visibleToPlayerSide(e) === null).length;
+console.log('  and it reveals the cabin, not the people: ' + hidden + '/' + game.enemies.filter(e=>e.alive).length +
+            ' enemies still unseen', hidden > 0 ? 'CORRECT' : 'WRONG');
+// a squaddie opens it for everyone, since vision is already shared
+initGame(); game.state = 'play';
+game.squad[0].x = 30 * TILE + 16; game.squad[0].y = 14 * TILE + 16;
+updateRoofs();
+console.log('  a squaddie in first opens it for the team: ' + !roofIsOn(30, 14),
+            !roofIsOn(30, 14) ? 'CORRECT' : 'WRONG');
+// and it is opt-in — no other map grows a roof
+{
+  let roofed = [];
+  for (let m = 0; m < MAPS.length; m++) if (MAPS[m].roofed) roofed.push(MAPS[m].name);
+  console.log('  roofs are opt-in per mission: ' + roofed.join(',') + ' (' + roofed.length + '/' + MAPS.length + ')',
+              roofed.length >= 1 && roofed.length < MAPS.length ? 'CORRECT' : 'WRONG');
+  game.mapIndex = 0; initGame();
+  console.log('  and an ordinary building has no roof to lift:', roofedRooms() === null ? 'CORRECT' : 'WRONG');
+}
+
+// SEATS WEAR OUT. Sam: "maybe each seat blocks at least 1 shot."
+game.mapIndex = F; initGame(); game.state = 'play';
+{
+  const tx = 25, ty = 13 + 2;                       // a seat tile in block B
+  const seat = level.mat[ty][tx];
+  const budget = MATERIALS.seats.absorb;
+  console.log('  a seat tile starts with ' + level.coverLeft[ty][tx] + ' rounds of cover in it',
+              seat === 'seats' && level.coverLeft[ty][tx] === budget ? 'CORRECT' : 'WRONG (mat=' + seat + ')');
+  const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+  const shoot = () => {
+    const b = { x: cx - 300, y: cy, ox: cx - 300, oy: cy, ang: 0, dmg: 30, pen: 26,
+                side: 'player', traveled: 0, range: 900, alive: true, speed: 900 };
+    resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+    return b.alive;
+  };
+  // force the barrier branch every time so the budget is what is under test
+  const realRandom = Math.random; Math.random = () => 0;
+  let stopped = 0, through = 0;
+  for (let i = 0; i < 6; i++) (shoot() ? through++ : stopped++);
+  Math.random = realRandom;
+  console.log('  six rounds into it: ' + stopped + ' stopped, ' + through + ' got through, ' +
+              level.coverLeft[ty][tx] + ' cover left',
+              stopped === budget && through === 6 - budget && level.coverLeft[ty][tx] === 0
+                ? 'CORRECT (it eats the first rounds, then it is a hole)' : 'WRONG');
+}
+// braced, your own rounds still clear it every time — chewed or not
+{
+  const tx = 40, ty = 15;
+  const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+  let cleared = 0;
+  for (let i = 0; i < 50; i++) {
+    const b = { x: cx - 30, y: cy, ox: cx - 30, oy: cy, ang: 0, dmg: 30, pen: 26,
+                side: 'player', traveled: 0, range: 900, alive: true, speed: 900 };
+    resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+    if (b.alive && b.overCrest) cleared++;
+  }
+  console.log('  and braced on the seat backs you still fire over them: ' + cleared + '/50',
+              cleared === 50 ? 'CORRECT (Sam: "i should be able to fire over seats")' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('ROOF / SEAT WEAR TEST DONE');
+})();
