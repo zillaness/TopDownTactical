@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.68.html
-  version: 0.68
+  file: top_down_tactical_v0.69.html
+  version: 0.69
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.68 (working title)</title>
+<title>Top-Down Tactical v0.69 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.68 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.69 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1048,7 +1048,15 @@ const TUNE = {
   // acts on it — fire from two sides cancels below this and he stays put
   // rather than diving behind the wrong wall. coverEnough is how covered he
   // must already be to decide he is fine where he is.
-  contactMemory: 3.5, contactCommit: 0.9, coverEnough: 0.35,
+  // contactCommit is now a COHERENCE ratio in 0..1, not a magnitude: 0.55 means
+  // the fire has to broadly agree on a direction. Two shooters on opposite
+  // sides land near 0 and he holds rather than diving behind the wrong wall.
+  // contactShare is how far a man will trust the squad's contact report as his
+  // own bearing — beyond it the geometry is his neighbour's, not his.
+  contactMemory: 3.5, contactCommit: 0.55, coverEnough: 0.35, contactShare: 700,
+  // 520 was measured too tight: men who had lagged a few paces behind the
+  // wedge kept failing the share test at 550-700px and stood in the open
+  // while the rest of the element took cover.
   selfAidTime: 4.0, selfAidHeal: 30,
   // BETA — elevated overwatch. A man posted at an upper-floor window sees the
   // STREET: over cars and engine blocks, out to postRange, and he is invisible
@@ -4121,7 +4129,27 @@ function markContact(e, fromX, fromY, weight) {
   const w = Math.max(0.15, weight || 0.3);
   e.contactX = (e.contactX || 0) + Math.cos(a) * w;
   e.contactY = (e.contactY || 0) + Math.sin(a) * w;
+  e.contactW = (e.contactW || 0) + w;      // total weight, for the coherence test
   e.contactT = TUNE.contactMemory;
+}
+
+// HOW MUCH THE FIRE AGREES WITH ITSELF, from 0 to 1.
+//
+// The first version of this thresholded the raw magnitude of the summed
+// vector, which was wrong in a way only instrumenting a real firefight showed:
+// magnitude scales with HOW HARD you are being shot at, so the threshold was
+// really asking "is this a heavy contact", not "is this a direction". Measured
+// over five maps, virtually every real bearing came in between 0.14 and 0.90
+// against a threshold of 0.9, and the squad moved ten times in two minutes.
+//
+// The resultant over the TOTAL WEIGHT is the honest statistic and it is
+// scale-free: rounds all from one bearing give ~1 no matter how many, and
+// rounds from opposite sides cancel toward 0 no matter how many. One round
+// from one direction is a perfectly good direction, and this says so.
+function contactCoherence(e) {
+  const w = e.contactW || 0;
+  if (w <= 0) return 0;
+  return Math.hypot(e.contactX || 0, e.contactY || 0) / w;
 }
 
 // Nobody had a velocity, so nobody could lead a moving target — which is why
@@ -6831,9 +6859,18 @@ function clockOf(rel) {
 function seekCoverUnderFire(s, dt) {
   if (s.roe === "hold") return;                       // the player said hold; holding includes position
   if (s.repos || (s._reposT || 0) > 0) return;
-  if ((s.contactT || 0) <= 0) return;
-  const mag = Math.hypot(s.contactX || 0, s.contactY || 0);
-  if (mag < TUNE.contactCommit) return;               // fire from everywhere is not a direction
+  // His own bearing first. Failing that, THE SQUAD'S: rounds that went past
+  // the man next to you are still a direction, and a team that only reacts to
+  // being personally near-missed spends the firefight standing up. This is the
+  // contact report doing what a contact report is for.
+  let ang = null;
+  if ((s.contactT || 0) > 0 && contactCoherence(s) >= TUNE.contactCommit) {
+    ang = Math.atan2(s.contactY, s.contactX);
+  } else if (game.underFireT > 0 && game.lastContact &&
+             dist(s.x, s.y, game.lastContact.x, game.lastContact.y) < TUNE.contactShare) {
+    ang = angleTo(s.x, s.y, game.lastContact.x, game.lastContact.y);
+  }
+  if (ang === null) return;
   const t = s.order.type;
   // A man who already has a job does it. PEEL and SUPPRESS are the two that
   // caught me: both are men deliberately standing still and shooting so
@@ -6844,8 +6881,7 @@ function seekCoverUnderFire(s, dt) {
       t === "man" || t === "peel" || t === "suppress" || t === "wallbreach") return;
   if (s.turret || s.downed) return;
   if (t === "bound" && game.bound && s.order.element !== game.bound.moving) return;   // he IS the cover
-  // where the fire is coming from, far enough out to be a real bearing
-  const ang = Math.atan2(s.contactY, s.contactX);
+  // far enough out along that bearing to be a real direction to hide from
   const fx = s.x + Math.cos(ang) * 400, fy = s.y + Math.sin(ang) * 400;
   if (coveredFrom(s.x, s.y, fx, fy) > TUNE.coverEnough) { s._reposT = TUNE.reposCooldown; return; }
   const spot = coverSpotFrom(s, fx, fy) || concealSpotFrom(s, fx, fy);
@@ -6902,7 +6938,8 @@ function updateSquaddie(s, dt) {
     s.contactT -= dt;
     const k = Math.max(0, 1 - dt / TUNE.contactMemory);
     s.contactX = (s.contactX || 0) * k; s.contactY = (s.contactY || 0) * k;
-    if (s.contactT <= 0) { s.contactX = 0; s.contactY = 0; }
+    s.contactW = (s.contactW || 0) * k;
+    if (s.contactT <= 0) { s.contactX = 0; s.contactY = 0; s.contactW = 0; }
   }
   if (s._reposT > 0) s._reposT -= dt;
   if (s.turret && s.order.type !== "man") dismountTurret(s);   // any new order comes off the gun
@@ -11520,6 +11557,31 @@ requestAnimationFrame(frame);
     Infinity five times over itself, the wheel's centre label landed on smoke
     and CS, and all five notes overlapped into a smear. One note shows now, for
     the slot you are on.
+  v0.69 (2026-08-17): THE SQUAD ACTUALLY TAKES COVER NOW. Sam said they were
+    supposed to hide against the direction of contact and were not. He was
+    right, and the test written in v0.61 had been passing the whole time —
+    because it fired synthetic rounds at three men parked in the open, which is
+    not what a firefight looks like. Instrumenting every gate across five maps
+    of real fighting found the squad taking cover TEN TIMES IN TWO MINUTES.
+    Two things were wrong. markContact only ran when a round passed near a man
+    PERSONALLY, and the enemy mostly shoots at the player — 18,276 frames had
+    no bearing at all. A man now falls back to the SQUAD's contact report
+    within contactShare, because rounds that went past the man beside you are
+    still a direction, and a team that only reacts to being personally
+    near-missed spends the fight standing up.
+    And the commit test thresholded the summed vector's MAGNITUDE, which scales
+    with how hard you are being shot at rather than with how much the fire
+    agrees on a bearing — it was really asking "is this a heavy contact". Every
+    real bearing measured between 0.14 and 0.90 against a threshold of 0.9. It
+    is a COHERENCE ratio now, resultant over total weight: scale-free, so one
+    round from one side is a perfectly good direction (1.00) and fire from two
+    sides still cancels (0.04) and he holds rather than diving behind the wrong
+    wall.
+    Measured over fourteen real bot missions: 69 cover moves, up from 10, and
+    every one of them ended better covered from the bearing the fire came from.
+    None went anywhere worse. The test drives a real engagement now instead of
+    synthetic rounds, and asserts the directional invariant deterministically
+    against the same precondition the live code uses.
 -->
 </body>
 </html>

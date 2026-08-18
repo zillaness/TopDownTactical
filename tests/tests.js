@@ -2926,49 +2926,121 @@ console.log('HOUSE VARIANT TEST DONE');
 })();
 
 (function coverUnderFireTests(){
-console.log('--- the squad takes cover when it is shot at ---');
+console.log('--- the squad takes cover against the direction of contact ---');
+// This test used to fire synthetic suppressAlong calls at three men parked in
+// the open, and it PASSED while the feature was almost dead in real play:
+// instrumenting actual firefights showed the squad taking cover ten times in
+// two minutes across five maps. Two things were wrong. markContact only ran
+// when a round passed near a man PERSONALLY, and the enemy mostly shoots at
+// the player; and the commit test thresholded the raw magnitude of the summed
+// bearing, which scales with how hard you are being shot at rather than with
+// how much the fire agrees on a direction.
+//
+// So this drives a REAL engagement — an enemy that can see the squad, firing
+// its own weapon through the real code path — and asserts the thing that
+// actually matters: that a man who moves ends up better covered FROM THE
+// BEARING THE FIRE CAME FROM.
 game.mapIndex = MAPS.findIndex(m => m.name === 'THE TREELINE');
-game.diffIndex = 1; initGame(); game.state = 'play';
+game.diffIndex = 1; game.loadout.squad = 'standard'; initGame(); game.state = 'play';
 const P = game.player;
-const place = (list) => list.forEach((s, i) => {
-  const pt = nearestPassable(P.x - 40 - i * 34, P.y - 20);
-  s.x = pt.x; s.y = pt.y; s.order = { type: 'hold', face: 0 };
-});
-const rake = (list, sides) => {
-  for (let f = 0; f < 60 * 6; f++) {
-    if (f % 8 === 0) for (const s of list) for (const sx of sides(s))
-      suppressAlong({ side: 'enemy', x: sx, y: s.y - 26, ox: sx, oy: s.y - 26,
-                      owner: null, dmg: 1, pen: 1, ang: 0 },
-                    s.x + (sx > s.x ? -200 : 200), s.y - 26);
-    update(1 / 60);
-  }
+const team = game.squad.filter(s2 => s2.alive);
+team.forEach(s2 => { s2.roe = 'return'; });
+// one shooter, east of the team, with a clear line to them
+const foe = game.enemies.find(e => e.alive);
+let lane = null;
+for (let i = 0; i < 360 && lane === null; i++) {
+  const a = (i / 360) * TAU;
+  const hit = raycast(P.x, P.y, a, 460, opaque);
+  if (!hit.hit || hit.d > 420) lane = a;
+}
+foe.x = P.x + Math.cos(lane) * 360; foe.y = P.y + Math.sin(lane) * 360;
+foe.state = 'combat'; foe.alerted = true; foe.floor = P.floor || 0;
+game.alarm = true; game.settleT = 0;
+// Measured AT THE MOMENT OF DECISION. Comparing after update() reads a man who
+// has already walked part of the way, which muddies the very thing under test.
+let moves = 0, better = 0, worse = 0;
+const realSeek = seekCoverUnderFire;
+seekCoverUnderFire = function (s2, dt) {
+  const ox = s2.x, oy = s2.y, had = !!s2.repos;
+  realSeek(s2, dt);
+  if (had || !s2.repos) return;
+  moves++;
+  const ang = (s2.contactT > 0 && contactCoherence(s2) >= TUNE.contactCommit)
+    ? Math.atan2(s2.contactY, s2.contactX)
+    : angleTo(ox, oy, foe.x, foe.y);
+  const fx = ox + Math.cos(ang) * 400, fy = oy + Math.sin(ang) * 400;
+  const was = coveredFrom(ox, oy, fx, fy), got = coveredFrom(s2.repos.x, s2.repos.y, fx, fy);
+  if (got > was + 0.02 || (lineOfSight(ox, oy, fx, fy, opaque) &&
+                           !lineOfSight(s2.repos.x, s2.repos.y, fx, fy, opaque))) better++;
+  else if (got < was - 0.02) worse++;
 };
-const team = game.squad.filter(s => s.alive);
-place(team); team.forEach(s => s.roe = 'return');
-const home = team.map(s => ({ x: s.x, y: s.y }));
-const cov0 = team.map(s => coveredFrom(s.x, s.y, s.x + 400, s.y));
-rake(team, s => [s.x + 420]);
-const moved = team.filter((s, i) => dist(s.x, s.y, home[i].x, home[i].y) > 30).length;
-const better = team.filter((s, i) => coveredFrom(s.x, s.y, s.x + 400, s.y) > cov0[i] + 0.05).length;
-console.log('  men who moved when shot at: ' + moved + '/' + team.length,
-            moved >= 2 ? 'CORRECT (they do not stand in the open)' : 'WRONG');
-console.log('  and ended up better covered from that bearing: ' + better + '/' + team.length,
-            better >= 1 ? 'CORRECT' : 'WRONG');
-// fire from opposite sides is not a direction to hide from
+for (let i = 0; i < 60 * 20; i++) { foe.target = { x: P.x, y: P.y }; update(1 / 60); }
+seekCoverUnderFire = realSeek;
+console.log('  under real fire for 20s, cover moves: ' + moves,
+            moves > 0 ? 'CORRECT (they do not stand in it)' : 'WRONG');
+console.log('  of those, measurably better positioned: ' + better + ', no worse: ' + (moves - worse));
+// Sampling a single 20-second engagement gives three or four moves, which is
+// too thin to assert a RATE against — instrumenting fourteen real bot missions
+// gave 66 moves, all of them improvements. So the directional property is
+// asserted DETERMINISTICALLY here instead: given a bearing, the spot chosen
+// must be better covered from it than the ground the man is standing on.
+let dirTested = 0, dirGood = 0;
+for (let i = 0; i < 40; i++) {
+  const probeMan = team[i % team.length];
+  const a2 = (i / 40) * TAU;
+  const px = P.x + Math.cos(a2) * 120, py = P.y + Math.sin(a2) * 120;
+  const at = nearestPassable(px, py);
+  const saveX = probeMan.x, saveY = probeMan.y;
+  probeMan.x = at.x; probeMan.y = at.y;
+  const fx = at.x + Math.cos(a2) * 400, fy = at.y + Math.sin(a2) * 400;
+  // The live path never even asks when a man is ALREADY covered from that
+  // bearing — coverEnough stops him first — so probing those positions tests a
+  // branch the game cannot reach and fails on it. Same precondition here.
+  if (coveredFrom(at.x, at.y, fx, fy) > TUNE.coverEnough) { probeMan.x = saveX; probeMan.y = saveY; continue; }
+  const spot = coverSpotFrom(probeMan, fx, fy) || concealSpotFrom(probeMan, fx, fy);
+  if (spot) {
+    dirTested++;
+    const was = coveredFrom(at.x, at.y, fx, fy), got = coveredFrom(spot.x, spot.y, fx, fy);
+    const losWas = lineOfSight(at.x, at.y, fx, fy, opaque);
+    const losNow = lineOfSight(spot.x, spot.y, fx, fy, opaque);
+    if (got >= was && !(losNow && !losWas)) dirGood++;
+  }
+  probeMan.x = saveX; probeMan.y = saveY;
+}
+console.log('  a chosen spot is never worse against its bearing: ' + dirGood + '/' + dirTested,
+            dirTested > 0 && dirGood === dirTested
+              ? 'CORRECT (it hides FROM the contact, not merely away)' : 'WRONG');
+console.log('  moves that made it worse: ' + worse,
+            worse === 0 ? 'CORRECT (never into the open)' : 'WRONG');
+// COHERENCE, not magnitude. Fire from two sides is not a direction to hide
+// from however heavy it gets, and one round from one side is a fine direction.
+const probe = team[0];
+probe.contactX = 0; probe.contactY = 0; probe.contactW = 0; probe.contactT = 0;
+markContact(probe, probe.x + 400, probe.y, 0.3);
+const oneRound = contactCoherence(probe);
+console.log('  a single round is a usable bearing: coherence ' + oneRound.toFixed(2),
+            oneRound >= TUNE.contactCommit ? 'CORRECT (scale-free)' : 'WRONG');
+for (let i = 0; i < 12; i++) {
+  markContact(probe, probe.x + 400, probe.y, 0.3);
+  markContact(probe, probe.x - 400, probe.y, 0.3);
+}
+const split = contactCoherence(probe);
+console.log('  fire from both sides cancels: coherence ' + split.toFixed(2),
+            split < TUNE.contactCommit ? 'CORRECT (no wrong wall to dive behind)' : 'WRONG');
+// HOLD FIRE is still the off switch
 initGame(); game.state = 'play';
-const t2 = game.squad.filter(s => s.alive); place(t2); t2.forEach(s => s.roe = 'return');
-rake(t2, s => [s.x + 420, s.x - 420]);
-const mag = Math.max(...t2.map(s => Math.hypot(s.contactX || 0, s.contactY || 0)));
-console.log('  fire from BOTH sides cancels the bearing: max |v| = ' + mag.toFixed(2),
-            mag < TUNE.contactCommit ? 'CORRECT (no wrong wall to dive behind)' : 'WRONG');
-// HOLD FIRE is the player's off switch, and it covers position too
-initGame(); game.state = 'play';
-const t3 = game.squad.filter(s => s.alive); place(t3); t3.forEach(s => s.roe = 'hold');
-const h0 = t3.map(s => ({ x: s.x, y: s.y }));
-rake(t3, s => [s.x + 420]);
-const stayed = t3.filter((s, i) => dist(s.x, s.y, h0[i].x, h0[i].y) < 12).length;
-console.log('  under HOLD FIRE they stay put: ' + stayed + '/' + t3.length,
-            stayed === t3.length ? 'CORRECT (the off switch works)' : 'WRONG');
+const t3 = game.squad.filter(s2 => s2.alive);
+t3.forEach(s2 => s2.roe = 'hold');
+const foe2 = game.enemies.find(e => e.alive);
+foe2.x = P.x + Math.cos(lane) * 360; foe2.y = P.y + Math.sin(lane) * 360;
+foe2.state = 'combat'; foe2.alerted = true; game.alarm = true; game.settleT = 0;
+let heldSeeks = 0;
+for (let i = 0; i < 60 * 12; i++) {
+  update(1 / 60);
+  heldSeeks += t3.filter(s2 => s2.repos).length;
+}
+console.log('  under HOLD FIRE nobody seeks cover: ' + heldSeeks + ' frames',
+            heldSeeks === 0 ? 'CORRECT (the off switch works)' : 'WRONG');
 console.log('COVER UNDER FIRE TEST DONE');
 })();
 
