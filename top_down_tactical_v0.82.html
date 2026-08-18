@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.81.html
-  version: 0.81
+  file: top_down_tactical_v0.82.html
+  version: 0.82
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.81 (working title)</title>
+<title>Top-Down Tactical v0.82 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.81 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.82 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1910,12 +1910,12 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,%%%D%%%%%%%%%%%%%%%%%%%%%%D%%%%%%%%%%%%%%%%%%%%%%%%D%%%%%,,,,,,,,,,#",
 "#,,,,,,,,%%%..u.ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#.%%%,,,,,,,#",
-"#,,,,,,,%.......ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#....%%,,,,,#",
-"#,,,,%%%...............h...g.....T.c..........h.........g.c........#......%%,,,#",
-"#,,,%............eeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeee.....L.......%,,,#",
-"#,,,%%...........eeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeee.....#...E...%,,,#",
-"#,,,,,%............c...........h...........g......c..h......c......#......%%,,,#",
-"#,,,,,,%%%......ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#...%%%,,,,,#",
+"#,,,,,,,%.......ueeeeeeeheeeeeeeeeeee...eeceeeeeeeeeeeeeeeeeeeu....#....%%,,,,,#",
+"#,,,,%%%...................g.............................g.........#......%%,,,#",
+"#,,,%............eeeeeeeeeeeeeceeeeee...eeeeeeeeheeeeeeeeeeeee.....L.......%,,,#",
+"#,,,%%...........eeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeheeceee.....#...E...%,,,#",
+"#,,,,,%..........................T..........g......................#......%%,,,#",
+"#,,,,,,%%%......ueeeceeeeeeeeeeeeeehe...eeeeeeeeeeeeceeeeeeeeeu....#...%%%,,,,,#",
 "#,,,,,,,,,%...u.ueeeeeeeeeeeeeeeeeeee...eeeeeeeeeeeeeeeeeeeeeeu....#.%%,,,,,,,,#",
 "#,,,,,,,,,,%%%%D%%%%%%%%%%%%%%%%%%%%%%D%%%%%%%%%%%%%%%%%%%%%%%%D%%%%%,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -13099,6 +13099,35 @@ requestAnimationFrame(frame);
     work rather than just being tidier. The belt still belongs to the GUN and
     not the gunner: step off with 41 left and step back on to 41, because two
     [E] presses were a free reload once already and the test now says so.
+  v0.82 (2026-08-18): THE PASSENGERS SIT DOWN, WHICH TURNS OUT TO BE THE WHOLE
+    MISSION.
+    Bot-tested the v0.80 cabin properly and it was broken — not hard, broken.
+    Twenty runs out of twenty ended in 2.3 seconds with a dead hostage, and the
+    game's own attribution said why: "A hostage was killed by you — a 5.56 FMJ
+    round that came through a row of seats", at t=1.7s, before the alarm.
+    The first guess was that this was the mission working as designed, since it
+    has recommended hollow point since the day it was written. Tested it, and
+    the guess was WRONG: hollow point scored 0/20 as well. So it was never a
+    penetration problem. Putting the hostages in the AISLES had put a bystander
+    in front of every enemy, in a one-tile corridor with no way round. There was
+    no first shot that was not through a hostage.
+    Passengers are seated now — which is what passengers do, and which clears
+    the lane. Writing an h or a c over a seat tile carves it to floor for free,
+    because spawn glyphs never set level.wall, so a seated passenger is a gap in
+    the bank and reads as one from above. Only the four seat rows that touch an
+    aisle are used, so a hostage is 32px from where you stand and inside the
+    46px it takes to secure him. The aisles are left to the people who move.
+    Measured after, 20 runs each:
+      FMJ  17 hostages killed, 31/80 secured, 0/20 clean, 8.1s
+      HP    5 hostages killed, 38/80 secured, 5/20 clean, 10.7s
+    So the ammunition choice now decides the mission by a factor of 3.4 on
+    hostage deaths, which is exactly what the briefing has claimed all along and
+    was not previously true of anything. The bot has no fire discipline and
+    never takes cover, so 5/20 from it is not the human number — but 0/20 in 2.3
+    seconds was not a difficulty reading either, it was a bug.
+    The test pins the RULE and not the placement: no bystander may stand in an
+    aisle, every hostage must be within securing reach of one, and both aisles
+    must run clear end to end.
 -->
 </body>
 </html>

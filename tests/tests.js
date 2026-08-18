@@ -5297,3 +5297,41 @@ console.log('  which is ' + (TUNE.m2w.mag / (TUNE.m2w.rpm / 60)).toFixed(1) + 's
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('M2 BELT TEST DONE');
 })();
+
+(function cabinLanesTests(){
+console.log('--- an aircraft cabin: the aisle is the firing lane, so keep it clear ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'FLIGHT 214');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+// The rule this pins, learned the hard way: the first build of this cabin put
+// hostages IN the aisles, in front of the enemies, in a corridor with no way
+// round. The bot killed a hostage in 1.7s on 20 runs out of 20 — with hollow
+// point too, because it was never a penetration problem. The hostage was
+// simply the first body in the only lane there is.
+const AISLES = [14, 17];
+const bad = [];
+for (const h of [...level.spawns.hostages, ...level.spawns.civilians]) {
+  const t = tileAt(h.x, h.y);
+  if (AISLES.includes(t.ty)) bad.push(t.tx + ',' + t.ty);
+}
+console.log('  no bystander stands in an aisle: ' + (bad.length ? bad.join(' ') : 'none'),
+            bad.length === 0 ? 'CORRECT (they are seated, which is also what passengers do)' : 'WRONG');
+// ...but a seated hostage still has to be reachable, or he cannot be secured
+const far = [];
+for (const h of level.spawns.hostages) {
+  const t = tileAt(h.x, h.y);
+  let near = false;
+  for (const ay of AISLES) if (Math.abs(t.ty - ay) * TILE <= 46) near = true;
+  if (!near) far.push(t.tx + ',' + t.ty);
+}
+console.log('  and every hostage is within securing reach of an aisle: ' + (far.length ? far.join(' ') : 'all of them'),
+            far.length === 0 ? 'CORRECT' : 'WRONG (you could never reach him)');
+// the aisles run clear end to end, or it is not a tube, it is a maze
+for (const ay of AISLES) {
+  let blocked = 0;
+  for (let x = 17; x <= 61; x++) if (level.wall[ay][x]) blocked++;
+  console.log('  aisle row ' + ay + ' clear along the cabin: ' + (45 - blocked) + '/45',
+              blocked === 0 ? 'CORRECT' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('CABIN LANES TEST DONE');
+})();
