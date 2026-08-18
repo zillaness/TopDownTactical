@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.66.html
-  version: 0.66
+  file: top_down_tactical_v0.67.html
+  version: 0.67
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.66 (working title)</title>
+<title>Top-Down Tactical v0.67 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -54,7 +54,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.66 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.67 prototype &mdash; working title &mdash; twenty missions</h2>
   <div class="panel">
     <h3>You are the point man</h3>
     <table>
@@ -5618,7 +5618,7 @@ const ROLES = {
   rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 } },
   breacher: { name: "BREACHER", sprite: "squad_breacher",
-              w: { ammo: "buck", rpm: 90,  dmg: 30, range: 550, mag: 7,   reload: 3.2, shellReload: 0.55 } },
+              w: { ammo: "buck", rpm: 170, dmg: 30, range: 550, mag: 7,   reload: 3.2, shellReload: 0.55 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
               w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 1100, mag: 100, reload: 6.2,
                    spreadBase: deg(1.08), carrySpeed: 0.86 } },
@@ -5635,7 +5635,14 @@ const PRIMARIES = {
              w: { ...TUNE.rifle } },
   shotgun: { name: "SHOTGUN",    ammo: ["buck", "slug", "bird"],
              note: "devastating close, useless far",
-             w: { ...TUNE.rifle, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 560,
+             // 95rpm was a 0.63s gap — the SLOWEST gun in the game, slower than the
+             // marksman rifle's 0.38s, which had a breaching shotgun cycling worse
+             // than a precision rifle. 180 is a 0.33s gap: a semi-auto combat gun
+             // you can run, and the recoil is what prices it. At deg(3) a shot with
+             // a deg(9) ceiling and deg(5.5)/s of decay, three rounds a second climb
+             // to the cap in about a second — so you CAN empty it fast, and the
+             // pattern opens while you do. Speed is available; accuracy is the bill.
+             w: { ...TUNE.rifle, dmg: 30, rpm: 180, mag: 7, reload: 3.2, range: 560,
                   shellReload: 0.55,   // one shell at a time, and you may break off and shoot
                   spreadBase: deg(0.70), recoil: deg(3), recoilMax: deg(9) } },
   saw:     { name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
@@ -11432,6 +11439,22 @@ requestAnimationFrame(frame);
     One table drives the score, the scorecard and the advice, so the
     explanation cannot drift from the thing it explains — asserted over 400
     stat combinations against the original formula, letter for letter.
+  v0.67 (2026-08-17): THE SHOTGUN CYCLES LIKE A SHOTGUN. It was 95rpm — a
+    0.63s gap, the SLOWEST gun in the game, slower than the marksman rifle's
+    0.38s. A breaching shotgun cycling worse than a precision rifle is
+    backwards, and measuring the achieved rate rather than reading the number
+    is what made it obvious: carbine 10.0 rounds a second, SMG 12.0, SAW 10.0,
+    DMR 2.67, shotgun 1.67.
+    Now 180rpm, a 0.33s gap and 3.0 rounds a second, with the breacher's at
+    170. The recoil is what prices it and it was already tuned to: deg(3) a
+    shot against a deg(9) ceiling with deg(5.5)/s of decay means a held trigger
+    reaches the cap by the third round — measured 3.7deg, 6.0deg, 9.7deg — and
+    buckshot's own 4.4deg pattern stacks on top of that. Pace it at one a
+    second and every shot settles back to 0.70deg. You can empty the tube in
+    2.3 seconds; the last four rounds are hosing. Speed is available and
+    accuracy is the bill.
+    A test now asserts the shotgun out-cycles the DMR, so this cannot quietly
+    come back.
 -->
 </body>
 </html>

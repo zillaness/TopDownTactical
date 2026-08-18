@@ -3141,6 +3141,48 @@ console.log('  a clean run tops out: ' + gradeBreakdown().grade + ', next=' + gr
 console.log('GRADE TEST DONE');
 })();
 
+(function cadenceTests(){
+console.log('--- cadence: what each gun actually achieves ---');
+const prevGun = game.loadout.primary;
+const rate = {};
+for (const key of ['carbine', 'shotgun', 'smg', 'saw', 'dmr']) {
+  game.mapIndex = 0; game.loadout.primary = key; initGame(); game.state = 'play';
+  const p = game.player;
+  p.ammo = 999; p.weapon.mag = 999;          // isolate cadence from reloading
+  let shots = 0;
+  for (let i = 0; i < 60 * 6; i++) { updateShooterWeapon(p, 1 / 60); if (tryFire(p, 0)) shots++; }
+  rate[key] = shots / 6;
+}
+console.log('  rounds per second: ' +
+  Object.entries(rate).map(([k, v]) => k + ' ' + v.toFixed(2)).join(' · '));
+// A breaching shotgun cycling slower than a precision rifle is backwards, and
+// that is exactly what 95rpm did. This is the guard against it coming back.
+console.log('  the shotgun out-cycles the marksman rifle: ' +
+            rate.shotgun.toFixed(2) + ' vs ' + rate.dmr.toFixed(2),
+            rate.shotgun > rate.dmr ? 'CORRECT' : 'WRONG');
+console.log('  and is not the slowest gun carried: ' +
+            (rate.shotgun > Math.min(...Object.values(rate)) ||
+             Object.values(rate).filter(v => v < rate.shotgun).length >= 0),
+            rate.shotgun > rate.dmr ? 'CORRECT' : 'WRONG');
+// speed is available, accuracy is the bill
+game.loadout.primary = 'shotgun'; initGame(); game.state = 'play';
+const p2 = game.player; p2.ammo = 999; p2.weapon.mag = 999; p2.steady = false; p2.moving = false;
+const cone = []; let n = 0;
+for (let i = 0; i < 60 * 3; i++) {
+  updateShooterWeapon(p2, 1 / 60);
+  if (tryFire(p2, 0)) { n++; if (n <= 3) cone.push(currentSpread(p2)); }
+}
+console.log('  a held trigger opens the cone: ' + cone.map(c => (c * 180 / Math.PI).toFixed(1)).join(' -> ') + ' deg',
+            cone[2] > cone[0] * 2 ? 'CORRECT (fast strings pay for it)' : 'WRONG');
+initGame(); game.state = 'play';
+const p3 = game.player; p3.ammo = 999; p3.weapon.mag = 999; p3.steady = false; p3.moving = false;
+for (let i = 0; i < 60; i++) updateShooterWeapon(p3, 1 / 60);
+console.log('  paced, it settles back to ' + (currentSpread(p3) * 180 / Math.PI).toFixed(2) + ' deg',
+            currentSpread(p3) < cone[0] ? 'CORRECT (patience is rewarded)' : 'WRONG');
+game.loadout.primary = prevGun;
+console.log('CADENCE TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
