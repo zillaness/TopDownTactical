@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.76.html
-  version: 0.76
+  file: top_down_tactical_v0.77.html
+  version: 0.77
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.76 (working title)</title>
+<title>Top-Down Tactical v0.77 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.76 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.77 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1178,6 +1178,15 @@ Object.assign(MATERIALS, {
   // concealment without cover — blocks the eye, stops nothing
   shrub:       { name: "a shrub", resist: 0, opaque: true, spall: 0, defl: 0, dmgKeep: 1, col: "#3b5238" },
   hedgerow:    { name: "a hedge", resist: 0, opaque: true, spall: 0, defl: 0, dmgKeep: 1, col: "#3b5238" },
+  // The exact inverse of a hedge, and the only thing in the table that is: wire
+  // stops the MAN and nothing else. You see straight through it, you shoot
+  // straight through it, and you do not walk through it — which is the whole
+  // point of laying it. resist 0 is correct here and is NOT the standable-tile
+  // trap the comment above warns about: PROPS.wire is solid, so nobody is ever
+  // on the tile to be made unhittable by it. Drawn in code rather than as art,
+  // because a coil of wire is circles and the byte census is still an open
+  // question — this way it costs nothing at all.
+  wire:        { name: "concertina wire", resist: 0, opaque: false, spall: 0, defl: 0, dmgKeep: 1, col: "#6d7378" },
 });
 
 // ONE table. The glyph-to-material mapping used to be written out four separate
@@ -1188,7 +1197,7 @@ const GLYPH_MAT = {
   "#": "concrete", "=": "brick", "-": "drywall", "%": "sheetmetal", "@": "engine", "t": "tree",
   n: "sandbags", o: "oildrums", b: "bookshelf", f: "fridge", d: "desk", u: "counter",
   G: "guardshack", "&": "pillbox", H: "hvac", J: "jersey", U: "dumpster",
-  "*": "shrub", "~": "hedgerow",
+  "*": "shrub", "~": "hedgerow", x: "wire",
 };
 // Presentation and topology. `solid:false` is the whole of tier 2: the tile gets
 // a material but never gets level.wall, so it blocks the eye and nothing else.
@@ -1208,6 +1217,7 @@ const PROPS = {
   dumpster:   { art: "dumpster",        solid: true,  z: "over" },
   shrub:      { art: "shrub_cluster",   solid: false, z: "under" },
   hedgerow:   { art: null,              solid: false, z: "under" },
+  wire:       { art: null,              solid: true,  z: "over", drawn: "wire" },
 };
 function propAt(tx, ty) {
   const m = level.mat && level.mat[ty] && level.mat[ty][tx];
@@ -2300,7 +2310,7 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,ttt,,,,,,,,,,,,,,###########W####,,,,,#",
 "#,,,,,##########W####,,,t,,,,,,,,,,,,,,,#..............#,,,,,#",
-"#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#..............#,,,,,#",
+"#,,,,,#.............#,,,,,,,xxxxxx,,,,,,#..............#,,,,,#",
 "#,,,,,#..........p..#,,,,,,,,,,,,,,,,,,,W...E..........#,,,,,#",
 "#,,,,,W...g.........#,,,,,,,,,,,,,,,,,,,#.........g....#,,,,,#",
 "#,,,,,#.............#,,,,,,,,,,,,,,,,,,,#..............#,,,,,#",
@@ -2308,12 +2318,12 @@ const MAPS = [
 "#,,,,,#######D#######,,,,,g,,,,,,,,,,,,,#######D########,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,@%%%,,p,,,,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,@%%%,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,w=,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
-"#,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,=,,,ttt,,,,,,,,,,,,,,,,,,ttt,#",
+"#,,t,,,,,,,,,,,,,,,,,,,,,,,,,,,w,n,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
+"#,ttt,,,,,,,,,,,,,,,,,,,,,,,,,,,,n,,ttt,,,,,,,,,,,,,,,,,,ttt,#",
 "#,,t,,,,,,,,,,,,,,,,,,,,,,,,%%%@M,,,,t,,,,,,,,,,,,,,,,,,,,t,,#",
 "#,,,,,######D######,,,,,,,,,%%%@,,,,,,,,,,######D#######,,,,,#",
-"#,,,,,#...........#,,,,,,,,=,w,,,,,,,,,,,,#............#,,,,,#",
-"#,,,,,#........g..#,,,,,,,,=,@%%%,,,,,,,,,#............#,,,,,#",
+"#,,,,,#...........#,,,,,,,,n,w,,,,,,,,,,,,#............#,,,,,#",
+"#,,,,,#........g..#,,,,,,,,n,@%%%,,,,,,,,,#............#,,,,,#",
 "#,,,,,#...........#,,,,,,,,,,@%%%,,,,,,,,,#...g........#,,,,,#",
 "#,,,,,#..g........W,,,,,,,,,,,,,,,,g,,,,,,#............#,,,,,#",
 "#,,,,,#...........#,,,,,,p,,,,,,,,,,,,,,,,W............#,,,,,#",
@@ -2322,8 +2332,8 @@ const MAPS = [
 "#,,,,,#############,,,,,,,,,,,,,,,,,,,,,,,#............#,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##############,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,,t,,,,,,=,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-"#,,,,,,,,,,,,,,,,,,,,,ttt,,,==s,,,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,t,,,n,,,,,,n,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,ttt,,n,,s,,,n,,,t,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,t,,,,,,P,,,,,,ttt,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,s,,,s,,,,,t,,,,,,,,,,,,,,,,,,,,,,#",
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,XXX,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
@@ -3747,6 +3757,37 @@ function updateFireMission(dt) {
 // FIELD TEST: the emplaced gun. Mounting trades everything for firepower —
 // you are pinned to the mount, clamped to its arc, and the man you were
 // carrying a carbine for is now a belt-fed that goes through brick.
+// Which gun, if any, is this man close enough to climb onto?
+//
+// Sam, twice: "how do i get in a turret? is it not just hold e?" It is [E], a
+// tap, and it was measuring his distance to the wrong thing. A tripod is easy —
+// the gun IS the tile you stand on. A ring mount is not: v0.72 correctly moved
+// the gun onto the vehicle's painted hatch and left the reach on the M glyph
+// BESIDE the bodywork. On BROKEN ARROW those are 85px apart against a 44px
+// reach, so walking up to the gun you can see and pressing [E] did nothing from
+// every side of the truck but one.
+//
+// You climb a gun truck from wherever you are touching it. The step tile still
+// exists and is still the fallback for a gunner placed on the mount rather than
+// walking to it.
+function reachableTurret(p) {
+  let best = null, bd = Infinity;
+  for (const t of level.turrets) {
+    if (t.manned) continue;
+    let d = dist(p.x, p.y, t.sx, t.sy);
+    if (t.ring && t.veh) {
+      const v = t.veh;
+      // distance to the hull itself, not to its centre: a 4x2 body is 128px
+      // long and a centre test would want you standing inside the engine
+      const hx = clamp(p.x, v.x0 * TILE, (v.x1 + 1) * TILE);
+      const hy = clamp(p.y, v.y0 * TILE, (v.y1 + 1) * TILE);
+      d = Math.min(d, Math.hypot(p.x - hx, p.y - hy));
+    }
+    if (d < TUNE.turretReach && d < bd) { bd = d; best = t; }
+  }
+  return best;
+}
+
 function mountTurret(ent, t) {
   if (t.manned) return false;
   t.manned = ent; ent.turret = t;
@@ -3755,6 +3796,7 @@ function mountTurret(ent, t) {
   // not refill it (review catch: two E presses were a free 5s reload)
   ent.weapon = { ...TUNE.m2w }; ent.ammoType = "fmj";
   ent.ammo = (t.belt !== undefined) ? t.belt : TUNE.m2w.mag; ent.reloading = 0;
+  ent._boarded = { x: ent.x, y: ent.y };   // the ground you climbed up from
   ent.x = t.x; ent.y = t.y; ent.recoil = 0; ent.burst = 0;
   if (ent.side === "squad") bark(ent, "ON THE GUN!");
   else game.hint = "On the gun — [E] to come off it. It only points where the mount points.";
@@ -3770,10 +3812,13 @@ function dismountTurret(ent) {
     ent._preGun = null;
   }
   ent.cooldown = Math.max(ent.cooldown, 0.4);
-  // Step back down onto the ground you climbed up from. On a tripod sx,sy is
-  // the tile he was already standing on; on a ring mount it is the only thing
-  // stopping him from being left standing inside the bodywork.
-  ent.x = t.sx; ent.y = t.sy;
+  // Step back down onto the ground you climbed up from — literally, now that you
+  // can climb on from any side of the truck. The M glyph's step tile is the
+  // fallback for a gunner placed on the mount rather than walking to it; either
+  // way he never lands inside the bodywork.
+  const b = ent._boarded; ent._boarded = null;
+  if (b && !isWall(tileAt(b.x, b.y).tx, tileAt(b.x, b.y).ty)) { ent.x = b.x; ent.y = b.y; }
+  else { ent.x = t.sx; ent.y = t.sy; }
 }
 function clampToArc(t, want) {
   const arc2 = t.arc || TUNE.turretArc;
@@ -4041,11 +4086,8 @@ function playerInteract(p) {
   if (p.turret) { dismountTurret(p); game.hint = "Off the gun"; return; }
   const cam = nearestEntity(level.cameras, p.x, p.y, 42, c2 => c2.alive);
   if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
-  // reach for the STEP, not the gun — on a ring mount the gun is up on the hull
-  // and the hull is solid, so p can never be within turretReach of it
-  const trt = nearestEntity(level.turrets.map(t2 => ({ t: t2, x: t2.sx, y: t2.sy })),
-                            p.x, p.y, TUNE.turretReach, o => !o.t.manned);
-  if (trt) { mountTurret(p, trt.t); return; }
+  const trt = reachableTurret(p);
+  if (trt) { mountTurret(p, trt); return; }
   if (useStairs(p)) return;
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
@@ -7780,6 +7822,22 @@ function render() {
         ctx.fillRect(px + TILE / 2 - 5, py + TILE / 2 - 5, 10, 10);
         continue;
       }
+      // Same argument as the tree and the car: a prop with its own art is an
+      // OBJECT standing on the ground, not a painted square of masonry. Filling
+      // its tile with the material colour and a lit top edge put a tan box with
+      // a highlight under every sandbag, and the sprite's baked-in inset left
+      // the box showing round the edges — a barricade in a tidy square hole.
+      // Ground goes down; drawProps puts the object on it. This matters more
+      // today than yesterday: v0.75 unblocked twelve prop sprites, so it is the
+      // difference for every one of them, not just the sandbags.
+      const prHere = PROPS[level.mat[ty][tx]];
+      if (prHere && (prHere.drawn || (prHere.art && propImage(prHere.art)))) {
+        const gk2 = level.interior[ty][tx] ? level.groundIn : level.groundOut;
+        const pat2 = gk2 && groundPattern(gk2);
+        ctx.fillStyle = pat2 || (level.interior[ty][tx] ? COLORS.floorIn : COLORS.floorOut);
+        ctx.fillRect(px, py, TILE, TILE);
+        continue;
+      }
       ctx.fillStyle = mat.col || COLORS.wall; ctx.fillRect(px, py, TILE, TILE);
       ctx.fillStyle = COLORS.wallEdge; ctx.fillRect(px, py, TILE, 3);
       // partitions read as hatched so you can see what is only concealment
@@ -8447,6 +8505,22 @@ function drawTurret(t) {
   ctx.fillStyle = "#2b3239"; ctx.strokeStyle = "#12161a"; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.stroke();
 
+  // Say so. A casualty has offered HOLD [E] since the day he existed and a gun
+  // never offered anything, so the only way to learn a turret was mountable was
+  // to be told. Shown exactly when the press would work, so the prompt doubles
+  // as the reach indicator.
+  if (!t.manned && game.player && game.player.alive && reachableTurret(game.player) === t) {
+    const k = 1 / game.zoom;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.font = "bold " + (9 * k).toFixed(1) + "px Consolas, monospace";
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(-24 * k, 16 * k, 48 * k, 11 * k);
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillText("[E] GUN", 0, 24 * k);
+    ctx.restore();
+  }
+
   // ---- the gun itself: an M2 Browning, nose +X, pivoting on the pintle.
   //
   // Sam: "the gun should be smaller and in front of the circle, because the
@@ -8811,6 +8885,57 @@ function drawWorldObjects(x0, y0, x1, y1) {
   }
   drawSightBlockers();
   drawProps(x0, y0, x1, y1, "over");
+  drawWire(x0, y0, x1, y1);
+}
+
+// Concertina, drawn rather than blitted. A coil is overlapping circles with
+// barbs on them, which is about twenty lines of canvas and nothing at all in
+// the byte budget v0.76 just fought to get under. Above the fog like everything
+// else that matters, dimmed when only remembered.
+//
+// It runs along the way the wire is LAID: a row of wire tiles coils east-west,
+// a column coils north-south, so a barrier reads as one continuous obstacle
+// instead of a line of identical stamps.
+function drawWire(x0, y0, x1, y1) {
+  if (!level.mat) return;
+  for (let ty = Math.max(0, y0); ty <= Math.min(level.h - 1, y1); ty++) {
+    for (let tx = Math.max(0, x0); tx <= Math.min(level.w - 1, x1); tx++) {
+      if (level.mat[ty][tx] !== "wire" || !seen.grid[ty][tx]) continue;
+      const runH = (inBounds(tx - 1, ty) && level.mat[ty][tx - 1] === "wire") ||
+                   (inBounds(tx + 1, ty) && level.mat[ty][tx + 1] === "wire");
+      const cx = tx * TILE + TILE / 2, cy = ty * TILE + TILE / 2;
+      const h = tileHash(tx, ty);
+      ctx.save();
+      ctx.globalAlpha = lookedAt(tx, ty) ? 1 : TUNE.rememberedAlpha;
+      ctx.translate(cx, cy);
+      if (!runH) ctx.rotate(Math.PI / 2);
+      // three coils across the tile, each nudged by the tile hash so a long
+      // barrier does not repeat visibly
+      ctx.lineWidth = 1.3;
+      for (let i = 0; i < 3; i++) {
+        const ox = -TILE / 2 + TILE / 6 + i * (TILE / 3);
+        const oy = ((h >>> (i * 3)) % 5) - 2;
+        const r = 8 + ((h >>> (i * 4 + 2)) % 3);
+        ctx.strokeStyle = "rgba(20,24,27,0.85)";       // the shadow it casts
+        ctx.beginPath(); ctx.arc(ox + 1, oy + 1.5, r, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = "#8d959b";
+        ctx.beginPath(); ctx.arc(ox, oy, r, 0, TAU); ctx.stroke();
+        // barbs: four short spurs off the coil, the thing that makes it wire
+        ctx.strokeStyle = "#b8c0c6"; ctx.lineWidth = 1;
+        for (let b = 0; b < 4; b++) {
+          const a = (h % 90) * Math.PI / 180 + b * Math.PI / 2;
+          const bx = ox + Math.cos(a) * r, by = oy + Math.sin(a) * r;
+          ctx.beginPath();
+          ctx.moveTo(bx - Math.cos(a + 1.2) * 2.5, by - Math.sin(a + 1.2) * 2.5);
+          ctx.lineTo(bx + Math.cos(a + 1.2) * 2.5, by + Math.sin(a + 1.2) * 2.5);
+          ctx.stroke();
+        }
+        ctx.lineWidth = 1.3;
+      }
+      ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Cover, above the fog. A tile that stops sight sits ON the boundary of every
@@ -12393,6 +12518,50 @@ requestAnimationFrame(frame);
     tools/reencode_art.py is the tool, and it dry-runs by default: it prints
     bytes back, per-channel error measured only where the sprite is opaque, and
     the biggest savings, before it will write anything.
+  v0.77 (2026-08-18): THE COVER SAM SAID LOOKED BAD, AND THE GUN HE COULD NOT
+    GET ON.
+    Sam, playing v0.73: "the new cover around the broken arrow mission looks
+    bad, also there's fog of war over the cover." The fog half was v0.74. This
+    is the other half, which is that the cover itself was wrong.
+    It was seven loose brick tiles dropped in a dirt road. It looked like a
+    mistake because it was one: brick is the map's BUILDING material, so a 1x2
+    stub of it standing in the open reads as a wall someone forgot to finish.
+    Being opaque also made it the worst-affected thing on the map by the v0.74
+    bug — and two of the seven sat directly up-range of a squad spawn, which is
+    the TREELINE lesson CLAUDE.md already has written down: cover blocks sight
+    BOTH ways, so cover in front of your own men is cover pointed at your own
+    men. The commit that added it said as much and then did it anyway.
+    Replaced with what an ambushed convoy actually has around it. Sandbag
+    positions beside each of the two casualties, on the side the threat is on,
+    and on the flanks of the start line with the centre lane left clear. The
+    test asserts the general rule rather than the instance: nothing opaque
+    within three tiles up-range of any spawn on the map.
+    And a new material, at Sam's suggestion — CONCERTINA WIRE, laid across the
+    road ahead of the lead vehicle as the obstacle that stopped the convoy. It
+    is the exact inverse of a hedge and the only thing in the material table
+    that is: it stops the MAN and nothing else. You see through it, you shoot
+    through it, you do not walk through it. resist 0 on a solid tile is safe —
+    the standable-tile trap needs a tile you can STAND on, and nobody stands on
+    wire. Drawn in code rather than blitted: a coil is overlapping circles with
+    barbs, twenty lines of canvas, and after the fight v0.76 just had to get
+    under the byte ceiling, new art that costs zero bytes is the only kind
+    worth adding.
+    Props with their own art now paint GROUND under the sprite instead of a flat
+    material square with a lit top edge. The sprites carry a baked-in inset, so
+    the square showed round every edge — a barricade sitting in a tidy hole.
+    This matters more today than it did yesterday: v0.75 unblocked twelve prop
+    sprites, and this is the difference for all of them, not just the sandbags.
+    THE HUMVEE GUN. Sam, twice: "how do i get in a turret? is it not just hold
+    e?" It is [E], a tap, and it was measuring his distance to the wrong thing.
+    v0.72 correctly moved the ring gun onto the vehicle's painted hatch and left
+    the reach on the M glyph beside the bodywork — 85px apart on BROKEN ARROW
+    against a 44px reach, so walking up to the gun you can see and pressing [E]
+    did nothing from every side of the truck but one. You now climb a gun truck
+    from wherever you are touching the hull, and step back down onto the ground
+    you climbed up from rather than teleporting to a step tile you never saw.
+    And it says so: an unmanned gun within reach shows [E] GUN, exactly as a
+    casualty has shown HOLD [E] since the day he existed. Nothing told you a
+    turret was mountable before — you had to already know.
 -->
 </body>
 </html>
