@@ -3171,40 +3171,140 @@ console.log('SCOPE TEST DONE');
 (function gradeTests(){
 console.log('--- the scorecard explains the letter ---');
 game.mapIndex = 0; initGame();
+const par = missionPar();
 const set = o => Object.assign(game.stats,
-  { arrests:0, kills:0, civsKilledByUs:0, squadLost:0, surrenderedKilled:0 }, o);
+  { time: par, arrests: 0, kills: 0, civsKilledByUs: 0, squadLost: 0,
+    surrenderedKilled: 0, enemiesEngaged: 99 }, o);
+
 // The explanation must never drift from the score it is explaining, so it is
-// checked against the original formula rather than against itself.
+// checked against the formula written out longhand rather than against itself.
+// The three tabled terms are stirred in deliberately: if any of them leaks back
+// into the arithmetic, this is where it shows up.
 let mismatch = 0;
 for (let i = 0; i < 400; i++) {
-  set({ arrests: i % 5, kills: (i * 3) % 8, civsKilledByUs: i % 3 === 0 ? 1 : 0,
-        squadLost: i % 7 === 0 ? 1 : 0, surrenderedKilled: i % 11 === 0 ? 1 : 0 });
+  set({ time: par * (0.4 + (i % 7) * 0.12),
+        enemiesEngaged: i % 9,
+        kills: (i * 3) % 8, arrests: i % 5, surrenderedKilled: i % 11 === 0 ? 1 : 0,
+        civsKilledByUs: i % 3 === 0 ? 1 : 0,
+        squadLost: i % 7 === 0 ? 1 : 0 });
   const st = game.stats;
-  const legacy = 100 + st.arrests * 5 - st.kills * 2 - st.civsKilledByUs * 20
-                 - st.squadLost * 12 - st.surrenderedKilled * 15;
-  const want = legacy >= 105 ? 'S' : legacy >= 90 ? 'A' : legacy >= 75 ? 'B' : legacy >= 55 ? 'C' : 'D';
+  const quiet = clamp(game.enemies.length - st.enemiesEngaged, 0, 4);
+  const pace  = clamp(Math.floor((par - st.time) / (par * 0.1)), 0, 4);
+  const longhand = 100 + quiet * 3 + pace * 3 - st.civsKilledByUs * 20 - st.squadLost * 12;
+  const want = longhand >= 118 ? 'S' : longhand >= 100 ? 'A' : longhand >= 80 ? 'B'
+             : longhand >= 60 ? 'C' : 'D';
   const b = gradeBreakdown();
-  if (b.score !== legacy || b.grade !== want || computeGrade() !== want) mismatch++;
+  if (b.score !== longhand || b.grade !== want || computeGrade() !== want) mismatch++;
 }
-console.log('  400 stat combinations vs the original formula, mismatches: ' + mismatch,
+console.log('  400 stat combinations vs the formula longhand, mismatches: ' + mismatch,
             mismatch === 0 ? 'CORRECT (the explanation cannot drift from the score)' : 'WRONG');
-// every suggestion must actually close the gap it claims to close
-let short = 0, phantom = 0;
-for (const o of [{kills:7}, {squadLost:1}, {civsKilledByUs:1}, {surrenderedKilled:1}, {kills:3,squadLost:1}]) {
-  set(o); const b = gradeBreakdown();
+
+// TABLED, NOT DELETED. The surrender terms keep their rates and their advice and
+// contribute nothing, so bringing the mechanic back is deleting one word each.
+set({ enemiesEngaged: 0, time: par });
+const without = gradeBreakdown().score;
+set({ enemiesEngaged: 0, time: par, arrests: 9, kills: 9, surrenderedKilled: 9 });
+const withThem = gradeBreakdown().score;
+console.log('  the shelved surrender terms move nothing: ' + without + ' vs ' + withThem,
+            without === withThem ? 'CORRECT' : 'WRONG — surrender is back in the score');
+const tabled = GRADE_TERMS.filter(t => t.tabled).map(t => t.key).sort().join(',');
+console.log('  ...and are still in the table, ready to come back: ' + tabled,
+            tabled === 'arrests,kills,surrenderedKilled' ? 'CORRECT' : 'WRONG');
+console.log('  nothing tabled reaches the scorecard: ' + gradeBreakdown().lines.map(l => l.label).join(' | '),
+            gradeBreakdown().lines.every(l => !/arrest|Suspects killed|Surrendered/.test(l.label))
+              ? 'CORRECT' : 'WRONG');
+
+// S WAS MATHEMATICALLY UNREACHABLE the moment arrests left the table — base 100
+// against a 105 band with nothing but penalties left, so every run could only
+// count down. This is the guard against that ever being true again, and it has
+// to hold on EVERY map: a term capped at four units is only earnable where there
+// are four to earn.
+let unreachable = [];
+for (let i = 0; i < MAPS.length; i++) {
+  game.mapIndex = i; initGame();
+  Object.assign(game.stats, { time: 0, enemiesEngaged: 0, squadLost: 0,
+    civsKilledByUs: 0, kills: 0, arrests: 0, surrenderedKilled: 0 });
+  const b = gradeBreakdown();
+  if (b.grade !== 'S' || b.next !== null) unreachable.push(MAPS[i].name + '=' + b.grade);
+}
+console.log('  a perfect run reaches the top band on all ' + MAPS.length + ' maps: ' +
+            (unreachable.length ? unreachable.join(', ') : 'yes'),
+            unreachable.length === 0 ? 'CORRECT (there is still something to reach for)' : 'WRONG');
+console.log('  par spans the map sizes: ' +
+            (function(){ const p = []; for (let i = 0; i < MAPS.length; i++) { game.mapIndex = i; initGame(); p.push(missionPar()); }
+              return Math.min(...p).toFixed(0) + 's..' + Math.max(...p).toFixed(0) + 's'; })(),
+            'CORRECT (informational)');
+game.mapIndex = 0; initGame();
+
+// Every suggestion that CLAIMS to close the gap must close it, must never advise
+// undoing something that never happened, and — new — must not pretend when
+// nothing single-handedly gets there.
+let short = 0, phantom = 0, missing = 0;
+for (const o of [{squadLost:1}, {civsKilledByUs:1}, {squadLost:1,civsKilledByUs:1},
+                 {squadLost:3,civsKilledByUs:2}, {time: par*2}, {enemiesEngaged:99},
+                 {enemiesEngaged:0, time:par}]) {
+  set(o);
+  const b = gradeBreakdown();
   if (!b.next) continue;
-  if (b.next.best.units * Math.abs(b.next.best.per) < b.next.gap) short++;
-  // and must never advise undoing something that never happened
+  if (!b.next.best) { missing++; continue; }
+  if (b.next.best.closes && b.next.best.gain < b.next.gap) short++;
   const term = GRADE_TERMS.find(t => t.label === b.next.best.label);
   if (term && term.per < 0 && !(game.stats[term.key] > 0)) phantom++;
 }
-console.log('  every suggestion closes its own gap: ' + (short ? short + ' do not' : 'yes'),
+console.log('  every suggestion that claims to close the gap does: ' + (short ? short + ' do not' : 'yes'),
             short === 0 ? 'CORRECT' : 'WRONG');
 console.log('  never advises undoing something you did not do: ' + (phantom ? phantom + ' do' : 'none'),
             phantom === 0 ? 'CORRECT' : 'WRONG');
-set({ arrests: 3 });
-console.log('  a clean run tops out: ' + gradeBreakdown().grade + ', next=' + gradeBreakdown().next,
-            gradeBreakdown().grade === 'S' && gradeBreakdown().next === null ? 'CORRECT' : 'WRONG');
+console.log('  and there is always something to suggest: ' + (missing ? missing + ' blank' : 'yes'),
+            missing === 0 ? 'CORRECT' : 'WRONG');
+
+// A flawless run at par is 18 short of S and the biggest term left is worth 12.
+// Nothing closes it alone. The old advice code assumed a closer always existed —
+// it could, because arrests were unbounded — and reading .best off a null was a
+// crash sitting in the most ordinary good run there is.
+set({ enemiesEngaged: 99, time: par });
+const flaw = gradeBreakdown();
+console.log('  flawless-at-par: ' + flaw.score + ' ' + flaw.grade + ', ' + flaw.next.gap +
+            (flaw.next ? flaw.next.gap + ' short of ' + flaw.next.grade +
+              ', best=' + (flaw.next.best ? flaw.next.best.label + ' closes=' + flaw.next.best.closes : 'NONE') : ''),
+            flaw.grade === 'A' && flaw.next && flaw.next.best && flaw.next.best.closes === false
+              ? 'CORRECT (it says start here, not here is the answer)' : 'WRONG');
+
+// A clean run is all green, which is why "nothing docked" cannot key on the line
+// count any more.
+set({ enemiesEngaged: 0, time: 0 });
+const clean = gradeBreakdown();
+console.log('  a perfect run tops out: ' + clean.score + ' ' + clean.grade + ', next=' + clean.next,
+            clean.grade === 'S' && clean.next === null ? 'CORRECT' : 'WRONG');
+console.log('  and its scorecard is all credit, no debits: ' + clean.lines.map(l => l.label + ' x' + l.n).join(' | '),
+            clean.lines.length > 0 && clean.lines.every(l => l.delta > 0) ? 'CORRECT' : 'WRONG');
+
+// The suite never calls render(), but the debrief is built out of strings and
+// stub elements, so the one screen that consumes the breakdown CAN be exercised
+// headless — and a null .best throws right here.
+let debriefErrs = 0;
+for (const o of [{}, {squadLost:1}, {civsKilledByUs:2}, {enemiesEngaged:99, time: par*3},
+                 {enemiesEngaged:0, time:0}]) {
+  set(o); game.state = 'play';
+  try { endMission(true, ''); }
+  catch (e) { debriefErrs++; if (debriefErrs < 3) console.log('  DEBRIEF THREW:', e.message); }
+}
+console.log('  the debrief builds for every shape of run: ' + (debriefErrs || 'no') + ' throws',
+            debriefErrs === 0 ? 'CORRECT' : 'WRONG');
+
+// SURRENDER IS TABLED, NOT REMOVED — and it cannot be, because CAPTURE is won by
+// cuffing the principal and cuffEnemy refuses anything but a surrendered man.
+// Gate the shout off and two of twenty missions quietly become unwinnable.
+game.mapIndex = MAPS.findIndex(m => m.name === 'HIGH VALUE'); initGame(); game.state = 'play';
+const hvt = hvtUnit();
+console.log('  HIGH VALUE fields an HVT: ' + !!hvt, hvt ? 'CORRECT' : 'WRONG');
+hvt.state = 'surrender';
+cuffEnemy(hvt, game.player);
+console.log('  and cuffing him satisfies CAPTURE: state=' + hvt.state + ' done=' + OBJECTIVES.capture.done(),
+            hvt.state === 'cuffed' && OBJECTIVES.capture.done()
+              ? 'CORRECT (the arrest path is scored-out, not torn out)' : 'WRONG');
+
+localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('GRADE TEST DONE');
 })();
 

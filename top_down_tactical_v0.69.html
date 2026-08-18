@@ -1073,6 +1073,15 @@ const TUNE = {
   surrenderFlashed: 0.55,       // shouted at while flashed
   surrenderOutgunned: 0.28,     // shouted at with 2+ guns on target & target not aiming
   surrenderLastMan: 0.18,       // bonus when last threat alive
+  // Mission par, DERIVED rather than authored. Measured, the walkable area runs
+  // 493 tiles (THE WALKUP) to 2912 (THE LANDING) and the roster 5 to 23, and
+  // twenty hand-tuned times are twenty guesses that go stale the first time a
+  // map is edited. These give 2:11 on THE WALKUP and 7:01 on THE LANDING.
+  // UNVALIDATED BY PLAY — it is a geometry argument, not a measurement of
+  // anyone actually finishing.
+  parBase: 50,        // getting set, stacking the first door
+  parPerTile: 0.08,   // seconds per walkable tile of house to clear
+  parPerEnemy: 6,     // seconds a suspect costs, contact to consolidation
   executionTimer: 22,           // s after hostage-taker alerted until execution
 };
 
@@ -4005,6 +4014,11 @@ function tryFire(s, ang) {
   addNoise(s.x, s.y, s.can ? TUNE.suppNoiseShot : TUNE.noiseShot, "shot", s.side, s.can);
   sfxAt(s.can ? "click" : "shot", s.x, s.y);
   if (s.side === "player") { game.stats.shotsFired++; game.camKick = Math.min(6, game.camKick + 1.6); }
+  // A suspect who never gets a round off is a room you won before it started,
+  // and with hands-up tabled it is the only thing left on the scorecard you can
+  // climb. Counted once, at his first shot, so it is monotone and cannot heal —
+  // the same rule the vehicle damage stages live by.
+  if (s.side === "enemy" && !s.everFired) { s.everFired = true; game.stats.enemiesEngaged++; }
   // The return-fire window, and WHERE IT CAME FROM. The bearing is the whole
   // of a contact report; without it a man can only know that shooting is
   // happening, which is not something you can turn toward.
@@ -9600,7 +9614,8 @@ function initGame() {
   game.enemies.forEach(e => e.original = true);
   game.qrfState = game.mission.qrf ? { phase: "waiting", t: 0 } : null;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
-    civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0 };
+    civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0,
+    enemiesEngaged: 0 };
 }
 
 function update(dt) {
@@ -9797,52 +9812,121 @@ function checkMissionEnd(dt) {
 // aim at a number you were never shown. One table drives the arithmetic, the
 // scorecard and the "how close were you" line, so the explanation can never
 // drift from the score it is explaining.
-const GRADE_BANDS = [["S", 105], ["A", 90], ["B", 75], ["C", 55], ["D", -Infinity]];
+//
+// REBASED, because the old table could only FALL. Base 100 with arrests as the
+// single positive meant the S band at 105 was reachable exactly one way, and
+// the way was hands-up. With that tabled every run counted down from perfect,
+// which is the same scold with extra steps. 100 is now a clean entry AND an A:
+// everything above it is bought with HOW you did it rather than with how much
+// you failed to lose. Ceiling 124.
+
+// Par is derived, not authored. One tile is one metre; the rest is the price of
+// doors, corners and consolidation. See TUNE for the spread it is fitted to.
+function missionPar() {
+  let walk = 0;
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (!level.wall[y][x]) walk++;
+  return TUNE.parBase + walk * TUNE.parPerTile + game.enemies.length * TUNE.parPerEnemy;
+}
+// A TENTH of par, not a flat thirty seconds. Two minutes under is most of a
+// 2:11 map and a third of a 7:01 one, so a flat bonus prices the small maps out
+// of the band entirely. Proportional also makes the top band reachable on every
+// map BY CONSTRUCTION.
+function paceUnits(st) {
+  const par = missionPar();
+  return clamp(Math.floor((par - st.time) / (par * 0.1)), 0, 4);
+}
+// Capped at four, so a 23-man beach is not automatically a better grade than a
+// seven-man walkup. Every map fields at least five, so four is always on offer.
+function quietUnits(st) { return clamp(game.enemies.length - (st.enemiesEngaged || 0), 0, 4); }
+
+const GRADE_BASE = 100;
+const GRADE_BANDS = [["S", 118], ["A", 100], ["B", 80], ["C", 60], ["D", -Infinity]];
 const GRADE_TERMS = [
-  { key: "arrests",          per:  +5, label: "Suspects arrested",
-    fix: "arrest one more instead of shooting him" },
-  { key: "kills",            per:  -2, label: "Suspects killed",
-    fix: "take one more alive" },
+  // --- what there is to reach for ------------------------------------------
+  { key: "quiet",            per:  +3, label: "Suspects who never got a shot off",
+    n: quietUnits, room: st => 4 - quietUnits(st),
+    fix:  "one more suspect who never gets a shot off",
+    fixN: n => n === 1 ? "one more suspect who never gets a shot off"
+                       : n + " more suspects who never get a shot off" },
+  { key: "pace",             per:  +3, label: "Inside the clock",
+    n: paceUnits, room: st => 4 - paceUnits(st),
+    fix:  "faster",
+    fixN: n => "another " + Math.ceil(n * missionPar() * 0.1) + " seconds off the clock" },
+  // --- what it costs --------------------------------------------------------
   { key: "squadLost",        per: -12, label: "Squad lost",
     fix: "bring one more man home" },
-  { key: "surrenderedKilled",per: -15, label: "Surrendered suspects killed",
-    fix: "stop shooting once his hands are up" },
   { key: "civsKilledByUs",   per: -20, label: "Civilians killed by your team",
     fix: "identify before you fire" },
+  // --- TABLED ---------------------------------------------------------------
+  // Hands-up still WORKS: the shout, the odds, the feint, the cuffs, and the
+  // two CAPTURE missions — HIGH VALUE and THE LONG WALK — that are won by
+  // cuffing the principal and CANNOT BE WON ANY OTHER WAY. What does not work
+  // is the enemy AI's answer to it, so scoring the player on it was scoring him
+  // on a coin the enemy tosses. `tabled` is the one word that turns each of
+  // these off; deleting the word is the whole of putting them back, rate and
+  // advice intact.
+  { key: "arrests",          per:  +5, tabled: true, label: "Suspects arrested",
+    fix: "arrest one more instead of shooting him" },
+  { key: "kills",            per:  -2, tabled: true, label: "Suspects killed",
+    fix: "take one more alive" },
+  { key: "surrenderedKilled",per: -15, tabled: true, label: "Surrendered suspects killed",
+    fix: "stop shooting once his hands are up" },
 ];
+function gradeUnits(t, st) { return t.n ? t.n(st) : (st[t.key] || 0); }
+// How much of this term is still on the table, for the advice. A penalty can
+// only be un-done as far as you actually did it — which is the whole of the old
+// "never advise fewer civilian deaths when there were none" rule, moved out of
+// an if and into the table where the rest of the arithmetic already lives.
+function gradeRoom(t, st) { return t.room ? t.room(st) : (t.per < 0 ? gradeUnits(t, st) : Infinity); }
+
 function gradeBreakdown() {
   const st = game.stats;
   const lines = [];
-  let score = 100;
+  let score = GRADE_BASE;
   for (const t of GRADE_TERMS) {
-    const n = st[t.key] || 0;
+    if (t.tabled) continue;
+    const n = gradeUnits(t, st);
     if (!n) continue;
     const delta = n * t.per;
     score += delta;
     lines.push({ label: t.label, n, per: t.per, delta, fix: t.fix });
   }
   const grade = (GRADE_BANDS.find(b => score >= b[1]) || ["D"])[0];
-  // what the next band up would have taken
   const idx = GRADE_BANDS.findIndex(b => b[0] === grade);
   let next = null;
   if (idx > 0) {
     const [ng, at] = GRADE_BANDS[idx - 1];
     const gap = at - score;
-    // the cheapest single change that closes it, costed against what you
-    // actually did — no point advising fewer civilian deaths if there were none
+    // The cheapest single change that closes it, costed against what you
+    // actually did AND what is actually left to earn. Nothing is unbounded any
+    // more — arrests were, which is the only reason the old code could assume a
+    // suggestion always exists. A flawless run at par is 18 short of S and the
+    // biggest term on the board is worth 12, so "no single thing closes this"
+    // is now the ordinary case rather than a corner: say so, do not
+    // over-promise, and never read .best off a null.
     let best = null;
-    for (const l of lines) {
-      if (l.per >= 0) continue;
-      const units = Math.min(l.n, Math.ceil(gap / -l.per));
-      if (units * -l.per >= gap && (!best || units < best.units))
-        best = { units, label: l.label, fix: l.fix, per: l.per };
+    for (const t of GRADE_TERMS) {
+      if (t.tabled) continue;
+      const room = gradeRoom(t, st);
+      if (room <= 0) continue;
+      const per = Math.abs(t.per);
+      const units = Math.min(room, Math.ceil(gap / per));
+      const gain = units * per;
+      const closes = gain >= gap;
+      const better = !best
+        || (closes && !best.closes)
+        || (closes === best.closes && (closes ? units < best.units : gain > best.gain));
+      if (better) best = { units, label: t.label, fix: t.fix, fixN: t.fixN, per: t.per, gain, closes };
     }
-    const arrestUnits = Math.ceil(gap / 5);
-    if (!best || arrestUnits < best.units)
-      best = { units: arrestUnits, label: "Suspects arrested", fix: GRADE_TERMS[0].fix, per: 5 };
     next = { grade: ng, at, gap, best };
   }
   return { score, grade, lines, next };
+}
+// How the advice reads out loud. A positive term counts UP to something, so
+// "4 more suspects who never get a shot off" is the sentence; a penalty counts
+// something you already did, so "2x identify before you fire" stands.
+function gradeAdvice(b) {
+  return b.fixN ? b.fixN(b.units) : (b.units === 1 ? "" : b.units + "&times; ") + b.fix;
 }
 function computeGrade() { return gradeBreakdown().grade; }
 
@@ -9903,7 +9987,10 @@ function endMission(won, reason) {
   document.getElementById("debriefGrade").style.color = won ? "#3fc27e" : "#ff5555";
   const rows = [];
   if (!won) rows.push(`<div class="stat" style="color:#ff5555">${reason}</div><br>`);
-  rows.push(`<div class="stat">Time: ${st.time.toFixed(1)}s</div>`);
+  // The clock is scored now, so the number it is scored against has to be on
+  // screen. A par you cannot see is a par you cannot aim at.
+  rows.push(`<div class="stat">Time: ${st.time.toFixed(1)}s ` +
+            `<span style="color:#7f8b96">(par ${missionPar().toFixed(0)}s)</span></div>`);
   rows.push(`<div class="stat">Hostages secured: ${st.hostagesSecured}/${game.hostages.length}</div>`);
   rows.push(`<div class="stat">Suspects arrested: ${st.arrests} &nbsp;·&nbsp; killed: ${st.kills}</div>`);
   if (st.surrenderedKilled) rows.push(`<div class="stat" style="color:#ff5555">Surrendered suspects killed: ${st.surrenderedKilled}</div>`);
@@ -9926,7 +10013,7 @@ function endMission(won, reason) {
     const bd = gradeBreakdown();
     rows.push(`<br><div class="stat" style="color:#e8b53a">SCORECARD</div>`);
     rows.push(`<div class="stat"><span style="color:#7f8b96">Clean entry</span>` +
-              `<span style="float:right">100</span></div>`);
+              `<span style="float:right">${GRADE_BASE}</span></div>`);
     for (const l of bd.lines) {
       const col = l.delta < 0 ? "#ff5555" : "#3fc27e";
       const sign = l.delta > 0 ? "+" : "";
@@ -9934,22 +10021,26 @@ function endMission(won, reason) {
                 `<span style="color:#7f8b96">(${sign}${l.per} each)</span>` +
                 `<span style="float:right;color:${col}">${sign}${l.delta}</span></div>`);
     }
-    if (!bd.lines.length)
+    // Keyed on PENALTIES, not on line count: a clean run now has lines, they
+    // are just all green.
+    if (!bd.lines.some(l => l.delta < 0))
       rows.push(`<div class="stat" style="color:#7f8b96">Nothing docked — nobody died who did not have to.</div>`);
     rows.push(`<div class="stat" style="border-top:1px solid #2a333c;margin-top:4px;padding-top:4px">` +
               `<b>Score</b><span style="float:right"><b>${bd.score}</b> &nbsp; grade <b>${bd.grade}</b></span></div>`);
     if (bd.next) {
-      const b = bd.next.best;
-      const gain = b.units * Math.abs(b.per);
-      // The fix text already names the thing, so naming it twice reads as
-      // filled-in template rather than advice.
-      const how = b.per > 0
-        ? `${b.units} more arrest${b.units === 1 ? "" : "s"} — ${b.fix} (+${gain})`
-        : `${b.units === 1 ? "" : b.units + "&times; "}${b.fix} (+${gain})`;
       rows.push(`<div class="stat" style="color:#e8b53a;margin-top:4px">` +
                 `${bd.next.gap} point${bd.next.gap === 1 ? "" : "s"} short of ${bd.next.grade} ` +
                 `<span style="color:#7f8b96">(needs ${bd.next.at})</span></div>`);
-      rows.push(`<div class="stat" style="color:#7f8b96">Closest way there: ${how}</div>`);
+      const b = bd.next.best;
+      if (b) {
+        // "Closest way there" is a PROMISE that the thing named actually gets
+        // you there. When nothing single-handedly does — the ordinary case for
+        // a flawless run reaching for S, where the gap is 18 and the biggest
+        // term on the board is worth 12 — it says where to start instead of
+        // lying about it.
+        const lead = b.closes ? "Closest way there" : "Start with";
+        rows.push(`<div class="stat" style="color:#7f8b96">${lead}: ${gradeAdvice(b)} (+${b.gain})</div>`);
+      }
     } else {
       rows.push(`<div class="stat" style="color:#3fc27e;margin-top:4px">Top band — there is nothing above this.</div>`);
     }
