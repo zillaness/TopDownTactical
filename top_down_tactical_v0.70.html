@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.69.html
-  version: 0.69
+  file: top_down_tactical_v0.70.html
+  version: 0.70
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.69 (working title)</title>
+<title>Top-Down Tactical v0.70 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.69 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.70 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -3061,7 +3061,7 @@ function makePlayer(sp) {
   const L = game.loadout;
   const prim = PRIMARIES[L.primary] || PRIMARIES.carbine;
   const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w, carrySpeed: prim.speed || 1 });
-  p.charges = TUNE.charges; p.shoutCd = 0;
+  p.charges = TUNE.charges; p.shoutCd = 0; p.nadeCd = 0;
   // Infinity rather than a big number, so every `> 0` test already in the file
   // — the squad's breach plans read p.bangs, the wheel greys an empty slot —
   // keeps working untouched, and no counter can tick down past zero.
@@ -3225,6 +3225,10 @@ function updatePlayer(p, dt) {
   p.blind = Math.max(0, p.blind - dt);
   p.stagger = Math.max(0, p.stagger - dt);
   p.shoutCd = Math.max(0, p.shoutCd - dt);
+  // The 40mm reload. updateSquaddie has always ticked this for the grenadier;
+  // nothing ever ticked it for the PLAYER, because until the M203 the player
+  // had no tube. Without this line the launcher fires once per mission.
+  p.nadeCd = Math.max(0, (p.nadeCd || 0) - dt);
   p.suppress = Math.max(0, (p.suppress || 0) - dt * TUNE.suppressDecay);
   updateShoulder(p, dt);
 
@@ -3382,11 +3386,39 @@ function nearestWindowTo(x, y, maxD) {
 
 function throwSelected(p, kind, wx, wy) {
   const T = THROWABLES[kind] || THROWABLES.bang;
+  // The M203 does not change WHAT you picked, only how it gets there. One
+  // chokepoint for the bag wheel, [G] and the pad alike, which is why the
+  // wheel can grow a centre slot or lose one without this knowing.
+  if (hasLauncher(p)) return launchSelected(p, T, wx, wy);
   if ((p.throwT || 0) > 0) return;      // cadence is what a grenade costs now
   p.throwT = TUNE.throwCd;
   p.nadeKind = T.key;
   throwNade(p, wx, wy, T.key);
   game.hint = T.name + " out";
+}
+
+// The tube belongs to the gun you signed for at the briefing, not the gun
+// currently up: going to the sidearm mid-room does not unbolt an M203.
+function hasLauncher(ent) {
+  if (ent === game.player) return !!(PRIMARIES[game.loadout.primary] || {}).launcher;
+  return !!(ROLES[ent.role] && ROLES[ent.role].launcher);
+}
+
+// One round up the spout at a time. The 8s is what the reach costs — a man who
+// could launch AND throw would just own a better hand grenade, and the whole
+// design is that you pick one delivery.
+function launchSelected(p, T, wx, wy) {
+  if (p.turret) { game.hint = "Both hands are on the gun"; return; }
+  if (p.stagger > 0 || p.blind > 0) return;
+  if ((p.nadeCd || 0) > 0) {
+    game.hint = "40MM — " + p.nadeCd.toFixed(1) + "s to reload";
+    sfxAt("click", p.x, p.y);
+    return;                                   // a blocked launch spends nothing
+  }
+  p.nadeKind = T.key;
+  launch40mm(p, wx, wy, T.key);
+  game.hint = "40MM " + T.name +
+    (dist(p.x, p.y, wx, wy) < TUNE.he40Arm ? " — TOO CLOSE, IT WILL NOT ARM" : " OUT");
 }
 
 // ---- FIELD TEST: the drones.
@@ -4594,6 +4626,11 @@ function updateBangs(dt) {
 }
 
 function detonateNade(g) {
+  // The launcher does not care what is in the nose, so the fuze check happens
+  // BEFORE the nature dispatch rather than inside detonateHE40 alone. A 40mm
+  // smoke that did not arm is a canister on the floor, not a cloud — and it
+  // never reaches popSmoke, so it never bumps the ledger either.
+  if (g.m203 && !armed40(g)) return dud40(g);
   if (g.kind === "gas") return popGas(g);
   if (g.kind === "he40") return detonateHE40(g);
   if (g.kind === "frag") return detonateFrag(g);
@@ -4632,15 +4669,25 @@ function detonateFrag(g) {
 // one that flew less than he40Arm — is a thud and a dent, not a blast, which is
 // both what the real fuze does and what keeps a point-blank launcher from being
 // a self-frag or an exploit.
+// A 40mm arms by SPIN, and spin comes from flight — not from what is in the
+// nose. Factored out of detonateHE40 the moment the launcher stopped being
+// HE-only: a short-flight CS round is the same dud as a short-flight HE round,
+// because it is the same fuze.
+// review catch, preserved: armed-at-launch was AIM distance; the fuze cares how
+// far it actually FLEW, which a bounce off a jamb can cut short.
+function armed40(g) {
+  if (!g.armed) return false;
+  return !(g.flew !== undefined && g.flew < TUNE.he40Arm);
+}
+function dud40(g) {
+  game.fx.push({ kind: "spark", x: g.x, y: g.y, t: 0.14, max: 0.14 });
+  addNoise(g.x, g.y, 140, "thud", g.side);
+  sfxAt("thud", g.x, g.y);
+  game.hint = "40mm bounced — too close to arm";
+}
+
 function detonateHE40(g) {
-  // review catch: armed-at-launch was aim distance; the FUZE cares how far it FLEW
-  if (g.armed && g.flew !== undefined && g.flew < TUNE.he40Arm) g.armed = false;
-  if (!g.armed) {
-    game.fx.push({ kind: "spark", x: g.x, y: g.y, t: 0.14, max: 0.14 });
-    addNoise(g.x, g.y, 140, "thud", g.side);
-    sfxAt("thud", g.x, g.y);
-    return;
-  }
+  if (!armed40(g)) return dud40(g);
   game.fx.push({ kind: "explosion", x: g.x, y: g.y, t: 0.45, max: 0.45 });
   game.decals.push({ x: g.x + rand(-5, 5), y: g.y + rand(-5, 5), r: rand(4, 8) });
   addNoise(g.x, g.y, TUNE.noiseHe40, "breach", g.side);
@@ -4672,7 +4719,12 @@ function blastClearOfFriends(x, y, r) {
   return true;
 }
 
-function launch40mm(shooter, tx, ty) {
+// The tube, and now everything you can put down it. `nature` is a THROWABLE
+// key: frag rides the HE fuze that was already here, the other four carry the
+// hand grenade's own effect to a place you could never have thrown it. Called
+// with no nature — which is every AI grenadier call site — it is HE, exactly
+// as it was.
+function launch40mm(shooter, tx, ty, nature) {
   const ang = angleTo(shooter.x, shooter.y, tx, ty);
   const d = dist(shooter.x, shooter.y, tx, ty);
   const clear = raycast(shooter.x, shooter.y, ang, shooter.r + 8, solidForMove);
@@ -4681,7 +4733,14 @@ function launch40mm(shooter, tx, ty) {
     x: shooter.x + Math.cos(ang) * off, y: shooter.y + Math.sin(ang) * off,
     vx: Math.cos(ang) * TUNE.he40Speed, vy: Math.sin(ang) * TUNE.he40Speed,
     fuse: d / TUNE.he40Speed + 0.02, travelLeft: d, side: shooter.side,
-    kind: "he40", armed: d >= TUNE.he40Arm,
+    // HE keeps the "he40" kind so every existing dispatch, AI branch and test
+    // is untouched. The other four ride their OWN kind, so detonateNade routes
+    // them into the identical effect a hand grenade gets — one copy of
+    // popSmoke, one copy of detonateBang. `m203` is what tells the fuze check
+    // this one had to spin up to arm; `nature` is for the draw and the ledger.
+    kind: (!THROWABLES[nature] || nature === "frag") ? "he40" : nature,
+    nature: THROWABLES[nature] ? nature : "frag", m203: true,
+    armed: d >= TUNE.he40Arm,
   });
   shooter.nadeCd = TUNE.he40Cd;
   addNoise(shooter.x, shooter.y, 260, "shot", shooter.side);
@@ -5749,6 +5808,13 @@ const PRIMARIES = {
                   spreadBase: deg(0.19), spreadMove: deg(12), spreadWalkMove: deg(5),
                   recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15, sprintDrain: 1.2 },
              speed: 0.95 },
+  // Same rifle as the carbine — the M203 is not a better gun, it is a
+  // different way to deliver the bag. Hand-thrown is fast, short, and works
+  // with the muzzle against a doorframe; the tube reaches across the map,
+  // costs 8s a round, and will not arm inside 170px. That trade IS the pick.
+  m203:    { name: "M4 + M203", ammo: ["fmj", "hp", "ap"],
+             note: "underbarrel 40mm — the whole bag, launched instead of thrown",
+             w: { ...TUNE.rifle }, launcher: true },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.15, range: 700,
@@ -8979,6 +9045,14 @@ function drawHud() {
   }
   ctx.fillStyle = p.charges > 0 ? COLORS.hudDim : "#3c444b";
   ctx.fillText("CHG " + p.charges, gx, by + 80);
+  // The tube's clock. 8s is a long time to guess at and the arming distance is
+  // invisible, so it goes on the strip rather than in a hint that scrolls away.
+  if (hasLauncher(p)) {
+    gx += 52;
+    const rdy = (p.nadeCd || 0) <= 0;
+    ctx.fillStyle = rdy ? COLORS.accent : COLORS.hudDim;
+    ctx.fillText("203 " + (rdy ? "UP" : p.nadeCd.toFixed(1) + "s"), gx, by + 80);
+  }
   ctx.font = "13px Consolas, monospace";
   // Losing the controls needs to be the loudest thing on screen, not a note in
   // the corner: the state lasts about a second and reads as a freeze otherwise.
@@ -9204,7 +9278,8 @@ function drawNadeWheel() {
   // <the last thing you picked>", which stopped being true the moment no-flick
   // became a slot of its own rather than "keep what you had".
   const willThrow = THROW_ORDER.find(k => THROWABLES[k].dir === (w.dir || "center"));
-  ctx.fillText("release to throw " + THROWABLES[willThrow || p.nadeKind].name.toLowerCase(),
+  const verb = hasLauncher(p) ? "launch" : "throw";
+  ctx.fillText("release to " + verb + " " + THROWABLES[willThrow || p.nadeKind].name.toLowerCase(),
                w.sx, w.sy + R + 24);
   ctx.textAlign = "left";
 }
@@ -11744,6 +11819,35 @@ requestAnimationFrame(frame);
     None went anywhere worse. The test drives a real engagement now instead of
     synthetic rounds, and asserts the directional invariant deterministically
     against the same precondition the live code uses.
+  v0.70 (2026-08-18): A RELOAD YOU CAN SEE, A GRADE THAT CAN RISE, AND THE
+    M203. Three of Sam's queue at once.
+    The reload ring: a reload was the only timed action in the game with no
+    picture — a tourniquet draws a closing ring and so does a demolition charge,
+    while a 6.2s belt change got one bark and then five seconds of silence.
+    reloadArc() is split from the drawing because the suite never calls
+    render(), so the only way to assert "it ticks per shell and resets" is to
+    ask for the numbers: seven resets and seven start angles on a seven-round
+    tube. It needs no new state, and it excludes two frozen clocks — a downed
+    man and a man on another floor both return from updateSquaddie before
+    updateShooterWeapon, so a ring on either would sit still and lie.
+    Surrender is tabled IN SCORING ONLY. It cannot leave the simulation: cuffing
+    is the sole path to e.state = "cuffed", and HIGH VALUE and THE LONG WALK are
+    both won that way and cannot be won any other. So the shout, the odds, the
+    feint and the cuffs all stay; one word — `tabled` — turns off each scoring
+    term, and deleting the word puts it back. The curve is rebased because the
+    old one could only fall: 100 is now a clean entry AND an A, with +3 a
+    suspect who never got a shot off and +3 a tenth of par inside the clock,
+    both capped at four. Par is derived from the map rather than authored,
+    because twenty hand-tuned times are twenty guesses that go stale.
+    M4 + M203 is a loadout pick, and it changes DELIVERY rather than what you
+    carry: hand-thrown is fast, short and works against a doorframe; the tube
+    reaches across the map, costs 8s a round, and duds inside 170px whatever is
+    in the nose — a 40mm arms by spin and spin comes from flight. Frag rides the
+    HE fuze that was already there; the other four ride their own kind straight
+    into the same effect a hand grenade gets, so there is one copy of popSmoke
+    and one of detonateBang. And the player's tube now TICKS: updateSquaddie
+    always ticked it for the grenadier, nothing ever ticked it for the player,
+    because until now the player had no tube.
 -->
 </body>
 </html>

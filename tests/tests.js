@@ -3423,6 +3423,63 @@ game.loadout.primary = prevGun;
 console.log('RELOAD RING TEST DONE');
 })();
 
+(function m203Tests(){
+console.log('--- M4 + M203: the whole bag, launched ---');
+const prevGun = game.loadout.primary;
+game.mapIndex = 0; game.loadout.primary = 'm203'; initGame(); game.state = 'play';
+const p = game.player;
+console.log('  carrying it means you have a tube: ' + hasLauncher(p),
+            PRIMARIES.m203 && hasLauncher(p) ? 'CORRECT' : 'WRONG');
+// All five natures go down it. Frag rides the HE fuze that was already there;
+// the other four ride their OWN kind so detonateNade routes them into the same
+// effect a hand grenade gets — one copy of popSmoke, one of detonateBang.
+const launched = [];
+for (const k of THROW_ORDER) {
+  p.nadeCd = 0; const n0 = game.bangs.length;
+  throwSelected(p, k, p.x + 400, p.y);
+  if (game.bangs.length > n0) {
+    const g = game.bangs[game.bangs.length - 1];
+    launched.push(k + ':' + g.kind + (g.m203 ? '/m203' : ''));
+  }
+}
+console.log('  all five natures launch: ' + launched.join(' '),
+            launched.length === 5 ? 'CORRECT' : 'WRONG');
+console.log('  frag rides the HE fuze, the rest their own kind',
+            launched[1].includes('he40') && launched[0].includes('bang') ? 'CORRECT' : 'WRONG');
+// The 8s IS the reach's price: a man who could launch and throw would just own
+// a better hand grenade.
+p.nadeCd = 0; game.bangs.length = 0;
+throwSelected(p, 'frag', p.x + 400, p.y);
+const after1 = game.bangs.length;
+throwSelected(p, 'frag', p.x + 400, p.y);
+console.log('  one round at a time: ' + after1 + ' then ' + game.bangs.length +
+            ' (cd ' + p.nadeCd.toFixed(1) + 's)',
+            after1 === 1 && game.bangs.length === 1 && p.nadeCd > 7 ? 'CORRECT' : 'WRONG');
+// updateSquaddie always ticked nadeCd for the grenadier; NOTHING ticked it for
+// the player, because until the M203 the player had no tube. Without that the
+// launcher fires once per mission.
+for (let i = 0; i < 60 * 9; i++) updatePlayer(p, 1 / 60);
+console.log('  the tube reloads, it is not one shot a mission: cd=' + (p.nadeCd || 0).toFixed(1),
+            (p.nadeCd || 0) === 0 ? 'CORRECT' : 'WRONG');
+// A 40mm arms by spin, and spin comes from flight — not from what is in the nose.
+let duds = 0;
+for (const k of THROW_ORDER) {
+  p.nadeCd = 0; game.bangs.length = 0;
+  throwSelected(p, k, p.x + 40, p.y);
+  const g = game.bangs[0];
+  if (g) { g.flew = 40; if (!armed40(g)) duds++; }
+}
+console.log('  every nature duds inside the arming distance: ' + duds + '/5',
+            duds === 5 ? 'CORRECT (same fuze, whatever is in the nose)' : 'WRONG');
+game.loadout.primary = 'carbine'; initGame(); game.state = 'play';
+const q = game.player; q.throwT = 0; game.bangs.length = 0;
+throwSelected(q, 'bang', q.x + 80, q.y);
+console.log('  a plain M4 still throws by hand: ' + (!hasLauncher(q) && game.bangs.length === 1),
+            !hasLauncher(q) && game.bangs.length === 1 ? 'CORRECT' : 'WRONG');
+game.loadout.primary = prevGun;
+console.log('M203 TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';
