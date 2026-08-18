@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.67.html
-  version: 0.67
+  file: top_down_tactical_v0.68.html
+  version: 0.68
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-17
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.67 (working title)</title>
+<title>Top-Down Tactical v0.68 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.67 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.68 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -9078,8 +9078,11 @@ function drawNadeWheel() {
     ctx.fillText(THROWABLES[cur].note, w.sx, w.sy + R + 54);
   }
   ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
-  ctx.fillText(w.dir ? "release to throw it there"
-                     : "release to throw " + THROWABLES[p.nadeKind].name.toLowerCase(),
+  // Name what will ACTUALLY leave your hand. This used to say "release to throw
+  // <the last thing you picked>", which stopped being true the moment no-flick
+  // became a slot of its own rather than "keep what you had".
+  const willThrow = THROW_ORDER.find(k => THROWABLES[k].dir === (w.dir || "center"));
+  ctx.fillText("release to throw " + THROWABLES[willThrow || p.nadeKind].name.toLowerCase(),
                w.sx, w.sy + R + 24);
   ctx.textAlign = "left";
 }
@@ -11490,6 +11493,33 @@ requestAnimationFrame(frame);
     accuracy is the bill.
     A test now asserts the shotgun out-cycles the DMR, so this cannot quietly
     come back.
+  v0.68 (2026-08-17): THE BAG IS THE WHOLE BAG, AND THE MANUAL STOPS BLOCKING
+    THE DOOR. The utility-kit picker is gone — it chose between things you would
+    all have carried anyway, and its button was where Sam last complained he
+    could not find the frags. You carry flashbang, frag, concussion, smoke and
+    CS from the first frame and never run out. Supply was the only thing
+    pricing a grenade, so CADENCE replaces it at 0.75s; the test throws ten
+    times in one frame and asserts exactly one leaves your hand.
+    The wheel is four cardinals and the centre, laid out so a MIS-FLICK CANNOT
+    ESCALATE: bang holds the no-flick centre, because that is the easiest input
+    in the game to trigger by accident and what a fumble gets you should be the
+    nature that hurts nobody. Frag sits opposite concussion — the confusable
+    pair, both explosive, only one lethal. Smoke and CS take the other axis
+    where confusing them costs nothing. All three properties are asserted
+    rather than left as a comment.
+    A SHOTGUN DOES NOT TAKE A CAN: a suppressor holds gas behind a bore seal
+    and a cup of shot leaving a smoothbore has nothing to seal against. The
+    muzzle picker is team-wide, so it is enforced per SHOOTER — your riflemen
+    keep theirs, the breacher never had one.
+    The controls fold shut. Twenty-seven rows of bindings sat above mission
+    select; they are a <details> now that remembers if you open it. That alone
+    was not enough — measuring said Breach was STILL 2386px down, because the
+    pickers are the bulk — so Breach is sticky and there is no scroll position
+    from which you cannot start.
+    Three things only a screenshot could catch: the HUD bag row printed
+    Infinity five times over itself, the wheel's centre label landed on smoke
+    and CS, and all five notes overlapped into a smear. One note shows now, for
+    the slot you are on.
 -->
 </body>
 </html>
