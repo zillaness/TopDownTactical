@@ -18,7 +18,7 @@
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   #overlay { position: fixed; inset: 0; pointer-events: none; }
-  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; background: rgba(6,8,10,0.94); pointer-events: auto; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; background: rgba(6,8,10,0.94); pointer-events: auto; overflow-y: auto; }
   .screen h1 { font-size: 42px; letter-spacing: 6px; margin: 0 0 8px; color: #e8eef4; text-transform: uppercase; }
   .screen h2 { font-size: 15px; font-weight: 400; color: #7f8b96; margin: 0 0 28px; letter-spacing: 2px; }
   .screen .panel { background: #11161b; border: 1px solid #232c34; border-radius: 6px; padding: 22px 30px; max-width: 700px; }
@@ -26,7 +26,17 @@
   .screen table { border-collapse: collapse; font-size: 13px; }
   .screen td { padding: 3px 14px 3px 0; color: #aeb8c2; }
   .screen td.key { color: #e8b53a; font-family: Consolas, monospace; white-space: nowrap; }
+  #controlsFold > summary { cursor: pointer; list-style: none; color: #e8b53a; font-size: 13px;
+    letter-spacing: 2px; text-transform: uppercase; padding: 2px 0; }
+  #controlsFold > summary::-webkit-details-marker { display: none; }
+  #controlsFold:not([open]) { padding: 10px 30px; }
   .btn { margin-top: 24px; padding: 12px 44px; font-size: 16px; letter-spacing: 3px; background: #1d4ed8; color: #fff; border: 0; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
+  /* Breach follows you down the page — see the note in the changelog: folding
+     the controls alone left it 2386px below the fold, because the pickers are
+     the bulk. Sticky means no scroll position exists from which you cannot
+     start the mission. */
+  #menu #btnStart { position: sticky; bottom: 16px; z-index: 5; margin-top: 28px;
+    box-shadow: 0 6px 22px rgba(6,8,10,0.85); }
   .btn:hover { background: #2563eb; }
   #mapPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; max-width: 900px; }
   .mapbtn { max-width: 210px; }
@@ -36,7 +46,7 @@
   #briefText { flex: 1 1 300px; min-width: 280px; max-width: 430px; font-size: 12px; line-height: 1.5; }
   #briefText .k { color: #e8b53a; display: inline-block; min-width: 96px; }
   #briefText .row { margin-bottom: 5px; color: #9fb0bf; }
-  #diffPick, #densPick, #ammoPick, #primPick, #kitPick, #squadPick, #armorPick, #suppPick, #presetPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  #diffPick, #densPick, #ammoPick, #primPick, #squadPick, #armorPick, #suppPick, #presetPick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .sect { margin: 16px 0 6px; font-size: 11px; letter-spacing: 3px; color: #5f9ea0; text-transform: uppercase; }
   #advice { max-width: 640px; margin-top: 8px; font-size: 12px; color: #e8b53a; font-style: italic; }
   .screen { overflow-y: auto; padding: 28px 0; }
@@ -55,7 +65,8 @@
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
   <h2>v0.67 prototype &mdash; working title &mdash; twenty missions</h2>
-  <div class="panel">
+  <details class="panel" id="controlsFold">
+    <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
     <table>
       <tr><td class="key">W A S D</td><td>move</td><td class="key">Mouse</td><td>aim &middot; LMB shoot</td></tr>
@@ -63,7 +74,7 @@
       <tr><td class="key">R</td><td>reload</td><td class="key">Tab</td><td>tactical pause (orders still work)</td></tr>
       <tr><td class="key">Scroll</td><td>swap primary &harr; sidearm &mdash; faster than a reload</td><td class="key">X</td><td>cycle the primary's ammunition &mdash; buck / slug / bird, ball / AP; costs most of a reload</td></tr>
       <tr><td class="key">E</td><td>open door / arrest / secure hostage</td><td class="key">F</td><td>kick door</td></tr>
-      <tr><td class="key">MMB</td><td>hold for the bag &mdash; flick &uarr; frag &darr; concussion &larr; flash &rarr; smoke or CS, release to throw. <b>What is in the bag is the UTILITY KIT you picked at the briefing</b> &mdash; ASSAULT carries the frags, SCREENING carries the smoke</td><td class="key">C</td><td>shout "hands up!"</td></tr>
+      <tr><td class="key">MMB</td><td>hold for the bag &mdash; RELEASE for flash, or flick &uarr; concussion &darr; frag &larr; smoke &rarr; CS gas. <b>You carry all five and never run out</b> &mdash; the only cost is cadence, so flash sits on the release where a fumble cannot hurt anyone and frag sits opposite concussion</td><td class="key">C</td><td>shout "hands up!"</td></tr>
       <tr><td class="key">Q</td><td>snake cam &mdash; peek under a closed door or over a window sill</td><td class="key">E on a wall</td><td>set a wall charge where you point &mdash; it blows on a fuse</td></tr>
       <tr><td class="key">[ ]</td><td>zoom camera out / in</td><td class="key">N</td><td>switch shoulder &mdash; peek the other corner, lose accuracy</td></tr>
       <tr><td class="key">M</td><td>minimap on / off &mdash; explored ground, your people, known contacts</td><td class="key">Z</td><td>formation &mdash; WEDGE balanced &middot; COLUMN narrow &amp; fast &middot; LINE every gun forward</td></tr>
@@ -94,7 +105,7 @@
       <tr><td class="key">flick &larr;</td><td><b>ON ME</b> &mdash; form up and follow</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
       <tr><td class="key">1 2 3 / 4</td><td>select by number, if you prefer keys</td><td class="key">&nbsp;</td><td>the wheel slows the world on its own while it is open</td></tr>
     </table>
-  </div>
+  </details>
   <div class="sect">Mission</div>
   <div id="mapPick"></div>
   <div id="advice"></div>
@@ -115,8 +126,6 @@
   <div id="armorPick"></div>
   <div class="sect">Muzzle</div>
   <div id="suppPick"></div>
-  <div class="sect">Utility</div>
-  <div id="kitPick"></div>
   <div class="sect">Squad</div>
   <div id="squadPick"></div>
   <div class="sect">Saved loadouts</div>
@@ -1024,6 +1033,11 @@ const TUNE = {
   // hoverGrab, he KEEPS the cursor out to the larger hoverHold, and a rival
   // has to be hoverSwap nearer than him — not a pixel nearer — to take it.
   hoverGrab: 30, hoverHold: 46, hoverSwap: 12,
+  // You carry every nature and never run out, so CADENCE is the only thing
+  // pricing a grenade now. Without this you could empty a building by
+  // holding the button, which is less fun rather than more. 0.75s is about
+  // as fast as a man gets one off the rig and away.
+  throwCd: 0.75, charges: 2,
   fpvRadius: 5,                     // the bird has a body; walls stop it
   // seconds of grace at mission start before a SIGHTING alone can raise the
   // alarm. Noise and gunfire are never covered by it — you can still start a
@@ -3029,10 +3043,12 @@ function gunSpeed(ent) { return (ent.weapon && ent.weapon.carrySpeed) || 1; }
 function makePlayer(sp) {
   const L = game.loadout;
   const prim = PRIMARIES[L.primary] || PRIMARIES.carbine;
-  const kit = UTILITY_KITS[L.kit] || UTILITY_KITS.entry;
   const p = makeShooter(sp.x, sp.y, "player", TUNE.playerHp, { ...prim.w, carrySpeed: prim.speed || 1 });
-  p.charges = kit.charges; p.shoutCd = 0;
-  p.nades = { bang: kit.bangs, frag: kit.frag || 0, conc: kit.conc || 0, smoke: kit.smoke || 0, gas: kit.gas || 0 };
+  p.charges = TUNE.charges; p.shoutCd = 0;
+  // Infinity rather than a big number, so every `> 0` test already in the file
+  // — the squad's breach plans read p.bangs, the wheel greys an empty slot —
+  // keeps working untouched, and no counter can tick down past zero.
+  p.nades = { bang: Infinity, frag: Infinity, conc: Infinity, smoke: Infinity, gas: Infinity };
   p.nadeKind = "bang";
   Object.defineProperty(p, "bangs", {                       // squad breach plans still read p.bangs
     get() { return this.nades.bang; }, set(v) { this.nades.bang = v; },
@@ -3045,7 +3061,7 @@ function makePlayer(sp) {
     { name: SIDEARM.name, w: { ...SIDEARM.w }, ammoType: SIDEARM.ammo, ammo: SIDEARM.w.mag, reloading: 0 },
   ];
   p.gunIndex = 0;
-  p.can = !!L.can;                  // the whole team runs cans or nobody does
+  p.can = !!L.can && !prim.noCan;   // ...but a shotgun cannot take one at all
   wearArmor(p, L.armor);
   return p;
 }
@@ -3273,8 +3289,10 @@ function updatePlayer(p, dt) {
            : Math.hypot(dx, dy) < TUNE.wheelDeadzone ? null
            : (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
     if (released("mmb")) {
-      const cands = THROW_ORDER.filter(k => THROWABLES[k].dir === nw.dir);
-      const picked = nw.dir ? (cands.find(k => (p.nades[k] || 0) > 0) || cands[0] || p.nadeKind) : p.nadeKind;
+      // A release inside the deadzone is not "no choice", it is the CENTRE
+      // slot — which is exactly why the safest nature lives there.
+      const want = nw.dir || "center";
+      const picked = THROW_ORDER.find(k => THROWABLES[k].dir === want) || p.nadeKind;
       game.nadeWheel = null;
       throwSelected(p, picked, nw.wx, nw.wy);
     }
@@ -3347,8 +3365,8 @@ function nearestWindowTo(x, y, maxD) {
 
 function throwSelected(p, kind, wx, wy) {
   const T = THROWABLES[kind] || THROWABLES.bang;
-  if ((p.nades[T.key] || 0) <= 0) { game.hint = "No " + T.name.toLowerCase() + " left"; return; }
-  p.nades[T.key]--;
+  if ((p.throwT || 0) > 0) return;      // cadence is what a grenade costs now
+  p.throwT = TUNE.throwCd;
   p.nadeKind = T.key;
   throwNade(p, wx, wy, T.key);
   game.hint = T.name + " out";
@@ -3906,6 +3924,7 @@ function updateShooterWeapon(s, dt) {
   const dec = (s.weapon.recoilDecay ?? deg(10)) * (1 + TUNE.recoilSettle * clamp(s.recoil / cap, 0, 1));
   s.recoil = Math.max(0, s.recoil - dec * dt);
   if (s.recoil <= 1e-4) s.burst = 0;                 // settled: next shot is a first shot
+  s.throwT = Math.max(0, (s.throwT || 0) - dt);
   if (s.reloading > 0) {
     s.reloading -= dt;
     if (s.reloading <= 0) {
@@ -4348,18 +4367,40 @@ function killEntity(ent, bySide, by) {
 // problem. The flashbang buys a second, the frag ends the room, the concussion
 // reaches around a corner the flashbang cannot, and the smoke takes the room's
 // eyes away — including your own.
+// THE BAG IS THE WHOLE BAG NOW, and the wheel is laid out so a MIS-FLICK CAN
+// NEVER ESCALATE. Five natures, four directions and the centre:
+//
+//                CONC
+//                 up
+//     SMOKE  <-  BANG  ->  CS GAS
+//     left     (no flick)   right
+//                down
+//                FRAG
+//
+// Three things fall out of that and all three are deliberate. BANG holds the
+// centre, which is the no-flick release and therefore the easiest input in the
+// game to trigger by accident — so what you get for fumbling is the nature
+// that hurts nobody, and it is also the one you reach for most. FRAG and CONC
+// sit at opposite ends of one axis: they are the confusable pair, both
+// explosive, and only one of them kills. SMOKE and CS take the other axis,
+// where mixing them up costs nothing.
+//
+// Residual risk, stated rather than pretended away: with four cardinals, frag
+// still lands ninety degrees from smoke. The constraints are over-determined —
+// frag cannot be maximally far from both smoke and conc — and this is the
+// pairing that matters more.
 const THROWABLES = {
-  bang: { key: "bang", name: "FLASHBANG", dir: "left", col: "#e8eef4",
+  bang: { key: "bang", name: "FLASHBANG", dir: "center", col: "#e8eef4",
           fuse: 1.0, note: "blinds, no damage — buys you a second" },
-  frag: { key: "frag", name: "FRAG", dir: "up", col: "#ff8c42",
+  frag: { key: "frag", name: "FRAG", dir: "down", col: "#ff8c42",
           fuse: 1.7, note: "kills the room, and everyone in it" },
-  conc: { key: "conc", name: "CONCUSSION", dir: "down", col: "#ffd27a",
+  conc: { key: "conc", name: "CONCUSSION", dir: "up", col: "#ffd27a",
           fuse: 1.3, note: "overpressure — reaches around a corner" },
-  smoke: { key: "smoke", name: "SMOKE", dir: "right", col: "#9aa6b2",
+  smoke: { key: "smoke", name: "SMOKE", dir: "left", col: "#9aa6b2",
            fuse: 1.1, note: "takes the room's eyes, yours included" },
-  // CS shares smoke's slot on the wheel — a kit carries one or the other. Your
-  // team is masked; the room is not. It does not block anyone's vision, it
-  // takes the will out of the men standing in it.
+  // CS has its own slot now that nobody picks a kit. Your team is masked; the
+  // room is not. It does not block anyone's vision, it takes the will out of
+  // the men standing in it.
   gas:  { key: "gas", name: "CS GAS", dir: "right", col: "#b8d44a",
           fuse: 1.2, note: "your masks work, theirs don't — coughing men give up" },
 };
@@ -5618,6 +5659,7 @@ const ROLES = {
   rifleman: { name: "RIFLEMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 480, dmg: 34, range: 900 } },
   breacher: { name: "BREACHER", sprite: "squad_breacher",
+              noCan: true,   // the breacher carries the same gun, and it takes a can no better
               w: { ammo: "buck", rpm: 170, dmg: 30, range: 550, mag: 7,   reload: 3.2, shellReload: 0.55 } },
   support:  { name: "SUPPORT",  sprite: "squad_support",
               w: { ammo: "fmj",  rpm: 720, dmg: 30, range: 1100, mag: 100, reload: 6.2,
@@ -5642,6 +5684,13 @@ const PRIMARIES = {
              // a deg(9) ceiling and deg(5.5)/s of decay, three rounds a second climb
              // to the cap in about a second — so you CAN empty it fast, and the
              // pattern opens while you do. Speed is available; accuracy is the bill.
+             // NO CAN. A suppressor works by holding expanding gas behind a
+             // tight bore seal, and a shotgun has neither — a cup of shot
+             // leaving an unrifled tube has nothing to seal against. The
+             // muzzle picker is team-wide, so this is enforced per SHOOTER
+             // rather than by hiding the button: your riflemen keep their cans
+             // and the man with the shotgun simply never had one.
+             noCan: true,
              w: { ...TUNE.rifle, dmg: 30, rpm: 180, mag: 7, reload: 3.2, range: 560,
                   shellReload: 0.55,   // one shell at a time, and you may break off and shoot
                   spreadBase: deg(0.70), recoil: deg(3), recoilMax: deg(9) } },
@@ -5674,15 +5723,6 @@ const SIDEARM = {
        penMul: 0.7, speed: 1150 },
 };
 
-const UTILITY_KITS = {
-  entry:  { name: "ENTRY",       bangs: 3, frag: 0, conc: 1, smoke: 1, charges: 2, note: "balanced" },
-  bang:   { name: "DISTRACTION", bangs: 5, frag: 0, conc: 2, smoke: 1, charges: 0, note: "rooms full of people" },
-  demo:   { name: "DEMOLITION",  bangs: 1, frag: 2, conc: 1, smoke: 0, charges: 4, note: "make your own doors" },
-  assault:{ name: "ASSAULT",     bangs: 1, frag: 3, conc: 1, smoke: 2, charges: 0, note: "nobody in there to save" },
-  screen: { name: "SCREENING",   bangs: 2, frag: 0, conc: 0, smoke: 4, charges: 1, note: "cross ground they can see" },
-  riot:   { name: "RIOT CONTROL", bangs: 2, frag: 0, conc: 1, smoke: 0, gas: 3, charges: 1,
-            note: "gas them out, cuff them coughing" },
-};
 
 const SQUAD_TEMPLATES = {
   // Nobody behind you. Every system that commands a squad already refuses
@@ -5730,7 +5770,7 @@ function makeSquaddie(sp, i) {
   s.path = null; s.pathI = 0; s.repathT = 0;
   s.reactT = 0; s.engaged = null; s.shoutedAt = 0; s.state = "idle";
   s.roe = "return"; // hold | return | free
-  s.can = !!game.loadout.can;
+  s.can = !!game.loadout.can && !(ROLES[s.role] || {}).noCan;
   wearArmor(s, game.loadout.armor);   // the team kits up the same as you
   return s;
 }
@@ -8805,12 +8845,15 @@ function drawHud() {
   ctx.fillStyle = game.formation !== "wedge" ? COLORS.accent : COLORS.hudDim;
   ctx.fillText((game.formation || "wedge").toUpperCase() + "  [Z]", bx + 220, by + 56);
   ctx.font = "13px Consolas, monospace";
+  // Names only. These used to carry counts, and the counts are Infinity now —
+  // which printed literally, over the top of each other, until a screenshot
+  // caught it. What is worth showing is which nature is CURRENTLY selected.
   let gx = bx;
   for (const k of THROW_ORDER) {
-    const T = THROWABLES[k], have = p.nades[k] || 0;
-    ctx.fillStyle = have <= 0 ? "#3c444b" : (k === p.nadeKind ? COLORS.accent : COLORS.hudDim);
-    ctx.fillText(T.name.slice(0, 5) + " " + have, gx, by + 80);
-    gx += 62;
+    const T = THROWABLES[k];
+    ctx.fillStyle = k === p.nadeKind ? COLORS.accent : COLORS.hudDim;
+    ctx.fillText(T.name.split(" ")[0].slice(0, 5), gx, by + 80);   // "CS GAS" -> "CS", not "CS GA"
+    gx += 46;
   }
   ctx.fillStyle = p.charges > 0 ? COLORS.hudDim : "#3c444b";
   ctx.fillText("CHG " + p.charges, gx, by + 80);
@@ -8998,38 +9041,41 @@ function drawWheel() {
 
 function drawNadeWheel() {
   const w = game.nadeWheel; if (!w) return;
-  const p = game.player, R = 82;
-  const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  // R must clear HALF THE CENTRE BOX plus half a cardinal box, or the centre
+  // label lands on top of left and right — which is exactly what it did at 82.
+  const p = game.player, R = 168;
+  const OFF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0], center: [0, 0] };
   ctx.fillStyle = "rgba(6,9,12,0.55)";
   ctx.beginPath(); ctx.arc(w.sx, w.sy, R + 30, 0, TAU); ctx.fill();
   ctx.strokeStyle = "#2a333c"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(w.sx, w.sy, TUNE.wheelDeadzone, 0, TAU); ctx.stroke();
   ctx.textAlign = "center";
-  // one label per direction: where two kinds share a slot (smoke/CS), show the
-  // one this kit actually carries
-  const byDir = {};
+  // One slot per nature, centre included. No counts: you carry all five and do
+  // not run out, so a number there would only ever read Infinity.
   for (const k of THROW_ORDER) {
-    const d = THROWABLES[k].dir;
-    if (!byDir[d] || (p.nades[k] || 0) > 0) byDir[d] = byDir[d] && (p.nades[byDir[d]] || 0) > 0 ? byDir[d] : k;
-  }
-  for (const k of Object.values(byDir)) {
-    const T = THROWABLES[k], off = OFF[T.dir];
+    const T = THROWABLES[k], off = OFF[T.dir] || OFF.center;
     const x = w.sx + off[0] * R, y = w.sy + off[1] * R;
-    const have = p.nades[k] || 0;
-    const on = w.dir === T.dir, dead = have <= 0;
+    const on = (w.dir || "center") === T.dir;
     ctx.font = "bold 12px Consolas, monospace";
-    const label = T.name + " " + have;
+    const label = T.name;
     const bw = Math.max(ctx.measureText(label).width, 96) + 20;
-    ctx.fillStyle = on && !dead ? "rgba(232,181,58,0.22)" : "rgba(6,9,12,0.85)";
+    ctx.fillStyle = on ? "rgba(232,181,58,0.22)" : "rgba(6,9,12,0.85)";
     ctx.fillRect(x - bw / 2, y - 16, bw, 32);
-    ctx.strokeStyle = dead ? "#2a333c" : on ? COLORS.accent : T.col;
+    ctx.strokeStyle = on ? COLORS.accent : T.col;
     ctx.lineWidth = on ? 2 : 1;
     ctx.strokeRect(x - bw / 2 + 0.5, y - 15.5, bw - 1, 31);
-    ctx.fillStyle = dead ? "#4a545d" : on ? COLORS.accent : T.col;
+    ctx.fillStyle = on ? COLORS.accent : T.col;
     ctx.fillText(label, x, y - 1);
-    ctx.font = "9px Consolas, monospace";
-    ctx.fillStyle = dead ? "#3c444b" : COLORS.hudDim;
-    ctx.fillText(T.note, x, y + 11);
+  }
+  // ONE note, for the slot you are on. Printing all five ran the sentences
+  // through each other across the horizontal row — three overlapping lines of
+  // 9px text, unreadable. You only need to be told about the one you are
+  // about to throw, and it goes under the wheel where nothing else sits.
+  const cur = THROW_ORDER.find(k => THROWABLES[k].dir === ((w.dir || "center")));
+  if (cur) {
+    ctx.font = "11px Consolas, monospace";
+    ctx.fillStyle = THROWABLES[cur].col;
+    ctx.fillText(THROWABLES[cur].note, w.sx, w.sy + R + 54);
   }
   ctx.font = "11px Consolas, monospace"; ctx.fillStyle = COLORS.hudDim;
   ctx.fillText(w.dir ? "release to throw it there"
@@ -9292,7 +9338,7 @@ const game = {
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6, zoomSaved: undefined,
-  loadout: { primary: "carbine", ammo: "fmj", kit: "entry", squad: "standard", armor: "soft", can: false },
+  loadout: { primary: "carbine", ammo: "fmj", squad: "standard", armor: "soft", can: false },
   player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
   selected: new Set(),
@@ -9996,7 +10042,6 @@ const diffPickEl = document.getElementById("diffPick");
 const densPickEl = document.getElementById("densPick");
 const ammoPickEl = document.getElementById("ammoPick");
 const primPickEl = document.getElementById("primPick");
-const kitPickEl = document.getElementById("kitPick");
 const presetPickEl = document.getElementById("presetPick");
 const squadPickEl = document.getElementById("squadPick");
 const armorPickEl = document.getElementById("armorPick");
@@ -10025,6 +10070,7 @@ function saveLoadout() {
   try {
     localStorage.setItem("tdt_loadout", JSON.stringify({
       ...game.loadout, diffIndex: game.diffIndex, densityIndex: game.densityIndex,
+      controlsOpen: !!(document.getElementById("controlsFold") || {}).open,
     }));
   } catch (e) {}
 }
@@ -10039,7 +10085,6 @@ function applyLoadoutSnapshot(v, withDifficulty) {
   if (!v || typeof v !== "object") return false;
   const L = game.loadout;
   if (PRIMARIES[v.primary]) L.primary = v.primary;
-  if (UTILITY_KITS[v.kit]) L.kit = v.kit;
   if (SQUAD_TEMPLATES[v.squad]) L.squad = v.squad;
   if (ARMOR[v.armor]) L.armor = v.armor;
   if (typeof v.can === "boolean") L.can = v.can;
@@ -10052,6 +10097,9 @@ function applyLoadoutSnapshot(v, withDifficulty) {
   if (withDifficulty) {
     if (Number.isInteger(v.diffIndex) && DIFFICULTIES[v.diffIndex]) game.diffIndex = v.diffIndex;
     if (Number.isInteger(v.densityIndex) && DENSITY[v.densityIndex]) game.densityIndex = v.densityIndex;
+    // The manual folds shut by default. Someone who opened it once meant it.
+    const cf = document.getElementById("controlsFold");
+    if (cf && typeof v.controlsOpen === "boolean") cf.open = v.controlsOpen;
   }
   return true;
 }
@@ -10140,7 +10188,6 @@ function refreshMenu() {
   primPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.primary));
   armorPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.armor));
   suppPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === (L.can ? "can" : "loud")));
-  kitPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.kit));
   squadPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.squad));
   adviceEl.textContent = (MAPS[game.mapIndex] || {}).advice || "";
   renderBriefing();
@@ -10228,18 +10275,6 @@ Object.entries(ARMOR).forEach(([k, v]) =>
 // each with the wheel direction that throws it, so the briefing teaches the
 // hold-MMB-and-flick idiom instead of hiding it.
 const WHEEL_ARROW = { up: "↑", down: "↓", left: "←", right: "→" };
-function kitContents(v) {
-  const parts = THROW_ORDER
-    .filter(k => (v[k === "bang" ? "bangs" : k] || 0) > 0)
-    .map(k => {
-      const n = v[k === "bang" ? "bangs" : k];
-      return WHEEL_ARROW[THROWABLES[k].dir] + n + " " + THROWABLES[k].name;
-    });
-  if (v.charges) parts.push(v.charges + " CHARGE" + (v.charges > 1 ? "S" : ""));
-  return parts.join(" · ") + " — " + v.note;
-}
-Object.entries(UTILITY_KITS).forEach(([k, v]) =>
-  mkBtn(kitPickEl, k, v.name, kitContents(v), () => { game.loadout.kit = k; refreshMenu(); }));
 mkBtn(suppPickEl, "loud", "LOUD", "full noise and flash — nothing on the muzzle slows your swing",
       () => { game.loadout.can = false; refreshMenu(); });
 mkBtn(suppPickEl, "can", "SUPPRESSED", "one wall usually swallows the report, no flash, heard shots are hard to place — the longer gun traverses slower, whole team",

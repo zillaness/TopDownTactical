@@ -1287,13 +1287,22 @@ game.mapIndex = pbIdx; initGame(); game.state = 'play';
 const P = game.player;
 
 console.log('  the bag: ' + THROW_ORDER.map(k => THROWABLES[k].name + ' ' + (P.nades[k] || 0)).join(', '));
-// the wheel is four directions — kinds may share one (smoke/CS), but at most
-// one kind per direction can ever be CARRIED by a single kit
+// Five natures, five slots — four cardinals plus the centre, one nature each.
+// Nothing shares a slot now that nobody picks a kit.
 const dirs = new Set(THROW_ORDER.map(k => THROWABLES[k].dir));
-const carriedPerDir = [...dirs].map(d =>
-  THROW_ORDER.filter(k => THROWABLES[k].dir === d && (P.nades[k] || 0) > 0).length);
-console.log('  four directions, carried kinds per direction ' + carriedPerDir.join('/'),
-            dirs.size === 4 && carriedPerDir.every(n => n <= 1) ? 'CORRECT (d-pad still works)' : 'WRONG');
+const perDir = [...dirs].map(d => THROW_ORDER.filter(k => THROWABLES[k].dir === d).length);
+console.log('  five slots, kinds per slot ' + perDir.join('/'),
+            dirs.size === 5 && perDir.every(n => n === 1) ? 'CORRECT (one nature each)' : 'WRONG');
+// THE SAFETY LAYOUT, asserted rather than left as a comment. A mis-flick must
+// never escalate: the no-flick centre cannot be the lethal one, and the two
+// explosive natures must sit on opposite ends of one axis.
+const OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
+console.log('  the no-flick centre is the harmless one: ' + THROWABLES.bang.dir,
+            THROWABLES.bang.dir === 'center' ? 'CORRECT' : 'WRONG');
+console.log('  frag is opposite concussion: ' + THROWABLES.frag.dir + ' vs ' + THROWABLES.conc.dir,
+            OPP[THROWABLES.frag.dir] === THROWABLES.conc.dir ? 'CORRECT (the confusable pair, split)' : 'WRONG');
+console.log('  frag is never the centre: ' + (THROWABLES.frag.dir !== 'center'),
+            THROWABLES.frag.dir !== 'center' ? 'CORRECT' : 'WRONG');
 
 // FRAG kills, and the incident names it
 game.mapIndex = pbIdx; initGame(); game.state = 'play'; game.incidents.length = 0;
@@ -2169,10 +2178,11 @@ console.log('RIFLE SQUAD TEST DONE');
 
 (function gasTests(){
 console.log('--- CS gas: your masks work, theirs do not ---');
-game.mapIndex = 0; game.loadout.squad = 'standard'; game.loadout.kit = 'riot'; initGame(); game.state = 'play';
+game.mapIndex = 0; game.loadout.squad = 'standard'; initGame(); game.state = 'play';
 
-console.log('  RIOT kit carries: ' + JSON.stringify(game.player.nades),
-            game.player.nades.gas === 3 && game.player.nades.smoke === 0 ? 'CORRECT (gas replaces smoke)' : 'WRONG');
+console.log('  you carry gas without choosing to: ' + (game.player.nades.gas > 0),
+            game.player.nades.gas > 0 && game.player.nades.smoke > 0
+              ? 'CORRECT (every nature, always)' : 'WRONG');
 
 // the cloud must never block a sightline
 game.smokes.length = 0;
@@ -2219,32 +2229,34 @@ for (let i = 0; i < 600; i++) updateGasEffects(1 / 60);
 console.log('  a hostage in the cloud for 10s: hp ' + hp0 + ' -> ' + h.hp + ', gasT=' + h.gasT.toFixed(1),
             h.hp === hp0 && h.gasT > 0 ? 'CORRECT (miserable, not dead)' : 'WRONG');
 
-// the wheel: gas rides the smoke slot, and the pick prefers what you carry
-const cands = THROW_ORDER.filter(k => THROWABLES[k].dir === 'right');
-const picked = cands.find(k => (game.player.nades[k] || 0) > 0) || cands[0];
-console.log('  flick-right with the RIOT kit picks: ' + picked,
-            picked === 'gas' ? 'CORRECT' : 'WRONG');
-game.loadout.kit = 'entry'; initGame();
-const cands2 = THROW_ORDER.filter(k => THROWABLES[k].dir === 'right');
-const picked2 = cands2.find(k => (game.player.nades[k] || 0) > 0) || cands2[0];
-console.log('  flick-right with the ENTRY kit picks: ' + picked2,
-            picked2 === 'smoke' ? 'CORRECT (kits decide the slot)' : 'WRONG');
+// gas has its own slot now; the pick is the slot, not what you happen to carry
+const picked = THROW_ORDER.find(k => THROWABLES[k].dir === 'right');
+console.log('  flick-right always picks: ' + picked,
+            picked === 'gas' ? 'CORRECT (a slot means one thing)' : 'WRONG');
+const pickedLeft = THROW_ORDER.find(k => THROWABLES[k].dir === 'left');
+console.log('  flick-left always picks: ' + pickedLeft,
+            pickedLeft === 'smoke' ? 'CORRECT' : 'WRONG');
 console.log('GAS TEST DONE');
 })();
 
 (function suppressorTests(){
 console.log('--- suppressors: silence bought with handling ---');
 game.mapIndex = 0; game.diffIndex = 1; game.densityIndex = 1;
-game.loadout.squad = 'standard'; game.loadout.kit = 'entry';
-
-// loud is the default, and the toggle reaches the whole team
+game.loadout.squad = 'standard'; // loud is the default, and the toggle reaches the whole team
 game.loadout.can = false; initGame(); game.state = 'play';
 console.log('  default loadout: player can=' + !!game.player.can,
             !game.player.can ? 'CORRECT (loud until chosen)' : 'WRONG');
 game.loadout.can = true; initGame(); game.state = 'play';
-console.log('  SUPPRESSED: player + squad fitted: ' +
-            [game.player, ...game.squad].map(e => !!e.can).join(','),
-            [game.player, ...game.squad].every(e => e.can) ? 'CORRECT (whole team)' : 'WRONG');
+// The whole team runs cans — EXCEPT anyone holding a shotgun, which cannot
+// take one. So the invariant is not "everybody", it is "everybody who can".
+const fitted = [game.player, ...game.squad];
+const shouldHave = fitted.filter(e => !(ROLES[e.role] || {}).noCan);
+console.log('  SUPPRESSED: player + squad fitted: ' + fitted.map(e => !!e.can).join(','),
+            shouldHave.every(e => e.can) ? 'CORRECT (everyone whose gun takes one)' : 'WRONG');
+console.log('  and the shotgun man is the exception: ' +
+            fitted.filter(e => (ROLES[e.role] || {}).noCan).map(e => e.role + '=' + !!e.can).join(','),
+            fitted.filter(e => (ROLES[e.role] || {}).noCan).every(e => !e.can)
+              ? 'CORRECT' : 'WRONG');
 
 // the report: radius, flash, and what an enemy hears through a wall
 const P = game.player;
@@ -2657,52 +2669,35 @@ console.log('  and a second hit while down is final: alive=' + x.alive,
 console.log('CASUALTY CLOCK TEST DONE');
 })();
 
-(function kitLabelTests(){
-console.log('--- the kit button must name every grenade the kit actually carries ---');
-// Sam, playtesting: "I don't see a way to get concussion and frag grenades and
-// smoke grenades in the loadout." They were always there — the button just said
-// "N bangs / N charges" and never named the other four throwables, so the whole
-// grenade half of the kit was invisible on the screen where you choose it.
-// This asserts the label can never drift from the bag again.
-const NAMEOF = { bang: 'bangs', frag: 'frag', conc: 'conc', smoke: 'smoke', gas: 'gas' };
-let liars = [], silent = [];
-for (const [key, v] of Object.entries(UTILITY_KITS)) {
-  const label = kitContents(v);
-  for (const t of THROW_ORDER) {
-    const n = v[NAMEOF[t]] || 0;
-    const named = label.includes(THROWABLES[t].name);
-    if (n > 0 && !named) silent.push(key + ' carries ' + n + ' ' + t + ' but never says so');
-    if (n === 0 && named) liars.push(key + ' advertises ' + t + ' it does not carry');
-    if (n > 0 && !label.includes(WHEEL_ARROW[THROWABLES[t].dir] + n))
-      silent.push(key + ':' + t + ' missing its count or wheel arrow');
-  }
-  if ((v.charges || 0) > 0 && !/CHARGE/.test(label)) silent.push(key + ' hides its charges');
-}
-console.log('  every carried grenade is named on the button:',
-            silent.length ? 'WRONG -> ' + silent.join('; ') : 'CORRECT');
-console.log('  no kit advertises something it does not have:',
-            liars.length ? 'WRONG -> ' + liars.join('; ') : 'CORRECT');
-
-// and the label must match what actually lands in your hands
-let drift = [];
-for (const key of Object.keys(UTILITY_KITS)) {
-  game.loadout.kit = key; game.mapIndex = 0; initGame();
-  const bag = game.player.nades;
-  for (const t of THROW_ORDER) {
-    const want = UTILITY_KITS[key][NAMEOF[t]] || 0;
-    if ((bag[t] || 0) !== want) drift.push(key + ':' + t + ' label ' + want + ' vs bag ' + (bag[t] || 0));
-  }
-}
-console.log('  the bag matches the kit it came from:',
-            drift.length ? 'WRONG -> ' + drift.join('; ') : 'CORRECT');
-// at least one kit must reach each throwable, or it is unobtainable content
-const reachable = THROW_ORDER.filter(t =>
-  Object.values(UTILITY_KITS).some(v => (v[NAMEOF[t]] || 0) > 0));
-console.log('  every throwable is reachable from some kit: ' + reachable.join(','),
-            reachable.length === THROW_ORDER.length ? 'CORRECT'
-              : 'WRONG — unobtainable: ' + THROW_ORDER.filter(t => !reachable.includes(t)).join(','));
-game.loadout.kit = 'entry'; game.mapIndex = 0; initGame();
-console.log('KIT LABEL TEST DONE');
+(function bagTests(){
+console.log('--- the bag: everything, always, priced by cadence ---');
+// Sam, playtesting, used to say: "I don't see a way to get concussion and frag
+// and smoke grenades in the loadout." The old answer was a kit picker whose
+// button did not name what it carried. The new answer is that there is nothing
+// to pick — you carry all five and never run out — so what used to be a
+// labelling test is now an invariant test about the bag itself.
+game.mapIndex = 0; initGame();
+const bag = game.player.nades;
+const missing = THROW_ORDER.filter(k => !(bag[k] > 0));
+console.log('  every nature is in the bag: ' + THROW_ORDER.map(k => THROWABLES[k].name).join(', '),
+            missing.length ? 'WRONG -> missing ' + missing.join(',') : 'CORRECT');
+console.log('  and none of them can run out: ' + THROW_ORDER.every(k => bag[k] === Infinity),
+            THROW_ORDER.every(k => bag[k] === Infinity) ? 'CORRECT' : 'WRONG');
+// SUPPLY is gone, so CADENCE is the only thing left pricing a grenade — without
+// it you could empty a building in one frame.
+const p = game.player;
+p.throwT = 0;
+let thrown = 0;
+for (let i = 0; i < 10; i++) { const n = game.bangs.length; throwSelected(p, 'bang', p.x + 60, p.y); if (game.bangs.length > n) thrown++; }
+console.log('  ten throws in one frame yields ' + thrown,
+            thrown === 1 ? 'CORRECT (cadence, not supply)' : 'WRONG');
+let after = 0;
+for (let i = 0; i < 60; i++) updateShooterWeapon(p, 1 / 60);   // a second later
+const n2 = game.bangs.length; throwSelected(p, 'bang', p.x + 60, p.y);
+if (game.bangs.length > n2) after = 1;
+console.log('  and one more a second later: ' + after,
+            after === 1 ? 'CORRECT (the cooldown clears)' : 'WRONG');
+console.log('BAG TEST DONE');
 })();
 
 (function longWalkTests(){
@@ -3181,6 +3176,30 @@ console.log('  paced, it settles back to ' + (currentSpread(p3) * 180 / Math.PI)
             currentSpread(p3) < cone[0] ? 'CORRECT (patience is rewarded)' : 'WRONG');
 game.loadout.primary = prevGun;
 console.log('CADENCE TEST DONE');
+})();
+
+(function canTests(){
+console.log('--- a shotgun does not take a can ---');
+const prevGun = game.loadout.primary, prevCan = game.loadout.can;
+game.loadout.can = true;
+let bad = [];
+for (const g of ['carbine', 'shotgun', 'smg', 'dmr', 'saw']) {
+  game.mapIndex = 0; game.loadout.primary = g; initGame(); game.state = 'play';
+  const want = g !== 'shotgun';
+  if (game.player.can !== want) bad.push(g + '=' + game.player.can);
+}
+console.log('  only the shotgun refuses it: ' + (bad.length ? bad.join(',') : 'all correct'),
+            bad.length === 0 ? 'CORRECT' : 'WRONG');
+// The muzzle picker is TEAM-WIDE, so this has to hold per man rather than by
+// hiding a button: the breacher's shotgun loses the can, the rifleman keeps his.
+game.loadout.primary = 'carbine'; game.loadout.squad = 'standard'; initGame();
+const br = game.squad.find(s2 => s2.role === 'breacher');
+const rf = game.squad.find(s2 => s2.role === 'rifleman');
+console.log('  the breacher loses his, the rifleman keeps his: ' +
+            (br ? br.can : 'n/a') + ' / ' + (rf ? rf.can : 'n/a'),
+            br && !br.can && rf && rf.can ? 'CORRECT (enforced per shooter)' : 'WRONG');
+game.loadout.primary = prevGun; game.loadout.can = prevCan;
+console.log('CAN TEST DONE');
 })();
 
 (function peelTests(){
