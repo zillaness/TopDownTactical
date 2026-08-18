@@ -4390,6 +4390,35 @@ game.mapIndex = 0; initGame();
 console.log('PROP GROUND TEST DONE');
 })();
 
+// The deliverable is ONE self-contained HTML file with a ceiling of about
+// 1.5-2MB, and it spent eighteen versions over it. Now that it is under, the
+// only thing that keeps it under is something that fails when it is not — an
+// art drop is a couple of hundred kilobytes and nobody notices until the file
+// will not load on a phone.
+(function ceilingTests(){
+console.log('--- the byte ceiling ---');
+const fs = require('fs');
+const path = require('path');
+// same trick the version test uses: the suite runs as a concatenated bundle in
+// /tmp, so __dirname is useless. run.sh cds into tests/, so the repo is one up.
+const root = path.join(process.cwd(), '..');
+const builds = fs.readdirSync(root).filter(f => /^top_down_tactical_v[\d.]+\.html$/.test(f));
+console.log('  exactly one build in the repo: ' + builds.length,
+            builds.length === 1 ? 'CORRECT' : 'WRONG');
+const bytes = fs.statSync(path.join(root, builds[0])).size;
+const CEILING = 2 * 1024 * 1024;
+console.log('  ' + builds[0] + ' is ' + bytes.toLocaleString() + ' bytes, ceiling ' +
+            CEILING.toLocaleString() + ' (' + (CEILING - bytes).toLocaleString() + ' of headroom)',
+            bytes <= CEILING ? 'CORRECT' : 'WRONG (re-run tools/reencode_art.py, or drop art)');
+// and it is one FILE — no external requests, ever
+const html = fs.readFileSync(path.join(root, builds[0]), 'utf8');
+const external = (html.match(/(?:src|href)\s*=\s*["'](?!data:|#)[^"']+["']/g) || [])
+  .filter(t => !/^href\s*=\s*["']#/.test(t));
+console.log('  and nothing loads from outside it: ' + external.length + ' external refs',
+            external.length === 0 ? 'CORRECT' : 'WRONG: ' + external.join(' '));
+console.log('CEILING TEST DONE');
+})();
+
 (function overwatchTests(){
 console.log('--- elevated overwatch: the man in the window ---');
 localStorage.clear();
