@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.84.html
-  version: 0.84
+  file: top_down_tactical_v0.85.html
+  version: 0.85
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.84 (working title)</title>
+<title>Top-Down Tactical v0.85 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.84 prototype &mdash; working title &mdash; twenty-two missions</h2>
+  <h2>v0.85 prototype &mdash; working title &mdash; twenty-two missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -3813,6 +3813,11 @@ function launchSelected(p, T, wx, wy) {
     sfxAt("click", p.x, p.y);
     return;                                   // a blocked launch spends nothing
   }
+  if (!armingRunClear(p, wx, wy)) {
+    game.hint = "NO ROOM TO ARM — a 40mm needs " + Math.round(TUNE.he40Arm / TILE) + "m of clear flight";
+    sfxAt("click", p.x, p.y);
+    return;                                    // a blocked launch spends nothing
+  }
   p.nadeKind = T.key;
   launch40mm(p, wx, wy, T.key);
   game.hint = "40MM " + T.name +
@@ -4344,6 +4349,7 @@ function updateTourniquet(p, dt) {
   }
   p.dragging = null;
   if (cas.stabilized) { game.tq = null; return; }               // stable: nothing left to tie
+  cas._treatTick = game.simTick;                                // pressure is on — the clock stops
   game.tq = game.tq && game.tq.cas === cas ? game.tq : { cas, t: 0 };
   game.tq.t += dt;
   if (game.tq.t >= TUNE.tqTime) {
@@ -4629,6 +4635,24 @@ function applySpall(x, y, mat, side) {
 }
 
 // Decide what a round does at a barrier: skip along it, punch through, or die.
+// Is there a man up on a mount just past this barrier — close enough and near
+// enough to the line that the round was going to him? Cheap: there are a
+// handful of turrets on a map and most are unmanned.
+function elevatedBeyond(b, hit) {
+  if (!level.turrets) return false;
+  const ca = Math.cos(b.ang), sa = Math.sin(b.ang);
+  for (const t of level.turrets) {
+    const m = t.manned;
+    if (!m || !m.alive) continue;
+    const dx = m.x - hit.x, dy = m.y - hit.y;
+    const along = dx * ca + dy * sa;
+    if (along < 0 || along > TILE * 3.5) continue;      // ahead of the barrier, and near it
+    if (Math.abs(-dx * sa + dy * ca) > m.r + 6) continue;
+    return true;
+  }
+  return false;
+}
+
 function resolveBarrier(b, hit) {
   const t = hitTile(hit, b.ang);
   const mat = materialAt(t.tx, t.ty);
@@ -4654,7 +4678,20 @@ function resolveBarrier(b, hit) {
   if (mat.crest) {
     const cx = t.tx * TILE + TILE / 2, cy = t.ty * TILE + TILE / 2;
     const braced = b.ox !== undefined && dist(b.ox, b.oy, cx, cy) < TUNE.crestReach;
-    if (braced || Math.random() > mat.crest) {
+    // ELEVATION BEATS A PARAPET, WHICH IS THE WHOLE POINT OF PUTTING A GUN ON A
+    // TRUCK. Sam: "the humvee should be able to shoot over cover." A ring
+    // gunner stands in a hatch with his chest above the roofline, two and a
+    // half metres up — sandbags at one metre and a HESCO at one and a half are
+    // simply not between him and anything. Braced is a man leaning on the
+    // parapet and only works at arm's length; this works at any range, because
+    // height does.
+    //
+    // And it cuts BOTH ways, which is the price of the reach: a man standing on
+    // a truck is not behind your wall either. A round on its way to a mounted
+    // gunner clears the same cover his do, so the turret trades protection for
+    // arc and does not simply add both.
+    const elevated = (b.owner && b.owner.turret) || elevatedBeyond(b, hit);
+    if (braced || elevated || Math.random() > mat.crest) {
       const skip = TILE * 1.05;                  // over the top and still going
       b.x = hit.x + Math.cos(b.ang) * skip;
       b.y = hit.y + Math.sin(b.ang) * skip;
@@ -5321,6 +5358,26 @@ function detonateHE40(g) {
 // Would this impact point catch someone we are not allowed to catch? Checked
 // before every AI launch — a grenadier who has to be told not to frag the
 // hostage is not a grenadier anyone would stack with.
+// A 40MM NEEDS ROOM TO ARM, AND A ROOM DOES NOT HAVE IT.
+//
+// Sam, on the defence maps: "they kept on throwing grenades indoors." The
+// grenadier's rule was "a threat I can see but cannot shoot gets a 40mm", which
+// on a mission where you are holding a building and they are coming at the
+// windows describes almost every threat, almost all the time. So he stood in a
+// room and launched.
+//
+// The fix is the real reason it is prohibited rather than a rule about
+// buildings: the round will not arm inside TUNE.he40Arm, so if it cannot travel
+// that far before hitting something it is not a grenade, it is a thrown rock
+// that costs eight seconds. Raycast the arming run. Indoors that fails against
+// the far wall almost every time, which is the correct answer; down a long hall
+// or out of a window at something well beyond it, it passes, which is also
+// correct. No new concept, no map data, and it says why in one line.
+function armingRunClear(s, tx, ty) {
+  const a = angleTo(s.x, s.y, tx, ty);
+  return !raycast(s.x, s.y, a, TUNE.he40Arm, blocksBullet).hit;
+}
+
 function blastClearOfFriends(x, y, r) {
   for (const e of [game.player, ...game.squad, ...game.hostages, ...game.civilians]) {
     if (!e || !e.alive) continue;
@@ -7680,8 +7737,25 @@ function updateSquaddie(s, dt) {
   if (s.downed) {
     s.moving = false;
     if (!s.stabilized) {
-      s.bleedT -= dt;
-      if (s.bleedT <= 0) killEntity(s, "bleed");   // downed already set: this one is final
+      // HANDS ON THE WOUND STOP THE CLOCK. Sam: "the bleeding counter should
+      // stop when you start holding e ... they shouldn't bleed out right as you
+      // start because you started too late ... if you let go of e the counter
+      // should restart."
+      //
+      // He is right and the old behaviour was the worst kind of wrong: you did
+      // the correct thing, you were in time to do it, and he died in your hands
+      // anyway because the clock kept running through the three seconds the
+      // wrap takes. Direct pressure is the FIRST thing you do and it works
+      // immediately; the tourniquet is what makes it hold so you can let go.
+      //
+      // Paused, not reset — let go and it runs on from where it stopped. That
+      // is the difference between buying him time and farming it: tapping [E]
+      // gets you nothing, and staying with him gets you everything.
+      const treated = s._treatTick !== undefined && game.simTick - s._treatTick <= 1;
+      if (!treated) {
+        s.bleedT -= dt;
+        if (s.bleedT <= 0) killEntity(s, "bleed");   // downed already set: this one is final
+      }
     }
     return;
   }
@@ -7758,7 +7832,7 @@ function updateSquaddie(s, dt) {
         const d2 = dist(s.x, s.y, e.lastSeen.x, e.lastSeen.y);
         if (d2 > TUNE.he40Arm + 40 && d2 < 780 && d2 < md) { md = d2; mem = e.lastSeen; }
       }
-      if (mem && blastClearOfFriends(mem.x, mem.y, TUNE.he40Wound)) {
+      if (mem && blastClearOfFriends(mem.x, mem.y, TUNE.he40Wound) && armingRunClear(s, mem.x, mem.y)) {
         launch40mm(s, mem.x, mem.y);
         bark(s, "GRENADE OUT!");
       } else if (mem) s.nadeCd = 1.2;
@@ -7794,7 +7868,8 @@ function updateSquaddie(s, dt) {
              && mayFire && !canShoot && !s._blockedBy && s.reactT <= 0 && s.stagger <= 0) {
       const td2 = dist(s.x, s.y, threat.x, threat.y);
       if (td2 > TUNE.he40Arm + 40 && td2 < 780
-          && blastClearOfFriends(threat.x, threat.y, TUNE.he40Wound)) {
+          && blastClearOfFriends(threat.x, threat.y, TUNE.he40Wound)
+          && armingRunClear(s, threat.x, threat.y)) {
         launch40mm(s, threat.x, threat.y);
         bark(s, "GRENADE OUT!");
       } else {
@@ -7978,6 +8053,7 @@ function updateSquaddie(s, dt) {
       } else {
         s.face = angLerp(s.face, angleTo(s.x, s.y, cas.x, cas.y), dt * 8);
         s._aidT = (s._aidT || 0) + dt;
+        cas._treatTick = game.simTick;          // his hands count the same as yours
         if (s._aidT >= TUNE.tqTime) {
           cas.stabilized = true; s._aidT = 0;
           s.order = { type: "hold", face: s.face };
@@ -9086,6 +9162,7 @@ function drawBody(e, dead) {
         ctx.fillText("STABLE", e.x, top);
       } else {
         const secs = Math.ceil(e.bleedT);
+        const onWound = e._treatTick !== undefined && game.simTick - e._treatTick <= 1;
         const urgent = secs <= 8;
         const frac = clamp(e.bleedT / (e.bleedMax || TUNE.bleedOut), 0, 1);
         // the bar: what is left of him, draining right to left
@@ -9098,8 +9175,8 @@ function drawBody(e, dead) {
         ctx.font = "bold " + ((urgent ? 14 : 12) * k).toFixed(1) + "px Consolas, monospace";
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(e.x - 15 * k, top - 12 * k, 30 * k, 13 * k);
-        ctx.fillStyle = urgent && (game.stats.time % 0.6) < 0.3 ? "#fff" : COLORS.danger;
-        ctx.fillText(secs + "s", e.x, top - 2 * k);
+        ctx.fillStyle = onWound ? COLORS.ok : urgent && (game.stats.time % 0.6) < 0.3 ? "#fff" : COLORS.danger;
+        ctx.fillText(onWound ? "HELD " + secs + "s" : secs + "s", e.x, top - 2 * k);
         // the prompt only when you are close enough for it to be an offer
         if (game.player.alive && dist(game.player.x, game.player.y, e.x, e.y) < TUNE.tqReach * 1.6) {
           ctx.font = "bold " + (9 * k).toFixed(1) + "px Consolas, monospace";
@@ -10075,7 +10152,9 @@ function drawSquadBar() {
       ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
       ctx.fillRect(L, c.y + 22, barW * (s.stabilized ? 1 : clamp(s.bleedT / (s.bleedMax || TUNE.bleedOut), 0, 1)), 5);
       ctx.fillStyle = s.stabilized ? COLORS.ok : COLORS.danger;
-      ctx.fillText(s.stabilized ? "STABLE" : "BLEEDING " + Math.ceil(s.bleedT), L, c.y + 39);
+      const held = s._treatTick !== undefined && game.simTick - s._treatTick <= 1;
+      ctx.fillText(s.stabilized ? "STABLE" : held ? "HELD " + Math.ceil(s.bleedT)
+                                                  : "BLEEDING " + Math.ceil(s.bleedT), L, c.y + 39);
       // the same key does both jobs, so the card has to keep asking for it: tie
       // him off, then haul him — a stable man still on the ground is unfinished
       const cue = !s.stabilized ? "[E] hold"
@@ -10311,11 +10390,24 @@ function drawHud() {
   const m = input.mouse;
   const blind = p.blind > 0;
   const spreadPx = Math.tan(currentSpread(p) / 2) * dist(p.x, p.y, m.wx, m.wy) * game.zoom;
-  const gap = blind ? 30 : clamp(4 + spreadPx, 4, 60);
+  // The cap was 60px, which is narrower than the real cone at any distance past
+  // about twelve metres — so at the exact ranges where the shot is hard the
+  // reticle stopped growing and quietly under-reported it. 200 is past the far
+  // edge of the screen at any zoom, so it never lies now.
+  const gap = blind ? 30 : clamp(4 + spreadPx, 4, 200);
+  // SETTLING. Everything that opens the cone was already IN the gap, and that
+  // turned out not to be enough: a gap that is 40% wider for a third of a second
+  // reads as the same crosshair. Measured cost of firing through it — 79% hits
+  // down to 42% at seven metres. So the whole reticle changes state while the
+  // gun is unsettled, the way CHECK FIRE already does, because the fix for a
+  // mechanic nobody can see is to show it and not to delete it.
+  const settled = p.weapon.spreadBase + (p.moving ? (p.walking ? (p.weapon.spreadWalkMove ?? p.weapon.spreadMove * 0.45) : p.weapon.spreadMove) : 0);
+  const unsettled = !blind && currentSpread(p) > settled * 1.35;
   const hazard = lineOfFireHazard(p);
   // mid-tone while blind: white would vanish into the wash it sits on
-  ctx.strokeStyle = hazard ? COLORS.danger : blind ? COLORS.hudDim : "#ffffffcc";
-  ctx.lineWidth = hazard ? 2.5 : blind ? 4 : 1.5;
+  ctx.strokeStyle = hazard ? COLORS.danger : blind ? COLORS.hudDim
+                  : unsettled ? "rgba(232,181,58,0.9)" : "#ffffffcc";
+  ctx.lineWidth = hazard ? 2.5 : blind ? 4 : unsettled ? 2.2 : 1.5;
   for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
     ctx.beginPath(); ctx.moveTo(m.x + ox * gap, m.y + oy * gap); ctx.lineTo(m.x + ox * (gap + 7), m.y + oy * (gap + 7)); ctx.stroke();
   }
@@ -10900,6 +10992,7 @@ function prewarmArt() {
 }
 
 function update(dt) {
+  game.simTick = (game.simTick || 0) + 1;
   game.stats.time += dt;
   game.underFireT = Math.max(0, game.underFireT - dt);
   game.settleT = Math.max(0, (game.settleT || 0) - dt);
@@ -13681,6 +13774,55 @@ requestAnimationFrame(frame);
     defender stood in a 360-degree beaten zone and did WORSE holding than
     charging. A patrol base backs onto something. It backs onto rock now, and
     the fight has a front.
+  v0.85 (2026-08-18): FOUR THINGS FROM SAM PLAYING THE DEFENCE MAPS.
+    THE HUMVEE SHOOTS OVER COVER. "the humvee should be able to shoot over
+    cover." A ring gunner stands in a hatch with his chest above the roofline,
+    two and a half metres up — sandbags at one metre and a HESCO at one and a
+    half are not between him and anything. `braced` only ever worked at arm's
+    length because it models leaning on the parapet; height works at any range.
+    Measured across twelve metres: turret 300/300 over sandbags, HESCO and
+    seats alike, against 72, 36 and 157 on foot. HESCO is the one that matters —
+    on foot it stopped 442 rounds in 500, and that is exactly the wall a gun
+    truck exists to shoot over.
+    It cuts both ways, which is the price of the reach: a man standing on a
+    truck is not behind your wall either, so a round on its way to a mounted
+    gunner clears the same cover his do. The turret trades protection for arc
+    rather than adding both.
+    A 40MM NEEDS ROOM TO ARM. "they kept on throwing grenades indoors in the
+    defense maps." The grenadier's rule was "a threat I can see but cannot shoot
+    gets a 40mm", which on a mission where you hold a building and they come at
+    the windows describes nearly every threat nearly always. Fixed with the real
+    reason it is prohibited rather than a rule about buildings: the round will
+    not arm inside 170px, so if it cannot fly that far before hitting something
+    it is not a grenade, it is a thrown rock that costs eight seconds. The
+    arming run is raycast now. Indoors that fails against the far wall, which is
+    correct; down a hall or out of a window at something well beyond, it passes,
+    which is also correct. The player's own tube obeys it too, and says why.
+    HANDS ON THE WOUND STOP THE CLOCK. "the bleeding counter should stop when
+    you start holding e ... they shouldn't bleed out right as you start because
+    you started too late ... if you let go of e the counter should restart."
+    Right, and the old behaviour was the worst kind of wrong: you did the
+    correct thing, you were in time to do it, and he died in your hands anyway
+    because the clock ran through the three seconds the wrap takes. Direct
+    pressure is the first thing you do and it works immediately. PAUSED and not
+    reset, so letting go runs it on from where it stopped — staying with him
+    buys everything and tapping [E] buys nothing. A squaddie's hands count the
+    same as yours, and the readout says HELD so you can see it working.
+    AND THE CROSSHAIR STOPS UNDER-REPORTING. "i can't click on anymore still
+    because they scurry out of the way when my muzzle sweeps over where they
+    are." Measured, and the mechanism is not the one it looks like: an enemy
+    drifts 211px in four seconds whether the muzzle is on him or pointed the
+    other way — identical — so nothing reacts to being aimed at. Moving targets
+    are hit MORE often than stationary ones (86% against 79% at six metres),
+    because an alerted man closes on you. What actually costs the shot is
+    turnBloom: sweeping the muzzle on and firing through the unsettled cone
+    takes 79% down to 42%. That mechanic is deliberate and is what makes
+    cornering slowly pay, so it stays — but it was invisible. The reticle gap
+    was capped at 60px, which is narrower than the real cone past about twelve
+    metres, so at exactly the ranges where the shot is hard it stopped growing
+    and quietly lied. Cap raised past the screen, and the whole crosshair now
+    goes amber while the gun is unsettled, the way CHECK FIRE already does. The
+    fix for a mechanic nobody can see is to show it, not to delete it.
 -->
 </body>
 </html>

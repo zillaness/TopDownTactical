@@ -5514,3 +5514,105 @@ for (const nm of ['THE OUTPOST', 'LAST LIGHT']) {
 localStorage.clear(); game.mapIndex = 0; game.densityIndex = 1; initGame();
 console.log('SIEGE TEST DONE');
 })();
+
+(function elevationAndAidTests(){
+console.log('--- elevation, arming distance, and hands on the wound ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+
+// A RING GUNNER SHOOTS OVER LOW COVER. Sam: "the humvee should be able to shoot
+// over cover." Braced only works at arm's length; height works at any range.
+{
+  const t = level.turrets.find(tt => tt.ring && tt.veh);
+  const P = game.player; P.x = t.sx; P.y = t.sy; mountTurret(P, t);
+  const foot = game.squad.find(s2 => s2.alive && !s2.turret);
+  function across(kind, owner) {
+    const tx = 4, ty = 4, save = level.mat[ty][tx], sw = level.wall[ty][tx];
+    level.mat[ty][tx] = kind; level.wall[ty][tx] = 1;
+    if (level.coverLeft) level.coverLeft[ty][tx] = (MATERIALS[kind].absorb || 0);
+    const cx = tx * TILE + 16, cy = ty * TILE + 16;
+    let over = 0;
+    for (let i = 0; i < 300; i++) {
+      if (level.coverLeft) level.coverLeft[ty][tx] = (MATERIALS[kind].absorb || 0);
+      const b = { x: cx - 400, y: cy, ox: cx - 400, oy: cy, ang: 0, dmg: 50, pen: 57,
+                  side: 'player', traveled: 0, range: 1200, alive: true, speed: 1700, owner };
+      resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+      if (b.overCrest) over++;
+    }
+    level.mat[ty][tx] = save; level.wall[ty][tx] = sw;
+    return over;
+  }
+  for (const kind of ['sandbags', 'hesco', 'seats']) {
+    const gun = across(kind, P), man = across(kind, foot);
+    console.log('  over ' + kind.padEnd(9) + ' at 12m: turret ' + gun + '/300, on foot ' + man + '/300',
+                gun === 300 && man < 300 ? 'CORRECT (height beats a parapet; standing up does not)' : 'WRONG');
+  }
+  // ...and it cuts both ways: a man up on a mount is not behind your wall
+  {
+    const tx = 4, ty = 4;
+    level.mat[ty][tx] = 'hesco'; level.wall[ty][tx] = 1;
+    const cx = tx * TILE + 16, cy = ty * TILE + 16;
+    P.x = cx + TILE * 2; P.y = cy; t.x = P.x; t.y = P.y;   // gunner just beyond the wall
+    let through = 0;
+    for (let i = 0; i < 200; i++) {
+      const b = { x: cx - 400, y: cy, ox: cx - 400, oy: cy, ang: 0, dmg: 30, pen: 26,
+                  side: 'enemy', traveled: 0, range: 1200, alive: true, speed: 900, owner: null };
+      resolveBarrier(b, { x: cx - TILE / 2, y: cy, axis: 'x', hit: true });
+      if (b.overCrest) through++;
+    }
+    console.log('  and incoming fire clears the same wall to reach him: ' + through + '/200',
+                through === 200 ? 'CORRECT (the turret trades cover for arc)' : 'WRONG');
+    level.mat[ty][tx] = null; level.wall[ty][tx] = 0;
+  }
+  dismountTurret(P);
+}
+
+// A 40MM NEEDS ROOM TO ARM. Sam: "they kept on throwing grenades indoors."
+{
+  game.mapIndex = MAPS.findIndex(m => m.name === 'LAST LIGHT'); initGame(); game.state = 'play';
+  const s2 = game.squad[0];
+  // stand him inside the building and aim at something across the street
+  s2.x = 20 * TILE + 16; s2.y = 17 * TILE + 16;
+  const outside = { x: 5 * TILE, y: 17 * TILE };
+  console.log('  indoors, across a wall: launcher refused =' + !armingRunClear(s2, outside.x, outside.y),
+              !armingRunClear(s2, outside.x, outside.y)
+                ? 'CORRECT (the round will not arm inside ' + TUNE.he40Arm + 'px)' : 'WRONG');
+  // out in the open with a long run at it, it is allowed again
+  s2.x = 6 * TILE; s2.y = 4 * TILE;
+  console.log('  outside with clear flight: launcher allowed =' + armingRunClear(s2, 6 * TILE, 20 * TILE),
+              armingRunClear(s2, 6 * TILE, 20 * TILE) ? 'CORRECT' : 'WRONG');
+}
+
+// HANDS ON THE WOUND STOP THE CLOCK.
+{
+  game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
+  const cas = game.squad.find(s2 => s2.qrfCasualty && s2.downed);
+  const P = game.player;
+  cas.bleedT = 2.0;                                  // about to go
+  P.x = cas.x + 12; P.y = cas.y; P.moving = false;
+  input.keys.add('e');
+  for (let i = 0; i < 60 * 4; i++) { updateTourniquet(P, 1/60); update(1/60); }
+  input.keys.delete('e');
+  console.log('  four seconds of pressure on a two-second clock: alive=' + cas.alive +
+              ', stable=' + cas.stabilized + ', clock ' + cas.bleedT.toFixed(1) + 's',
+              cas.alive && cas.stabilized
+                ? 'CORRECT (you were in time, so he lives)' : 'WRONG (he died in your hands)');
+  // let go and it runs on from where it stopped — paused, not farmed
+  const c2 = game.squad.find(s2 => s2.qrfCasualty && s2.downed && !s2.stabilized);
+  if (c2) {
+    c2.bleedT = 10;
+    P.x = c2.x + 12; P.y = c2.y;
+    input.keys.add('e');
+    for (let i = 0; i < 30; i++) { updateTourniquet(P, 1/60); update(1/60); }
+    const held = c2.bleedT;
+    input.keys.delete('e');
+    for (let i = 0; i < 60; i++) { updateTourniquet(P, 1/60); update(1/60); }
+    console.log('  half a second of pressure held it at ' + held.toFixed(1) + 's, a second off it ran to ' +
+                c2.bleedT.toFixed(1) + 's',
+                Math.abs(held - 10) < 0.2 && c2.bleedT < held - 0.8
+                  ? 'CORRECT (paused, not reset — tapping [E] buys nothing)' : 'WRONG');
+  }
+}
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('ELEVATION / ARMING / AID TEST DONE');
+})();
