@@ -410,10 +410,10 @@ Suggested next session starting points (PRD §6, ranked):
 
 Phase 0 (token-burndown skill): still pending — no live meter tonight.
 
-## Session handoff — 2026-08-18, playtest + systems S3 (through v0.75)
+## Session handoff — 2026-08-18, playtest + systems S3 (through v0.76)
 
 Everything below is SHIPPED and live on Pages. Tree clean, branch and main
-both at ec1e5ff, suite 534 CORRECT / 0 WRONG / 0 update errors.
+both at v0.76, suite 537 CORRECT / 0 WRONG / 0 update errors.
 
 Shipped this session: v0.71 pistol + body bunker; v0.72 the ring gun moved onto
 the Humvee's painted hatch (plus the sight exemption that makes a ring gunner
@@ -421,7 +421,7 @@ able to see at all) and the bunker redrawn as an overhead edge; v0.73 Sam's two
 art notes — gun forward of the hoop and smaller, bunker curve across the torso —
 and the NVG bump taken off the bunker sprite; v0.74 the fog stopping dimming what
 you are standing next to; v0.75 the stutter chased to a negative result, the
-props unblocked, and the byte census.
+props unblocked, and the byte census; v0.76 under the ceiling at last.
 
 ### Open, ranked
 
@@ -446,28 +446,33 @@ props unblocked, and the byte census.
    briefing by `prewarmArt()`. A mission now records its own worst frame and
    reports it in the debrief only if it hitched, so the next report carries a
    number from Sam's machine.
-4. ⚠ **Byte ceiling — NEEDS SAM'S DECISION.** 2,270,317 against ~1.5–2MB. 68% of
-   the file is art. The only free saving has been taken (4 PNG → lossless WebP,
-   pixel-identical, 3,024 bytes). Everything else costs something:
-
-   | lever | saves | costs |
-   |---|---|---|
-   | re-encode every WebP at q75 | ~290KB | measurable quality: mean channel error 2.85, p99 13, max 52 on opaque pixels. q85 saves only 1%, so there is no free quality point |
-   | delete the 12 unused prop + 2 env sprites | ~104KB | that is exactly the art item 2 just unblocked |
-   | delete the 5 `_nvg` night sprites | ~13KB | art held for night missions |
-   | ascii85 instead of base64 | ~96KB | no quality cost at all; needs a decoder and blob URLs (4/3 → 5/4 overhead) |
-
-   Nothing reaches 2MB except q75 alone, or ascii85 plus deleting both sets of
-   held art (and that is still ~53KB short).
-5. ☐ **BLOCKED — sound effects.** `N:\gun sound effects` is a Windows drive on
-   Sam's machine; no mount exists in the container. `SOUND_ART` is wired to take
-   them one key at a time; they need committing to the repo (e.g.
-   `assets/incoming/sound/`) or attaching.
-6. ☐ **ASK FIRST — destructive.** The repo is ~681MB (raw art in
-   `assets/incoming/` plus the same again in history) against a ~2.2MB
-   deliverable. Purging is unresolved.
-7. ☐ Place the props. Now unblocked by item 2 — twelve prop sprites and two
-   environment sprites exist, are decoded, and no map uses them.
+4. ✅ **Byte ceiling** — DONE in v0.76. 2,270,317 to 1,979,537, with ~115KB of
+   headroom, and the suite fails if it goes back over (and if anything ever
+   loads from outside the file). It was left as a decision in v0.75 and two
+   things turned it back into a job: it is reversible (104 embedded assets are
+   byte-identical to `assets/source/`, which comes from the raw PNGs in
+   `assets/incoming/`), and the error is below threshold at the size the art is
+   actually drawn — a vehicle frame is authored 256x128 and blits at 205x102.
+   Rendered frames on three maps, diffed pixel by pixel: mean 0.51, 1.23, 1.10
+   out of 255, edge noise only, nothing structural. `tools/reencode_art.py`.
+5. ⏳ **Sound effects — UNBLOCKED EXCEPT FOR THE FILES.** Everything but the copy
+   is done: `assets/incoming/sound/README.md` says what the twelve keys are and
+   how to name variants and gains, and `tools/inline_sound.py` inlines a folder
+   in one command — sniffing containers from magic bytes, rejecting names the
+   synth does not answer to, warning on WAV, and refusing to write anything that
+   breaks the ceiling. Exercised end to end on a fixture; the game still parses
+   with a block written. **All that is left is copying `N:\gun sound effects`
+   into `assets/incoming/sound/`.**
+6. ⏳ **Repo size — MEASURED, DECISION IS SAM'S.** ~718MB against a 1.9MB
+   deliverable: 342MB of `assets/incoming` (305 raw PNG masters at 2–4MB) and a
+   335MB pack that is git's copy of the same files. Repacking recovers nothing —
+   in-pack 335MB against 342MB on disk is already ~2%, because PNGs do not
+   compress twice. The options and what each costs are in CLAUDE.md. The masters
+   are the only lossless originals, so a history rewrite is not reversible and
+   CLAUDE.md says do not do it without Sam saying so in as many words.
+7. ☐ **Place the props.** Unblocked by item 2 — twelve prop sprites and two
+   environment sprites exist, are decoded, and no map uses them. This is map
+   authoring, and it is the obvious next piece of work.
 
 Open question left with Sam: the NVG goggle group is r=1.5 in a 64px frame,
 which is a 0.94px circle at the 40px a man actually blits at — below one pixel.

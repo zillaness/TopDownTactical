@@ -47,6 +47,14 @@ A test enforces all of it. **Run bumps from the repo root**; doing it from
 
 There must be **exactly one** `top_down_tactical_vX.Y.html` in the repo.
 
+## Sound
+
+`SOUND_ART` is wired and empty on purpose — it OVERRIDES the synth one key at a
+time, and the game works forever with it empty. The files are on Sam's
+`N:\gun sound effects`, which no sandbox can see. Drop them in
+`assets/incoming/sound/` (naming and budget in its README) and run
+`tools/inline_sound.py`; it refuses to write anything that breaks the ceiling.
+
 ## Tests
 
 `./tests/run.sh` **from the repo root**. Success is `0 WRONGs` and
@@ -69,8 +77,15 @@ happened here. Two real cases worth remembering:
 
 - **One self-contained HTML file.** Art inlined as data URIs. No external
   requests, ever.
-- **Byte ceiling ~1.5–2MB.** Currently ~2.19MB and over. Every art drop must
-  be measured, not estimated.
+- **Byte ceiling 2MB, and the suite now fails if you break it.** 1,981,281 as of
+  v0.76, with ~115KB of headroom. Every art drop must be measured, not
+  estimated. `tools/reencode_art.py` is the lever if it goes over — it dry-runs
+  by default and prints per-channel error measured only where sprites are
+  opaque. It is reversible: 104 of the embedded assets are byte-identical to
+  `assets/source/`, which comes from the raw PNGs in `assets/incoming/`.
+  There is nothing free left: the PNGs are already lossless WebP, no two assets
+  are byte-identical, and the vehicle frames are at the 2x authoring standard,
+  already under-resolved at maximum zoom.
 - Art authored at **2x** (one 32px tile = 64px), vehicles nose-**RIGHT**,
   alpha-first with **magenta** as the named fallback key.
 - **WebP over indexed PNG** for photographic art — but measure. It was 3x on
@@ -114,9 +129,26 @@ Every vehicle is 4x2 (2x4 on end).
 - Enemy facing is **randomised at spawn**, so "did I start in combat?" is a
   coin flip and cannot be fixed with cover alone. `TUNE.missionSettle` gives
   the opening beat; noise and gunfire are deliberately exempt.
-- The repo is ~681MB (raw art in `assets/incoming/` plus the same again in
-  history) against a ~2.2MB deliverable. Purging is **unresolved** — ask.
+- The repo is ~718MB against a 1.9MB deliverable, and it is **unresolved — ask**.
+  Measured: 342MB of `assets/incoming` (305 raw PNG masters, 2–4MB each) and a
+  335MB pack that is git's copy of the same files. `assets/source` is only
+  1.6MB and is what actually gets inlined. Nothing is recoverable by repacking:
+  in-pack 335MB against 342MB on disk is already ~2%, because PNGs do not
+  compress twice.
+
+  | option | tree | .git | loses |
+  |---|---|---|---|
+  | leave it | 344MB | 374MB | nothing |
+  | `git rm -r assets/incoming` | ~4MB | 374MB | nothing — still in history |
+  | history rewrite | ~4MB | ~5MB | the lossless masters, permanently, and every commit SHA |
+
+  The masters are the only lossless originals — what you would need to re-encode
+  at a different quality, re-crop, or repair alpha against. Do not rewrite
+  history without Sam saying so in as many words.
 
 # CHANGELOG
 # v1.0 (2026-08-17): First written down, at the point Sam said finished
 #   versions should just go live rather than waiting on a branch.
+# v1.1 (2026-08-18): The build came under the ceiling, so that line is a fact
+#   rather than a debt; sound and the repo-size decision written down with
+#   measured numbers instead of "unresolved".
