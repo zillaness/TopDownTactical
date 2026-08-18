@@ -22,7 +22,7 @@
   response headers, so the staleness has to be fought from inside the document.
 
   The split that makes this safe: the game file is IMMUTABLE UNDER ITS NAME.
-  top_down_tactical_v0.70.html can never change contents — a new build is a new
+  top_down_tactical_v0.71.html can never change contents — a new build is a new
   filename — so it is perfect to cache hard, and it is 2.2MB, so it had better
   be. Only this 1KB pointer is allowed to go stale, and it is the one thing
   here that must not.
@@ -31,7 +31,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- REDIRECT TARGET — the version test keeps this in step with the build -->
-<meta http-equiv="refresh" content="0; url=top_down_tactical_v0.70.html">
+<meta http-equiv="refresh" content="0; url=top_down_tactical_v0.71.html">
 <script>
   // Belt and braces. The meta refresh above is what normally fires; this runs
   // first in practice and replaces the history entry rather than pushing one,
@@ -39,7 +39,7 @@
   // If a stale copy of THIS file is somehow still being executed, the reload()
   // path below is what breaks the loop.
   (function () {
-    var TARGET = "top_down_tactical_v0.70.html";
+    var TARGET = "top_down_tactical_v0.71.html";
     try {
       if (location.hash === "#stale") { location.replace(TARGET); return; }
       location.replace(TARGET);
@@ -54,7 +54,7 @@
 </style>
 </head>
 <body>
-<p>Loading the current build &mdash; <a href="top_down_tactical_v0.70.html">play now</a> if it does not.</p>
+<p>Loading the current build &mdash; <a href="top_down_tactical_v0.71.html">play now</a> if it does not.</p>
 <p class="hint">Still on an older version? Hard-refresh with Ctrl/Cmd + Shift + R.</p>
 </body>
 </html>

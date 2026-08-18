@@ -3480,6 +3480,80 @@ game.loadout.primary = prevGun;
 console.log('M203 TEST DONE');
 })();
 
+(function shieldTests(){
+console.log('--- pistol + shield: armour you point ---');
+const prevGun = game.loadout.primary, prevSquad = game.loadout.squad;
+game.mapIndex = 0; game.loadout.primary = 'shield'; initGame(); game.state = 'play';
+const p = game.player;
+console.log('  carrying it: pool ' + p.shieldMax + ', guns ' + p.guns.length + ' (' + p.guns[0].name + ')',
+            hasShield(p) && p.shieldMax === 300 && p.guns.length === 1 && p.guns[0].name === 'SIDEARM'
+              ? 'CORRECT (the bunker bought the primary slot)' : 'WRONG');
+// THE WHOLE MECHANIC IS THE ARC. 400 AK rounds from each bearing, with the pool
+// restored each time so this measures the arc and not the wear.
+const atBearing = off => {
+  initGame(); game.state = 'play';
+  const m = game.player; m.face = 0; m.hp = 1e6; m.armor = 1e6;
+  let stopped = 0;
+  for (let i = 0; i < 400; i++) {
+    if (throughArmor(m, 21, 32, undefined, undefined, deg(off)).hitShield) stopped++;
+    m.shield = m.shieldMax;
+  }
+  return stopped;
+};
+const ahead = atBearing(0), edge = atBearing(38), past = atBearing(42),
+      flank = atBearing(90), back = atBearing(180);
+console.log('  stopped by bearing — 0:' + ahead + ' 38:' + edge + ' 42:' + past +
+            ' 90:' + flank + ' 180:' + back);
+console.log('  it works inside the arc: ' + (ahead > 300 && edge > 300),
+            ahead > 300 && edge > 300 ? 'CORRECT (~88% cover)' : 'WRONG');
+console.log('  and is worth NOTHING outside it: ' + past + '/' + flank + '/' + back,
+            past === 0 && flank === 0 && back === 0 ? 'CORRECT (you can be flanked)' : 'WRONG');
+// rating 36 turns the garrison's x39 (32) but not AP (46) — and the emplaced
+// M2 at fmj 26 x penMul 2.2 = 57 goes through it, which is most of why the
+// mount is worth taking.
+initGame(); game.state = 'play';
+const m2 = game.player; m2.face = 0; m2.armor = 0;
+let ak = 0, ap = 0;
+for (let i = 0; i < 300; i++) { m2.shield = m2.shieldMax; ak += throughArmor(m2, 21, 32, undefined, undefined, 0).dmg; }
+for (let i = 0; i < 300; i++) { m2.shield = m2.shieldMax; ap += throughArmor(m2, 21, 46, undefined, undefined, 0).dmg; }
+console.log('  AK through ' + (ak / 300).toFixed(1) + ' vs AP through ' + (ap / 300).toFixed(1),
+            ap > ak * 3 ? 'CORRECT (rating 36 turns x39, not AP)' : 'WRONG');
+// A bunker is a PLANE and blast is a SPHERE, so the area-damage callers pass no
+// bearing at all and the shield never fires. That omission is the mechanic.
+initGame(); game.state = 'play';
+const m3 = game.player; m3.face = 0; m3.armor = 0; m3.shield = m3.shieldMax;
+console.log('  overpressure goes round it: hitShield=' +
+            !!throughArmor(m3, 40, 16, m3.x, m3.y).hitShield,
+            !throughArmor(m3, 40, 16, m3.x, m3.y).hitShield
+              ? 'CORRECT (no bearing, no shield)' : 'WRONG');
+// it must never be free
+game.loadout.primary = 'shield'; initGame(); const sp = game.player;
+game.loadout.primary = 'carbine'; initGame(); const cp = game.player;
+console.log('  it slows you: ' + (sp.weapon.carrySpeed || 1).toFixed(2) + ' vs ' +
+            (cp.weapon.carrySpeed || 1).toFixed(2),
+            (sp.weapon.carrySpeed || 1) < (cp.weapon.carrySpeed || 1) ? 'CORRECT' : 'WRONG');
+// and the squad can carry one
+game.loadout.primary = 'carbine'; game.loadout.squad = 'bunker'; initGame();
+const sh = game.squad.find(s2 => s2.role === 'shield');
+console.log('  a squaddie can carry one too: ' + (sh ? sh.shieldMax : 'no shield role fielded'),
+            sh && hasShield(sh) ? 'CORRECT' : 'WRONG');
+// One sprite, two tints. #TEAMCOLOR is swapped at rasterisation and getSprite
+// caches per (key, tint), so the player's blue bunker and a squaddie's green one
+// come off the same art — which is why there is no player_shield key and why
+// this whole feature cost zero art bytes.
+game.loadout.primary = 'shield'; game.loadout.squad = 'bunker'; initGame(); game.state = 'play';
+const pa = spriteFor(game.player), sq2 = game.squad.find(s2 => s2.role === 'shield');
+console.log('  the bunker art draws for both, in different colours: ' +
+            pa.key + '/' + (sq2 ? spriteFor(sq2).key : '-'),
+            pa.key === 'squad_shield' && sq2 && spriteFor(sq2).key === 'squad_shield' &&
+            pa.tint !== spriteFor(sq2).tint ? 'CORRECT (one sprite, zero new bytes)' : 'WRONG');
+game.loadout.primary = 'carbine'; initGame(); game.state = 'play';
+console.log('  and a plain player still draws the man: ' + spriteFor(game.player).key,
+            spriteFor(game.player).key === 'player' ? 'CORRECT' : 'WRONG');
+game.loadout.primary = prevGun; game.loadout.squad = prevSquad;
+console.log('SHIELD TEST DONE');
+})();
+
 (function peelTests(){
 console.log('--- the peel: leaving a fight alive ---');
 game.diffIndex = 1; game.densityIndex = 1; game.loadout.squad = 'standard';

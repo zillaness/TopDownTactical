@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.70.html
-  version: 0.70
+  file: top_down_tactical_v0.71.html
+  version: 0.71
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-17
+  last_updated: 2026-08-18
   description: Playable prototype — top-down tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.70 (working title)</title>
+<title>Top-Down Tactical v0.71 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.70 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.71 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1033,6 +1033,11 @@ const TUNE = {
   // hoverGrab, he KEEPS the cursor out to the larger hoverHold, and a rival
   // has to be hoverSwap nearer than him — not a pixel nearer — to take it.
   hoverGrab: 30, hoverHold: 46, hoverSwap: 12,
+  // Twenty kilos held at arm's length does not whip round. This is the cost
+  // that INTERLOCKS with the arc: a slow-turning man behind 80 degrees can
+  // genuinely be flanked, which is what makes the flank the counterplay
+  // rather than a footnote.
+  shieldTurnMul: 0.45,
   // You carry every nature and never run out, so CADENCE is the only thing
   // pricing a grenade now. Without this you could empty a building by
   // holding the button, which is less fun rather than more. 0.75s is about
@@ -1246,6 +1251,33 @@ const ARMOR = {
            note: "turns rifle ball; five and a half seconds of sprint" },
   heavy: { name: "IV HEAVY",  hp: 135, rating: 48, speed: 1.00, cover: 0.82, sprint: 3.2,
            note: "turns armour-piercing; three seconds and you are blown" },
+};
+
+// A body bunker is ARMOUR YOU POINT. Same arithmetic as a plate — rating
+// against penetration, a pool that wears out, a cover fraction that is never
+// 1.0 — plus the one addition that is the whole mechanic: it exists only inside
+// the arc the man is facing, and it is worth nothing at all from the flank.
+//
+// rating 36 sits one rung above the slug (34) and well below AP (46), so it
+// turns every round the garrison carries — their AKM is x39 at pen 32. The one
+// thing on any map that goes through it is the emplaced gun: fmj 26 times the
+// M2's penMul 2.2 is 57, which is most of why the mount is worth taking.
+//
+// arc: one tile is one metre, so a pixel is 3.1cm. A 51cm bunker carried 35cm
+// off the chest subtends 2*atan(25.5/35) = 72 degrees. 80 rounds that to
+// something you can aim rather than thread.
+//
+// cover 0.88: it masks head to thigh, not shins, feet, or the gun hand that has
+// to come round the side to shoot. It must NEVER be 1.0 — a man who cannot be
+// hit at all reads to the AI as perfect cover and to the player as a bug, and
+// that exact mistake is already written down in CLAUDE.md.
+//
+// hp 300: absorbed energy is dmg * 0.88, same as a plate, so a 21-damage AK
+// round costs 18.5 — sixteen rounds, about four bursts. Long enough to cross a
+// room, nowhere near long enough to live in the open.
+const SHIELDS = {
+  bunker: { name: "BODY BUNKER", hp: 300, rating: 36, arc: deg(80), cover: 0.88,
+            note: "turns everything but armour-piercing, inside 80 degrees of where you look" },
 };
 
 const COLORS = {
@@ -3040,6 +3072,7 @@ function makeShooter(x, y, side, hp, weapon) {
     shoulder: "strong",       // "support" = rifle transitioned to the weak shoulder
     pendingShoulder: "strong", swapT: 0,
     armorType: "none", armor: 0, armorMax: 0,
+    shieldType: "none", shield: 0, shieldMax: 0,
   };
 }
 
@@ -3049,6 +3082,13 @@ function wearArmor(ent, key) {
   ent.armor = A.hp; ent.armorMax = A.hp;
   return ent;
 }
+function wearShield(ent, key) {
+  const S = SHIELDS[key];
+  ent.shieldType = S ? key : "none";
+  ent.shield = S ? S.hp : 0; ent.shieldMax = ent.shield;
+  return ent;                     // returns ent so tests can wrap makeShooter, as wearArmor does
+}
+function hasShield(ent) { return !!SHIELDS[ent.shieldType]; }
 function armorSpeed(ent) { return (ARMOR[ent.armorType] || ARMOR.none).speed; }
 // seconds of sprint the plate carrier allows; null = unlimited
 function sprintTank(ent) { return (ARMOR[ent.armorType] || ARMOR.none).sprint; }
@@ -3073,12 +3113,20 @@ function makePlayer(sp) {
   // keep the ammo legal for the weapon in hand
   p.ammoType = prim.ammo.includes(L.ammo) ? L.ammo : prim.ammo[0];
   // two guns on the man: index 0 is the primary, 1 is the sidearm
-  p.guns = [
-    { name: prim.name, w: p.weapon, ammoType: p.ammoType, ammo: p.weapon.mag, reloading: 0 },
-    { name: SIDEARM.name, w: { ...SIDEARM.w }, ammoType: SIDEARM.ammo, ammo: SIDEARM.w.mag, reloading: 0 },
-  ];
+  // The bunker buys the primary slot, so there is no second gun to swap to —
+  // and a one-entry list makes swapGun a no-op for free rather than needing a
+  // flag threaded through it. The entry is named SIDEARM rather than "PISTOL +
+  // SHIELD" because muzzlePoint indexes TUNE.gunLen BY THAT NAME, and a made-up
+  // name silently falls back to a rifle's 14px barrel.
+  p.guns = prim.shield
+    ? [{ name: SIDEARM.name, w: p.weapon, ammoType: p.ammoType, ammo: p.weapon.mag, reloading: 0 }]
+    : [
+        { name: prim.name, w: p.weapon, ammoType: p.ammoType, ammo: p.weapon.mag, reloading: 0 },
+        { name: SIDEARM.name, w: { ...SIDEARM.w }, ammoType: SIDEARM.ammo, ammo: SIDEARM.w.mag, reloading: 0 },
+      ];
   p.gunIndex = 0;
   p.can = !!L.can && !prim.noCan;   // ...but a shotgun cannot take one at all
+  wearShield(p, prim.shield);       // undefined on every other primary, which reads as "none"
   wearArmor(p, L.armor);
   return p;
 }
@@ -3268,7 +3316,8 @@ function updatePlayer(p, dt) {
   let wantFace = angleTo(p.x, p.y, input.mouse.wx, input.mouse.wy);
   if (p.turret) { p.x = p.turret.x; p.y = p.turret.y; wantFace = clampToArc(p.turret, wantFace); }
   p.face = angLerp(p.face, wantFace,
-                   clamp(dt * TUNE.playerTurnRate * (p.can ? TUNE.suppTurnMul : 1), 0, 1));
+                   clamp(dt * TUNE.playerTurnRate * (p.can ? TUNE.suppTurnMul : 1)
+                            * (hasShield(p) ? TUNE.shieldTurnMul : 1), 0, 1));
   const swung = Math.abs(angDiff(faceWas, p.face));
   p.turnBloom = Math.max(0, (p.turnBloom || 0) - dt * TUNE.turnBloomDecay) + swung * TUNE.turnBloomGain;
 
@@ -4076,7 +4125,9 @@ function applySpall(x, y, mat, side) {
     e._cause = { by: side, how: "fragments off " + (mat.name || "a wall"), from: { x, y } };
     // Fragments are low-energy: a plate carrier is very good against spall,
     // which is most of the point of wearing one.
-    const res = throughArmor(e, raw, 6, e.x, e.y);
+    // Fragments off a struck barrier come off ONE wall in one direction, so
+    // unlike a grenade they do arrive along a line and the bunker gets a vote.
+    const res = throughArmor(e, raw, 6, e.x, e.y, angleTo(e.x, e.y, x, y));
     const dmg = res.dmg;
     e.hp -= dmg;
     // Spall used to subtract hp and push one spark. A player correctly using
@@ -4302,10 +4353,40 @@ function noteHurt(ent, ang, onArmor) {
 // make you immune — and the plate itself wears down and eventually stops
 // working. A round that beats the rating is slowed but not stopped. Plates
 // cover the torso, so some proportion of hits simply miss the armour entirely.
-function throughArmor(ent, dmg, pen, hx, hy) {
+// Which rounds the bunker gets a say in. It is a wall you CARRY, so it covers
+// only the arc it is pointed at — and only damage that ARRIVED ALONG A LINE.
+// Blast and overpressure come in as a sphere and go round a plane, which is why
+// the grenade call sites deliberately pass no bearing at all.
+function shieldHit(ent, pen, fromAng) {
+  const S = SHIELDS[ent.shieldType];
+  if (!S || ent.shield <= 0 || fromAng === undefined) return null;
+  if (Math.abs(angDiff(ent.face, fromAng)) > S.arc / 2) return null;   // off the edge of it
+  if (Math.random() > S.cover) return null;                            // under it, or the gun hand
+  return { defeated: pen >= S.rating };
+}
+
+// fromAng is the bearing FROM the man TOWARD whatever hit him — the same value
+// noteHurt already computes a line below in applyHit. Leave it off and the
+// shield never fires, which is exactly what area damage wants.
+function throughArmor(ent, dmg, pen, hx, hy, fromAng) {
+  // The bunker sits IN FRONT OF the plate, so it takes the round first, and one
+  // it stops never reaches the plate at all: the backface goes into the carry
+  // frame and the arm, not the chest. A round that defeats it is behind it now,
+  // and the plate gets its own roll on whatever is left.
+  const SH = shieldHit(ent, pen, fromAng);
+  if (SH) {
+    const keep = SH.defeated ? 0.85 : 0.12;    // same arithmetic as a plate; same physics
+    const through = dmg * keep;
+    ent.shield = Math.max(0, ent.shield - (dmg - through));
+    if (hx !== undefined) game.fx.push({ kind: "spark", x: hx, y: hy, t: 0.18, max: 0.18 });
+    if (ent.shield <= 0 && ent === game.player)
+      game.hint = "THE BUNKER IS SHOT THROUGH — you are still carrying the weight";
+    if (!SH.defeated) return { dmg: through, hitArmor: true, hitShield: true, defeated: false };
+    dmg = through;
+  }
   const A = ARMOR[ent.armorType] || ARMOR.none;
-  if (!A.hp || ent.armor <= 0) return { dmg, hitArmor: false };
-  if (Math.random() > A.cover) return { dmg, hitArmor: false };   // limb or head
+  if (!A.hp || ent.armor <= 0) return { dmg, hitArmor: !!SH, hitShield: !!SH };
+  if (Math.random() > A.cover) return { dmg, hitArmor: !!SH, hitShield: !!SH };   // limb or head
   const defeated = pen >= A.rating;
   const keep = defeated ? 0.85 : 0.12;   // defeated means defeated, not a discount
   const through = dmg * keep;
@@ -4316,7 +4397,7 @@ function throughArmor(ent, dmg, pen, hx, hy) {
     if (!defeated) game.fx.push({ kind: "spark", x: hx, y: hy, t: 0.2, max: 0.2 });
   }
   if (ent.armor <= 0 && ent === game.player) game.hint = "PLATE IS GONE — nothing left between you and the round";
-  return { dmg: through, hitArmor: true, defeated };
+  return { dmg: through, hitArmor: true, hitShield: !!SH, defeated };
 }
 
 function applyHit(ent, b, hx, hy) {
@@ -4333,7 +4414,10 @@ function applyHit(ent, b, hx, hy) {
   // enemy is, so it weighs several near misses' worth into the same bearing.
   if (b.side === "enemy" && b.ox !== undefined) markContact(ent, b.ox, b.oy, 1.6);
   const raw = b.dmg * rand(0.85, 1.15);
-  const res = throughArmor(ent, raw, b.pen, hx, hy);
+  // back along the round's travel IS the shooter — both what the hurt indicator
+  // points at and the only thing a shield needs to know
+  const from = b.ang + Math.PI;
+  const res = throughArmor(ent, raw, b.pen, hx, hy, from);
   ent.hp -= res.dmg;
   if (res.hitArmor) sfxAt("plate", hx, hy);
   else {
@@ -5767,6 +5851,14 @@ const ROLES = {
                    spreadBase: deg(1.08), carrySpeed: 0.86 } },
   grenadier:{ name: "GRENADIER", sprite: "squad_breacher",
               w: { ammo: "fmj",  rpm: 420, dmg: 34, range: 1150 }, launcher: true },
+  // The weight goes in carrySpeed because makeSquaddie takes the role's w
+  // wholesale, while makePlayer OVERWRITES carrySpeed from PRIMARIES.speed — so
+  // the same number has to be written in both places. `saw` already has that
+  // shape, at 0.86 in each.
+  shield:   { name: "SHIELD", sprite: "squad_shield", shield: "bunker",
+              w: { ammo: "pistol", dmg: 22, rpm: 380, mag: 15, reload: 1.9, range: 480,
+                   spreadBase: deg(1.35), spreadMove: deg(9.5), penMul: 0.7,
+                   carrySpeed: 0.75, sprintDrain: 2.2 } },
   marksman: { name: "MARKSMAN", sprite: "squad_rifleman",
               w: { ammo: "fmj",  rpm: 160, dmg: 68, range: 1450, mag: 20, reload: 2.4,
                    spreadBase: deg(0.19), penMul: 1.15, carrySpeed: 0.95 } },
@@ -5815,6 +5907,20 @@ const PRIMARIES = {
   m203:    { name: "M4 + M203", ammo: ["fmj", "hp", "ap"],
              note: "underbarrel 40mm — the whole bag, launched instead of thrown",
              w: { ...TUNE.rifle }, launcher: true },
+  // A wall you carry, and nothing else fits in the other hand. spreadBase is
+  // 1.36x the bare sidearm's — one hand, shooting round an obstruction — and
+  // the reload is a magazine change with a bunker in the way. Damage, magazine
+  // and penMul are the sidearm's, unchanged.
+  shield:  { name: "PISTOL + SHIELD", ammo: ["pistol", "hp9"],
+             note: "a wall you carry — nothing else fits in the other hand",
+             shield: "bunker",
+             // SIDEARM is declared BELOW this table, so spreading it here is a
+             // temporal dead zone — the sidearm's numbers are written out
+             // instead. If they ever change, change them in both places.
+             w: { ...TUNE.rifle, dmg: 22, rpm: 380, mag: 15, range: 480, penMul: 0.7, speed: 1150,
+                  spreadBase: deg(1.35), spreadMove: deg(9.5), recoilDecay: deg(6),
+                  recoil: deg(1.15), recoilMax: deg(8), reload: 1.9, sprintDrain: 2.2 },
+             speed: 0.75 },
   smg:     { name: "MP5 SMG",    ammo: ["pistol", "hp9"],
              note: "fast and controllable, poor through cover",
              w: { ...TUNE.rifle, dmg: 24, rpm: 800, mag: 30, reload: 1.15, range: 700,
@@ -5845,6 +5951,10 @@ const SQUAD_TEMPLATES = {
   weight:   { name: "WEIGHT OF FIRE", roles: ["support", "support", "rifleman"], note: "two belts — suppress and bound" },
   assault:  { name: "ASSAULT",  roles: ["rifleman", "rifleman", "breacher"], note: "rifles forward" },
   overwatch:{ name: "OVERWATCH",roles: ["marksman", "rifleman", "support"],  note: "one man reaching, one man suppressing" },
+  // A wall goes through the door first and the rifles work behind it. The
+  // shield man is slow and shoots a pistol one-handed; he is not there to
+  // win the fight, he is there to make the doorway survivable.
+  bunker:   { name: "BODY BUNKER", roles: ["shield", "rifleman", "breacher"], note: "a wall goes first" },
   // The US Army rifle squad, per Sam: you are the squad leader, and behind you
   // are two identical four-man fireteams — team leader, grenadier with the
   // underbarrel, automatic rifleman on the SAW, rifleman. Nine guns is a
@@ -5880,6 +5990,7 @@ function makeSquaddie(sp, i) {
   s.roe = "return"; // hold | return | free
   s.can = !!game.loadout.can && !(ROLES[s.role] || {}).noCan;
   wearArmor(s, game.loadout.armor);   // the team kits up the same as you
+  wearShield(s, ROLES[role].shield);  // and the SHIELD role brings its own wall
   return s;
 }
 
@@ -8023,7 +8134,12 @@ function corpseTint(e) {
 
 function spriteFor(e, dead) {
   if (dead) return { key: "corpse", tint: corpseTint(e) };
-  if (e.side === "player") return { key: "player", tint: COLORS.player };
+  // One bunker sprite, two tints. #TEAMCOLOR is swapped at rasterisation and
+  // getSprite caches per (key, tint), so the player's blue bunker and a
+  // squaddie's green one come off the same art at zero extra bytes — which is
+  // why there is no separate player_shield key.
+  if (e.side === "player")
+    return { key: hasShield(e) ? "squad_shield" : "player", tint: COLORS.player };
   if (e.side === "squad")  return { key: squadSpriteFor(e), tint: COLORS.squad };
   if (e.side === "enemy") {
     if (e.state === "cuffed")    return { key: "cuffed", tint: COLORS.cuffed };
@@ -9007,6 +9123,14 @@ function drawHud() {
     ctx.fillStyle = "#2a2f34"; ctx.fillRect(bx, by + 19, 210, 9);
     ctx.fillStyle = p.armor > p.armorMax * 0.3 ? "#8fa6bd" : COLORS.accent;
     ctx.fillRect(bx, by + 19, 210 * clamp(p.armor / p.armorMax, 0, 1), 9);
+  }
+  // The bunker gets its own bar because it is the thing actually keeping you
+  // alive, and unlike a plate it can be pointed the wrong way — so knowing how
+  // much of it is left is half of knowing whether to turn or to run.
+  if (p.shieldMax > 0) {
+    ctx.fillStyle = "#2a2f34"; ctx.fillRect(bx, by + 30, 210, 5);
+    ctx.fillStyle = p.shield > p.shieldMax * 0.3 ? "#93cfe4" : COLORS.danger;
+    ctx.fillRect(bx, by + 30, 210 * clamp(p.shield / p.shieldMax, 0, 1), 5);
   }
   // wind, under the plate — the thing the plate actually costs you
   if (p.stamMax) {
@@ -11848,6 +11972,40 @@ requestAnimationFrame(frame);
     and one of detonateBang. And the player's tube now TICKS: updateSquaddie
     always ticked it for the grenadier, nothing ever ticked it for the player,
     because until now the player had no tube.
+  v0.71 (2026-08-18): PISTOL AND SHIELD — ARMOUR YOU HAVE TO POINT.
+    The last of Sam's queue. A body bunker is the same arithmetic as a plate —
+    rating against penetration, a pool that wears out, a cover fraction that is
+    deliberately never 1.0 — plus the one addition that IS the mechanic: it only
+    exists inside the 80 degrees you are facing, and it is worth nothing at all
+    from the flank.
+    Every number is derived rather than picked. arc: one tile is one metre, so a
+    pixel is 3.1cm; a 51cm bunker held 35cm off the chest subtends 72 degrees,
+    rounded to 80 so it can be aimed rather than threaded. rating 36 sits one
+    rung above the slug at 34 and well below AP at 46, so it turns every round
+    the garrison carries — their AKM is x39 at pen 32 — and the ONE thing on any
+    map that goes through it is the emplaced gun, at fmj 26 times the M2's 2.2.
+    hp 300 against dmg * 0.88 absorbed is sixteen AK rounds: long enough to
+    cross a room, nowhere near long enough to live in the open. Measured:
+    5.0 damage through from an AK against 18.2 from armour-piercing.
+    cover 0.88 is a hard floor, not a taste: a standable thing that cannot be
+    shot through at all makes the man on it unhittable and reads to the AI as
+    perfect cover, which is the exact mistake already written down about prop
+    materials. 12% of rounds find shins, feet, or the gun hand that has to come
+    round the side to shoot.
+    The flank is the counterplay, so it had to be REACHABLE — shieldTurnMul 0.45
+    is the twenty kilos at arm's length, and it interlocks with the arc: a
+    slow-turning man behind 80 degrees can genuinely be got round. The bunker
+    also buys the primary slot, so there is no rifle to swap to, and carry speed
+    is 0.75.
+    It sits IN FRONT OF the plate and takes the round first — one it stops never
+    reaches the chest — and it only votes on damage that ARRIVED ALONG A LINE.
+    Bullets and spall off a struck wall have a bearing; blast and overpressure
+    come in as a sphere and go round a plane, so the grenade call sites pass no
+    bearing at all and the bunker is no help whatever against a frag. That is
+    the trade, and it is why the shield template still wants rifles behind it.
+    One sprite, two tints: getSprite already caches per (key, tint), so the
+    player's blue bunker and a squaddie's green one come off the same art at
+    zero extra bytes.
 -->
 </body>
 </html>
