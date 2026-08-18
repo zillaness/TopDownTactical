@@ -1,6 +1,6 @@
 ---
-file: ART_PROMPT_AIRCRAFT_v1.1.md (top-down-tactical)
-version: 1.1
+file: ART_PROMPT_AIRCRAFT_v1.2.md (top-down-tactical)
+version: 1.2
 author: Sam Cao
 created: 2026-08-18
 last_updated: 2026-08-18
@@ -19,6 +19,25 @@ Neither leads. **They both fall out of one number — the real airframe's
 dimensions — and once that is picked, the level and the art are two views of
 the same object.** So the prompts are below and can go to Codex now. The only
 thing that has to be decided before generating is **§1**, and it is one choice.
+
+## SCOPE, as of v1.2 — THE EXTERIOR ONLY
+
+Sam, after seeing the cabin running in v0.83: *"i think we can stick with the
+svg seats interior"* … *"but have the exterior art?"*
+
+**So the cabin interior is DONE and is not part of this brief.** The seats,
+galleys and fittings are drawn in code, they ship, and they are staying. Do not
+generate seat art — §4b is struck through below and kept only so nobody
+re-derives it.
+
+**What is wanted is the airframe you see from outside**, which is the one part
+still standing in as a placeholder: v0.83 draws the closed fuselage as flat
+skin with panel lines and a row of window dots. It works — it reads as an
+aeroplane and the roof-lift mechanic is built and tested around it — but it is
+the plainest thing on the map and it is the first thing you see.
+
+Generate **§4a (four pieces)** and, if there is appetite, **§4c (ground
+support)**. Nothing else.
 
 ## 0. What is wrong today, measured
 
@@ -168,18 +187,25 @@ every vehicle in this game. State the viewBox in the prompt every time.
 
 `air_wing_stbd` — **do not generate.** The engine mirrors `air_wing_port`.
 
-### 4b. Cabin interior — six pieces, and the seats are the job
+### 4b. Cabin interior — ~~six pieces~~ **CUT. Already built, in code.**
 
-The cabin floor is drawn as tiles by the engine; these are the fittings on it.
+Struck as of v1.2. The cabin is drawn by `drawSeatTile()` and the prop sprites
+already in the file, and Sam has called it: it stays.
 
-| key | viewBox | tiles | prompt line |
-|---|---|---|---|
-| `seat_triple` | `0 0 64 128` | 1 × 2 | **Generate this one first and look at it before anything else.** "Three economy airliner passenger seats abreast in one row unit, seen from DIRECTLY ABOVE. The aircraft nose is to the RIGHT, so all three passengers FACE RIGHT: each seat shows its headrest on the RIGHT, the seat back behind it, then the seat pan, with thin armrests between the seats and at each end. The three seats are stacked one above another in the frame, filling the full 2-tile height, and the unit is 1 tile deep left-to-right. It reaches the TOP and BOTTOM edges exactly so that stacking copies of it builds a continuous bank of seats, and reaches the LEFT and RIGHT edges so that rows abut front to back with no gap. Dark blue-grey fabric, slightly lighter headrest covers. Must read as three distinct seats at 10% size." |
-| `seat_double` | `0 0 64 96` | 1 × 1.5 | "The same airliner seat unit but TWO seats abreast instead of three, same fabric, same headrests, same facing (nose right), same 1-tile depth, tiling seamlessly top and bottom." |
-| `galley` | `0 0 128 64` | 2 × 1 | "An aircraft galley unit from directly above: a bank of brushed stainless steel trolley stowages and counter surfaces, 2 tiles by 1, with the counter edge along the front. Clean, cold, industrial." |
-| `lavatory` | `0 0 64 64` | 1 × 1 | "An aircraft lavatory module from directly above with the roof removed: a cramped moulded plastic cubicle, a small basin at one side and the toilet at the other, off-white and grey, one tile square." |
-| `cockpit_seats` | `0 0 128 192` | 2 × 3 | "An airliner flight deck from directly above with the roof removed: two pilot seats one above the other in the frame, both facing RIGHT (the nose), a centre pedestal with throttle levers between them, the glareshield and instrument panel as a dark band down the RIGHT edge. Three tiles tall, two deep." |
-| `service_cart` | `0 0 32 64` | 0.5 × 1 | "A single aircraft galley service trolley from directly above: a narrow brushed-steel box on castors, half a tile wide and one tile deep." |
+For the record, what is in there and why it does not need replacing:
+
+- **Seat banks** are drawn per tile, nose-right, headrest forward, two units to
+  a tile, courses reading as a continuous bank down the cabin. They also carry
+  a **damage state** the art would have had to reproduce anyway — every seat
+  tile holds two rounds of cover, and as it is shot out it draws holes and then
+  exposed stuffing. A static sprite could not do that without three variants
+  per piece, so the code version is not a placeholder here, it is the better
+  answer.
+- **Galleys** use the existing `kitchen_counter` sprite on the `u` glyph.
+- **Lavatory, cockpit seats and service carts** were never placed. If the
+  flight deck ever wants to read as a flight deck, `cockpit_seats` is the one
+  piece worth revisiting — the cockpit is a locked room with one man in it and
+  currently draws as bare floor. It is not blocking anything.
 
 ### 4c. Ground support — four pieces. This is how you get in, so it is not scenery.
 
@@ -194,10 +220,18 @@ The cabin floor is drawn as tiles by the engine; these are the fittings on it.
 
 ## 5. Integration contract
 
-1. **The fuselage is a PROP, the cabin floor is TILES.** You fight inside the
-   cabin, so its floor and its walls have to be real level geometry with real
-   collision. The exterior skin, the wings and the tail are drawn over the
-   apron and are scenery — no collision beyond what the map declares.
+1. **The fuselage art replaces a ROOF, and the roof already exists.** v0.83
+   added a per-room roof: the aircraft draws closed from outside and the lid
+   comes off the cabin the moment one of your people is inside it, leaving the
+   flight deck shut behind its own bulkhead. `drawRoofs()` is the single
+   function the art drops into — it already knows which tiles are hull, which
+   room owns each one, and whether that room has been opened. Nothing about the
+   map, the collision or the mechanic changes when the art lands.
+2. **So the pieces must tile to the ROOF FOOTPRINT, not to a free-standing
+   picture of an aeroplane.** The footprint is the fuselage: 72 tiles long,
+   10 wide through the parallel section, tapering over the 9-tile tailcone and
+   the 9-tile radome. Wings are the exception — they are pure scenery over the
+   apron and belong to no room.
 2. **Multi-tile props already work.** `PROPS[key]` takes `tw` / `th`, and the
    pillbox is already a 3 × 3. The wing is a 28 × 16, which is bigger than
    anything so far — check it against the draw path before committing to it.
@@ -215,12 +249,19 @@ The cabin floor is drawn as tiles by the engine; these are the fittings on it.
 
 ## 6. Priority order
 
-1. `seat_triple` — generate it, look at it, decide the cabin on it.
-2. `air_cabin`, `air_nose`, `air_tail` — the fuselage, in that order.
-3. `airstair` — the way in, and currently the mission has no visible one.
-4. `galley`, `lavatory`, `cockpit_seats` — what makes it a real cabin.
-5. `air_wing_port`, `ground_apron` — the establishing shot.
-6. `jet_bridge`, `pushback_tug`, `service_cart` — set dressing.
+1. **`air_cabin`** — the parallel section, and 54 of the 72 tiles. Generate this
+   one first and look at it before anything else: everything butts against it.
+2. **`air_nose`** and **`air_tail`** — the two ends, which are what make the
+   silhouette an aeroplane rather than a shipping container.
+3. **`air_wing_port`** — the establishing shot. Pure scenery, mirrored for
+   starboard, and the single biggest thing on the map.
+4. **`airstair`** — the way in, and the mission currently has no visible one.
+5. **`ground_apron`** — the concrete under all of it.
+6. **`jet_bridge`, `pushback_tug`** — set dressing, only if it is free.
+
+**Byte headroom is 54,258 as of v0.83**, against a hard 2MB ceiling the suite
+fails on. Four exterior SVGs should land in single-digit KB; measure, do not
+estimate, and weigh before committing.
 
 ## 7. Where to put them
 
@@ -230,6 +271,14 @@ drop contract in `assets/README.md` applies; the tooling measures and inlines
 and refuses to write anything that breaks the ceiling.
 
 ## CHANGELOG
+- v1.2 (2026-08-18): Scope cut to the EXTERIOR, on Sam's call after playing the
+  v0.83 cabin: "i think we can stick with the svg seats interior … but have the
+  exterior art?" §4b struck — the seats are drawn in code, they ship, and they
+  carry a shot-out damage state a static sprite could not have done without
+  three variants a piece. The airframe is the remaining placeholder and the
+  first thing you see, so it is the whole ask now. Integration section rewritten
+  against the roof mechanic that v0.83 actually built, so the art drops into
+  `drawRoofs()` with no map or collision change.
 - v1.1 (2026-08-18): Geometry LOCKED after Sam chose wide-body "a little wider
   than a real plane for the sake of fun, but it should still read as a narrow
   plane body". 8-tile interior (36% over a real 777, all of it in the seat
