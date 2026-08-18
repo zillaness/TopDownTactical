@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.80.html
-  version: 0.80
+  file: top_down_tactical_v0.81.html
+  version: 0.81
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.80 (working title)</title>
+<title>Top-Down Tactical v0.81 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.80 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.81 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1009,7 +1009,11 @@ const TUNE = {
   mortarLethal: 30, mortarWound: 110, mortarDmg: 110, noiseMortar: 820,
   // FIELD TEST — the emplaced gun. An M2 on a fixed mount: devastating inside
   // its arc, useless outside it, and whoever is on it is not going anywhere.
-  m2w: { name: "EMPLACED M2", dmg: 50, rpm: 460, mag: 75, reload: 7.0, speed: 1700,
+  // The belt is 100 because that is what an M2 belt box holds — Sam's call, and
+  // the right one: 75 was a number, 100 is the object. At 460rpm that is thirteen
+  // seconds of continuous fire before a seven-second belt change, and the belt
+  // stays with the GUN across dismounts rather than refilling when you step off.
+  m2w: { name: "EMPLACED M2", dmg: 50, rpm: 460, mag: 100, reload: 7.0, speed: 1700,
          range: 1200, spreadBase: 0.023, spreadMove: 0.023, recoil: 0.009,
          recoilMax: 0.09, recoilDecay: 0.10, penMul: 2.2, ammo: "fmj" },
   turretArc: deg(110), turretReach: 44,
@@ -13087,6 +13091,14 @@ requestAnimationFrame(frame);
     weapon system beside you. Any downed man in reach now owns the key, and the
     turret sits below cuffing and securing. The [E] GUN prompt was taught the
     same priority, so it stops offering a press that will not happen.
+  v0.81 (2026-08-18): THE M2 BELT IS A BELT BOX.
+    Sam: "m2 mounted machine guns should be 100 rounds before reloading." It
+    was 75, which was a number somebody picked; 100 is the object — that is
+    what an M2 belt box holds. At 460rpm it works out to thirteen seconds of
+    continuous fire before a seven-second belt change, so the figure does real
+    work rather than just being tidier. The belt still belongs to the GUN and
+    not the gunner: step off with 41 left and step back on to 41, because two
+    [E] presses were a free reload once already and the test now says so.
 -->
 </body>
 </html>

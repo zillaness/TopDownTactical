@@ -5269,3 +5269,31 @@ dismountTurret(p);
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('INTERACT PRIORITY TEST DONE');
 })();
+
+(function m2BeltTests(){
+console.log('--- the M2 belt is a belt box ---');
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
+game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+console.log('  belt capacity: ' + TUNE.m2w.mag,
+            TUNE.m2w.mag === 100 ? 'CORRECT (an M2 belt box holds 100)' : 'WRONG');
+const t = level.turrets.find(tt => tt.ring && tt.veh);
+const p = game.player;
+p.x = t.sx; p.y = t.sy;
+mountTurret(p, t);
+console.log('  a fresh gun mounts with a full belt: ' + p.ammo,
+            p.ammo === 100 ? 'CORRECT' : 'WRONG');
+// the belt is the GUN's: spend some, step off, come back to what you left
+p.ammo = 41;
+dismountTurret(p);
+p.x = t.sx; p.y = t.sy;
+mountTurret(p, t);
+console.log('  and stepping off and back on resumes it, not refills it: ' + p.ammo,
+            p.ammo === 41 ? 'CORRECT (no free reload)' : 'WRONG');
+dismountTurret(p);
+// thirteen seconds of trigger before the belt change, so the number means something
+console.log('  which is ' + (TUNE.m2w.mag / (TUNE.m2w.rpm / 60)).toFixed(1) + 's of continuous fire before a ' +
+            TUNE.m2w.reload + 's change',
+            TUNE.m2w.mag / (TUNE.m2w.rpm / 60) > 10 ? 'CORRECT' : 'WRONG');
+localStorage.clear(); game.mapIndex = 0; initGame();
+console.log('M2 BELT TEST DONE');
+})();
