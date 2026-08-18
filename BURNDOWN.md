@@ -479,5 +479,76 @@ which is a 0.94px circle at the 40px a man actually blits at — below one pixel
 It is off the bunker sprite; every other sprite still carries it. Sam has not
 said whether to strip it everywhere.
 
+## Session handoff — 2026-08-18, playtest + systems S4 (through v0.77)
+
+**Two sessions ran the same backlog at once and collided.** S4 (this one) and
+S3 both started on open item 1, reached the same diagnosis independently, and
+wrote the same fix; S3's landed first as v0.74 and is the one that shipped, with
+a better canopy gate (the crown's own footprint, diagonals included, rather than
+four neighbours). S4's duplicate was dropped rather than merged. S4 then rebased
+twice more, onto v0.75 and v0.76, as S3 kept publishing. **If a second session
+is running, read `git log origin/main` before starting an item, not just this
+file** — the ledger lags the branch by a commit or two, and three of these
+collisions cost more than the work did.
+
+### Shipped by S4 — v0.77, all from Sam playing v0.73
+
+- **The cover on BROKEN ARROW.** "Looks bad, also there's fog of war over the
+  cover." The fog half was v0.74. The other half was that it was seven loose
+  BRICK tiles in a dirt road — brick is the map's building material, so a 1x2
+  stub in the open reads as an unfinished wall. Two of the seven sat directly
+  up-range of a squad spawn, which is the TREELINE lesson already written down
+  in CLAUDE.md; the commit that added them cited that lesson and then did it
+  anyway. Now sandbag positions beside each casualty on the threat side and on
+  the flanks of the start line, centre lane clear. The test asserts the general
+  rule, not the instance: nothing opaque within three tiles up-range of a spawn.
+- **Concertina wire**, a new material at Sam's suggestion, across the road ahead
+  of the lead vehicle as the obstacle that stopped the convoy. Inverse of a
+  hedge and the only thing in the table that is: stops the MAN and nothing else.
+  `resist: 0` is safe on it because PROPS.wire is solid — the standable-tile trap
+  needs a tile you can stand on. **Drawn in code, not blitted**, so it costs the
+  byte census nothing. Glyph `x`.
+- **Props paint ground under their sprite** instead of a flat material square
+  with a lit top edge. The sprites carry a baked-in inset, so the square showed
+  round every edge. This is the difference for all twelve sprites item 2 just
+  unblocked, not only the sandbags.
+- **The Humvee ring gun you could not get on.** Sam asked three times. `[E]`, a
+  tap — and it was measuring the wrong distance. v0.72 correctly moved the gun
+  onto the vehicle's painted hatch and left the reach on the `M` glyph beside
+  the bodywork: 85px apart against a 44px reach, so walking up to the gun you
+  can SEE did nothing from every side of the truck but one. You now climb from
+  wherever you touch the hull, and step back down where you climbed up. An
+  unmanned gun in reach shows `[E] GUN` — nothing announced a turret before.
+
+Build 1,990,947 bytes, still under the ceiling v0.76 fought to reach. Suite 542
+CORRECT / 0 WRONG / 0 update errors. Wire and sandbags checked in Chromium.
+
+### Open for S4
+
+8. ☐ **Balance pass for tuning difficulty — ASKED FOR, NOT STARTED.** Sam: "i
+   think we need a balance pass for tuning difficulty." Read the two warnings
+   already in this file before touching a number: the bot never takes cover and
+   charges 33% faster than it used to, so it reads 15/20 deaths on REGULAR where
+   a human should do far better, and it has caused an over-correction twice.
+   The oracle-independent questions worth measuring first, none of which need
+   the bot to play well:
+   - **Is any armour tier free?** `ARMOR.speed` is 1.00 across all four; the
+     only price is sprint wind (9.0s / 5.5s / 3.2s). If sprint is not a resource
+     you actually spend, IV HEAVY is strictly dominant at +135hp and rating 48.
+     v0.15 already fixed a tap-exploit here; the pricing itself was never
+     revisited, and the BODY ARMOR entry above flags III as taking bot deaths
+     5/24 → 0/24 and says in as many words that it "needs re-costing".
+   - **Is any primary or ammunition dominant?** Same test: an option nobody
+     would ever decline is not a choice.
+   - **Do the three difficulty tiers separate on anything but the clock?** The
+     comment on `DIFFICULTIES` records that `react` provably decided nothing —
+     100% win on ROOKIE and ELITE alike — and that what actually separated them
+     was `exec`, a mission-failure clock, which makes ELITE not harder but
+     stricter. It was rebuilt on lead/cone/sight/hp/armour; whether that
+     separation is real has not been re-measured since.
+   - **ELITE plates the elite at rating 33.** 5.56 FMJ is pen 26. If ball cannot
+     beat the plate, ELITE quietly mandates AP, which removes the loadout choice
+     rather than pricing it.
+
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial backlog seeded at project start.
