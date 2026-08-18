@@ -5,14 +5,31 @@ function botRun(mapIdx, seedLabel) {
   const P = game.player;
   let frames = 0, banged = false, errs = 0;
   input.keys.clear(); input.justPressed.clear();
-  while (game.state === 'play' && frames < 60 * 150) {
+  while (game.state === 'play' && frames < 60 * (MAPS[mapIdx].siege ? 420 : 150)) {
     frames++;
     input.justPressed.clear();
     input.keys.clear();
     input.mouse.down = false;
     const target = nearestEntity(game.hostages, P.x, P.y, 1e9, h => h.alive && !h.secured)
       || nearestEntity(game.enemies, P.x, P.y, 1e9, e => e.alive && e.state !== 'cuffed');
-    if (!target) break;
+    // NOTHING TO CHASE IS NOT THE SAME AS NOTHING TO DO. This is an assault bot
+    // and it has always read an empty map as "mission over" — which is true on
+    // every map that writes its enemies down, and false on a siege, where the
+    // map starts empty on purpose and the first wave is twenty seconds out. It
+    // used to break out on frame one and report a 0-second run.
+    // A defender holds. So: stand on the position and keep the clock running.
+    if (!target) {
+      if (!game.siegeState || game.siegeState.phase === 'done') break;
+      const z = level.extraction[0];
+      if (z) {
+        const zx = z.tx * TILE + 16, zy = z.ty * TILE + 16;
+        if (zx > P.x + 6) input.keys.add('d'); if (zx < P.x - 6) input.keys.add('a');
+        if (zy > P.y + 6) input.keys.add('s'); if (zy < P.y - 6) input.keys.add('w');
+      }
+      input.mouse.wx = P.x + 100; input.mouse.wy = P.y;
+      try { update(1 / 60); } catch (e) { errs++; if (errs < 3) console.log('UPDATE ERROR:', e.message); }
+      continue;
+    }
     // pathing intent: recompute every second
     if (frames % 60 === 1) {
       const st = tileAt(P.x, P.y), gt = tileAt(target.x, target.y);

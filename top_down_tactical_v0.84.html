@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.83.html
-  version: 0.83
+  file: top_down_tactical_v0.84.html
+  version: 0.84
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.83 (working title)</title>
+<title>Top-Down Tactical v0.84 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.83 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.84 prototype &mdash; working title &mdash; twenty-two missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -1027,6 +1027,10 @@ const TUNE = {
   // most of the length of it, so the veil is mostly lifted and what is left is
   // just enough to say "you are not looking at this bit right now".
   roofOpenFog: 0.72,
+  // How long the enemy may stand on the ground you were told to hold before it
+  // counts as lost. Long enough that a man breaking in is a problem to solve
+  // and not an instant loss; short enough that you cannot ignore him.
+  overrunTime: 7,
   // FIELD TEST — BROKEN ARROW. Men already down when you arrive get a longer
   // clock than a fresh casualty: shock has set in, the bleeding is slower, and
   // the mission is the distance between you and them.
@@ -1563,8 +1567,30 @@ function findVehicles(rows) {
   }
   return out;
 }
-function surveyMap(rows, diffIdx, rows2) {
+// How many men a siege owes you, density scaled. A hold map writes NO enemies
+// on its source — they all arrive in waves — so anything that counts contacts
+// by reading the map reports zero and means it. Three separate systems believed
+// that and all three were wrong in the same way.
+function siegeTotal(mission, densityMul) {
+  const cfg = mission && mission.siege;
+  if (!cfg) return 0;
+  const mul = densityMul === undefined ? (game.density ? game.density.mul : 1) : densityMul;
+  return cfg.sizes.reduce((a, n) => a + Math.max(1, Math.round(n * mul)), 0);
+}
+// ...and how many of them have not stepped off yet.
+function siegePending() {
+  const st = game.siegeState; if (!st || st.phase === "done") return 0;
+  const cfg = game.mission.siege, mul = game.density ? game.density.mul : 1;
+  let n = 0;
+  for (let w = st.wave; w < cfg.sizes.length; w++) n += Math.max(1, Math.round(cfg.sizes[w] * mul));
+  return n;
+}
+
+function surveyMap(rows, diffIdx, rows2, mission) {
   const s0 = surveyOneFloor(rows, diffIdx);
+  // A briefing that says "0 expected" for a mission that sends five waves at
+  // you is not intel, it is a lie. Count what is coming.
+  s0.contacts += siegeTotal(mission);
   if (!rows2) return s0;
   const s1 = surveyOneFloor(rows2, diffIdx);
   // the briefing counts the whole HOUSE: contacts, kinds and windows add up;
@@ -2440,6 +2466,87 @@ const MAPS = [
 "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,*#",
 "##############################################################"
 ] },
+{ name: "THE OUTPOST", ground: "ground_dirt", roofed: false, siege: { sizes: [4, 6, 8, 11, 14], gap: 26, first: 20, kinds: [["guard"],["guard","guard","elite"],["guard","elite"],["elite","guard","guard"],["elite","elite","guard"]] }, advice: "You are already in the position and you are not leaving it. Five waves, each bigger than the last, coming across open ground from every side — the wire buys you seconds and the hescos buy you the fight. Fight FROM the sandbag bays: braced on a parapet your rounds clear it and theirs mostly do not. The lull between waves is the mission — reload, drag your wounded behind the wall, tie them off, and be back on the line. Lose the centre for seven seconds and you have lost the outpost.", brief: "Patrol base under attack — five waves, hold the centre", type: "HOLD THE POSITION", objectives: ["hold"], src: [
+"########################################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,*,,,,,,,,,#",
+"#,,,####################################,,,,,,,,~,,,,,,#",
+"#,,,####################################,,,,,,,,,,,,,,,#",
+"#,,,####################################,,,,Q,,,,,,,,,,#",
+"#,,,#####,,,,,,#,,,,,,,,,#,,,,,,,,,,,Z,,,,,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,#,,,,,,,,,#,,,,,,,,,,,Z,,,,,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,#,,XXXXXX,#,,,,,,,,,,,Z,,,x,,,,,,,,,,*,,#",
+"#,,,#####,,,,,,#,,XsPXXX,#,,,,,,,,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,#####D#####,,,,,,,,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,Q,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,M,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,%%%@,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,%%%@,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,s,,,,,,,,,,,,,,*,,,,#",
+"#,,,#####,,,M,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,@%%%,,,,,,,,,,,,,,,,,,,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,@%%%,,,,,,,,,,,,,,,,,,,,,nZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,Q,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,s,,,,,,,,,s,,,,,,,,,,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,nn,,,nn,,,nn,,,nn,,,nn,,,Z,,,x,,,,,,,,,,,,,#",
+"#,,,#####ZZZZZZ,ZZZZZZZZZ,ZZZZZZZZZ,ZZ,,,x,,,,,,,,,,,,,#",
+"#,,,#####,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,x,,,,*,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,x,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,x,,,,,,,,,,,,,#",
+"#,,,,,,,,,xxxxx,xxxxxxxxx,xxxxxxxxx,xxxxxx,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Q,,,,,,#",
+"#,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,*,,,,,,,,,,,,~,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,Q,,,,,,,,,Q,,,,,,,,,Q,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,~,,,,,,,,,Q,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"########################################################",
+"########################################################"
+] },
+{ name: "LAST LIGHT", siege: { sizes: [5, 7, 10, 13], gap: 24, first: 18, kinds: [["guard","guard"],["guard","elite"],["elite","guard","guard"],["elite","elite","guard"]] }, advice: "You took this building an hour ago and now they want it back. Four waves through the streets and in at the windows — every one of which is an opening you can be shot through and an opening you can shoot out of. The sandbagged sills are firing positions; the partitions are somewhere to fall back to when a room goes. Hold the stairwell core. Everything else is negotiable.", brief: "A building you already own — four waves want it back", type: "URBAN DEFENCE", objectives: ["hold"], src: [
+"##################################################",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,Q,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,Q,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Q,,,#",
+"#,,,,,,,xxxxxxxxxxxxxxxx,,,xxxxxxxxxxxxxxx,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,J,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,J,,,,,,,,#",
+"#,,,,,,,,,,,,,###W##W##W#DW##W##W###,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,#..n..n..n.-n..n..n..#,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,#...s......-..u......#,,,,,,,,,,,,,#",
+"#,,,,,,Z,,,,,,Wn...d.....-.....d..nW,,,,,,,Z,,,,,#",
+"#,,,,,,,,,,,,,#....................#,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,#..........-.........#,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,Wn....s.........s...nW,,,,,,,,,,,,,#",
+"#,,,Q,,,,,,,,,D....................#,,,,,,,,,Q,,,#",
+"#,,,,,,,,,,,,,#---.----............#,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,Wn...........XXXX...nW,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,#..d.........XPXX....#,,,,,,,,,,,,,#",
+"#,,,,,,Z,,,,,,Wn......d.s........dnW,,,,,,,Z,,,,,#",
+"#,,,,,,,,,,,,,#..n..n..n..n..nu.n..#,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,###W##W##WD#W##W##W###,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,J,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,J,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,xxxxxxxxxxxxxxxx,,,xxxxxxxxxxxxxxx,,,,,,,#",
+"#,,,Q,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Q,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,Q,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+"##################################################"
+] },
 { name: "THE WALKUP", beta: true, advice: "Two floors, one staircase, and everyone upstairs heard everything you did downstairs' neighbour never will — floors keep their own fights. Clear the ground, own the stairs, and remember the landing is a fatal funnel pointed DOWN at you.",
   brief: "A two-storey house — clear the ground floor, then take the stairs",
   type: "TWO-STOREY CLEAR", objectives: ["neutralize"], src: [
@@ -2507,6 +2614,11 @@ let MAP_SRC = MAPS[0].src;
     const count = ch => m.src.reduce((n, r) => n + r.split(ch).length - 1, 0);
     if (count("P") !== 1) throw new Error(`${m.name} declares ${count("P")} player spawns, needs exactly 1`);
     if (count("s") < 3) throw new Error(`${m.name} declares ${count("s")} squad spawns, needs at least 3`);
+    if (m.objectives.includes("hold")) {
+      if (!m.siege) throw new Error(`${m.name} has a hold objective but no siege config`);
+      if (count("Q") === 0) throw new Error(`${m.name} holds against waves but declares no Q spawn points`);
+      if (count("X") === 0) throw new Error(`${m.name} has a hold objective but no X tiles to hold`);
+    }
     if (m.objectives.includes("extract") && count("X") === 0)
       throw new Error(`${m.name} has an extract objective but no X extraction tiles`);
     if ((m.objectives.includes("capture") || m.objectives.includes("eliminate")) && count("V") === 0)
@@ -3959,6 +4071,78 @@ function clampToArc(t, want) {
 // a QRF spawns at the map's Q points, already alerted, already converging.
 // The mission does not end in the quiet minute between the last defender and
 // the first counterattacker — that minute is for reloading.
+// ---- THE SIEGE. Sam: "i want a few episodes where my team is in a defensive
+// position and needs to hold out against an attacking wave."
+//
+// The QRF below is the single-shot version and has been since v0.5: take the
+// objective, then one counterattack lands. A siege is that on a loop with the
+// numbers going up, plus the thing that makes it a DEFENCE rather than a longer
+// fight — ground you can lose.
+//
+// Waves come from the map's Q points, the same ones the QRF uses, so a siege
+// map is authored like any other. Between them is a lull, which is the whole
+// texture of the mode: reload, drag your casualties behind the wall, tie them
+// off, and be back on the line before the next one steps off.
+function updateSiege(dt) {
+  const st = game.siegeState; if (!st) return;
+  const cfg = game.mission.siege;
+  if (st.phase === "done") return;
+
+  if (st.phase === "lull") {
+    st.t -= dt;
+    if (st.t <= 0) {
+      const n = Math.max(1, Math.round((cfg.sizes[st.wave] || cfg.sizes[cfg.sizes.length - 1]) *
+                                        (game.density ? game.density.mul : 1)));
+      const kinds = (cfg.kinds && cfg.kinds[st.wave]) || ["guard", "guard", "elite"];
+      const pts = level.spawns.qrf.length ? level.spawns.qrf : [level.spawns.player];
+      for (let i = 0; i < n; i++) {
+        const base = pts[(i + st.wave) % pts.length];
+        const sp = nearestPassable(base.x + Math.cos(i * 2.1) * 34, base.y + Math.sin(i * 2.1) * 34);
+        const e = makeEnemy({ x: sp.x, y: sp.y, kind: kinds[i % kinds.length] });
+        e.original = false; e.wave = st.wave + 1;
+        game.enemies.push(e);
+        alertEnemy(e, game.player.x, game.player.y);   // they know where you are; that is the point
+      }
+      st.wave++; st.phase = "fighting"; st.spawned = n;
+      game.hint = "WAVE " + st.wave + " OF " + cfg.sizes.length + " — " + n + " inbound";
+      sfxAt("shout", game.player.x, game.player.y);
+      game.camKick = Math.min(6, game.camKick + 2);
+    }
+    return;
+  }
+
+  if (st.phase === "fighting" && threatsLeft() === 0) {
+    if (st.wave >= cfg.sizes.length) {
+      st.phase = "done";
+      game.hint = "THAT WAS THE LAST OF THEM — the position held";
+    } else {
+      st.phase = "lull"; st.t = cfg.gap;
+      game.hint = "WAVE " + st.wave + " BROKEN — " + Math.round(cfg.gap) + "s until the next";
+    }
+  }
+}
+
+// Is the ground you were told to hold in enemy hands? The position is the map's
+// X tiles — the same glyph the exfil uses, because on a hold mission the ground
+// that matters IS the ground you are standing on. Lost only if they are on it
+// and none of your people are, and only after they have been there a while.
+function updateOverrun(dt) {
+  if (!game.siegeState || !level.extraction.length) return;
+  const on = (ent) => ent.alive && inExtraction(ent);
+  const theirs = game.enemies.some(e => on(e) && e.state !== "cuffed" && e.state !== "surrender");
+  const ours = (game.player.alive && on(game.player)) || game.squad.some(on);
+  if (theirs && !ours) {
+    game.overrunT = (game.overrunT || 0) + dt;
+    if (game.stats) game.stats.positionLostT = (game.stats.positionLostT || 0) + dt;
+    if (game.overrunT > 2 && !game._overrunWarned) {
+      game._overrunWarned = true;
+      game.hint = "THEY ARE ON THE POSITION — get them off it";
+    }
+  } else {
+    game.overrunT = 0; game._overrunWarned = false;
+  }
+}
+
 function updateQRF(dt) {
   const q = game.qrfState; if (!q) return;
   if (q.phase === "waiting") {
@@ -10675,9 +10859,12 @@ function initGame() {
   game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
   game.enemies.forEach(e => e.original = true);
   game.qrfState = game.mission.qrf ? { phase: "waiting", t: 0 } : null;
+  game.siegeState = game.mission.siege
+    ? { phase: "lull", t: (game.mission.siege.first !== undefined ? game.mission.siege.first : game.mission.siege.gap), wave: 0 } : null;
+  game.overrunT = 0; game._overrunWarned = false;
   game.stats = { time: 0, shotsFired: 0, kills: 0, arrests: 0, hostagesSecured: 0, hostagesDead: 0, hostagesDeadUnsecured: 0,
     civsKilled: 0, civsKilledByUs: 0, squadLost: 0, surrenderedKilled: 0, bangsUsed: 0, breaches: 0,
-    enemiesEngaged: 0, worstFrame: 0, longFrames: 0 };
+    enemiesEngaged: 0, worstFrame: 0, longFrames: 0, positionLostT: 0 };
   prewarmArt();
 }
 
@@ -10740,6 +10927,9 @@ function update(dt) {
   updatePosts(dt);
   updatePeel(dt);
   updateQRF(dt);
+  updateSiege(dt);
+  updateOverrun(dt);
+  updateRoofs();
   updateWalkingWounded();
   updateBound(dt);
   updatePie();
@@ -10845,6 +11035,31 @@ const OBJECTIVES = {
         : lost.name + " was killed where he lay. He was the mission.";
     },
   },
+  // HOLD. You are not taking anything, you are keeping it. Done when the last
+  // wave is broken; lost when they own the ground and you do not.
+  hold: {
+    label() {
+      const st = game.siegeState, cfg = game.mission.siege;
+      if (!st) return "HOLD";
+      if (st.phase === "done") return "POSITION HELD";
+      if (st.phase === "lull") {
+        return st.wave === 0
+          ? "STAND TO — first wave in " + Math.ceil(st.t) + "s"
+          : "WAVE " + st.wave + "/" + cfg.sizes.length + " BROKEN — next in " + Math.ceil(st.t) + "s";
+      }
+      const warn = game.overrunT > 0
+        ? "  ·  OVERRUN IN " + Math.ceil(TUNE.overrunTime - game.overrunT) + "s" : "";
+      return "WAVE " + st.wave + "/" + cfg.sizes.length + " — " + threatsLeft() + " LEFT" + warn;
+    },
+    done() {
+      const st = game.siegeState;
+      return !!st && st.phase === "done" && threatsLeft() === 0;
+    },
+    failed() {
+      if ((game.overrunT || 0) < TUNE.overrunTime) return null;
+      return "The position was overrun. You were told to hold it.";
+    },
+  },
   capture: {
     label() {
       const h = hvtUnit();
@@ -10929,7 +11144,14 @@ function checkMissionEnd(dt) {
 function missionPar() {
   let walk = 0;
   for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) if (!level.wall[y][x]) walk++;
-  return TUNE.parBase + walk * TUNE.parPerTile + game.enemies.length * TUNE.parPerEnemy;
+  // On a siege the clock starts with time you cannot spend: the stand-to before
+  // the first wave and every lull between them are the enemy's schedule, not
+  // yours. Charging the player for them makes "inside the clock" unwinnable.
+  let forced = 0;
+  const sg = game.mission && game.mission.siege;
+  if (sg) forced = (sg.first !== undefined ? sg.first : sg.gap) + sg.gap * (sg.sizes.length - 1);
+  return TUNE.parBase + walk * TUNE.parPerTile +
+         (game.enemies.length + siegeTotal(game.mission)) * TUNE.parPerEnemy + forced;
 }
 // A TENTH of par, not a flat thirty seconds. Two minutes under is most of a
 // 2:11 map and a third of a 7:01 one, so a flat bonus prices the small maps out
@@ -10942,6 +11164,14 @@ function paceUnits(st) {
 // Capped at four, so a 23-man beach is not automatically a better grade than a
 // seven-man walkup. Every map fields at least five, so four is always on offer.
 function quietUnits(st) { return clamp(game.enemies.length - (st.enemiesEngaged || 0), 0, 4); }
+// Four for ground they never set foot on, sliding to nothing by ten seconds of
+// it in their hands. Zero on any mission with no position to hold, so the term
+// is invisible everywhere except the maps it was written for.
+function heldUnits(st) {
+  if (!game.mission || !game.mission.siege) return 0;
+  const lost = st.positionLostT || 0;
+  return lost <= 0 ? 4 : lost < 2 ? 3 : lost < 5 ? 2 : lost < 10 ? 1 : 0;
+}
 
 const GRADE_BASE = 100;
 const GRADE_BANDS = [["S", 118], ["A", 100], ["B", 80], ["C", 60], ["D", -Infinity]];
@@ -10952,6 +11182,17 @@ const GRADE_TERMS = [
     fix:  "one more suspect who never gets a shot off",
     fixN: n => n === 1 ? "one more suspect who never gets a shot off"
                        : n + " more suspects who never get a shot off" },
+  // A DEFENCE HAS NOTHING THE OTHER TERMS CAN SEE. Every man in a wave is
+  // spawned alerted and comes straight at you, so "never got a shot off" is
+  // structurally zero, and the clock is the enemy's schedule rather than yours.
+  // Both positive terms read 0 on a hold map, which put S out of reach by
+  // arithmetic — the same failure the comment below this table was written
+  // about, in a new shape. The defensive equivalent of a quiet room is ground
+  // they never stood on.
+  { key: "held",             per:  +3, label: "Position never lost",
+    n: heldUnits, room: st => 4 - heldUnits(st),
+    fix:  "keep them off the position",
+    fixN: () => "keep them off the position altogether" },
   { key: "pace",             per:  +3, label: "Inside the clock",
     n: paceUnits, room: st => 4 - paceUnits(st),
     fix:  "faster",
@@ -11514,7 +11755,7 @@ function refreshMenu() {
 
 function renderBriefing() {
   const map = MAPS[game.mapIndex] || MAPS[0];
-  const s = surveyMap(map.src, game.diffIndex, map.src2 || null);
+  const s = surveyMap(map.src, game.diffIndex, map.src2 || null, map);
   drawFloorPlan(document.getElementById("planCanvas"), map.src, s);
   const lines = briefingLines(map, s, game.diffIndex);
   const v = loadVets();
@@ -13395,6 +13636,51 @@ requestAnimationFrame(frame);
     under the aft door, so the second door was a walk nobody would take. The
     start line moved to midway between the aft door and the overwing pair, so
     both are the same distance and splitting is the obvious read.
+  v0.84 (2026-08-18): HOLD THE POSITION — two missions where you are the one
+    being attacked.
+    Sam: "i want a few episodes where my team is in a defensive position and
+    needs to hold out against an attacking wave."
+    THE SIEGE. The QRF has been the single-shot version of this since v0.5:
+    take the objective, then one counterattack lands. A siege is that on a loop
+    with the numbers going up, plus the thing that makes it a DEFENCE rather
+    than a longer fight — ground you can lose. Waves come from the map's Q
+    points, so a siege map is authored like any other. The lull between them is
+    the whole texture of the mode: reload, drag your casualties behind the wall,
+    tie them off, and be back on the line before the next one steps off.
+    THE POSITION is the map's X tiles, the same glyph the exfil uses, because on
+    a hold mission the ground that matters is the ground you are standing on.
+    It is lost only when they are on it and none of your people are, and only
+    after seven seconds of that — a man who breaks in is a problem to solve, not
+    an instant loss. A friendly standing on it stops the clock dead.
+    THE OUTPOST (five waves, 4 to 14) and LAST LIGHT (four waves, a building you
+    took an hour ago and now they want back).
+    THREE SYSTEMS BELIEVED A SIEGE MAP WAS EMPTY, because it is: a hold map
+    writes no enemies at all and every one of them arrives in a wave. The
+    briefing said "0 expected", which is not intel, it is a lie. Density did
+    nothing, because it scaled a spawn list of length zero. And S was
+    unreachable by arithmetic — every man in a wave is spawned alerted and comes
+    straight at you, so "never got a shot off" is structurally zero, and the
+    clock is the enemy's schedule rather than yours, so both positive grade
+    terms read 0 on a defence. All three are fixed at the source: the survey
+    counts what is coming, par excludes the stand-to and the lulls you cannot
+    spend, and a new term scores the defensive equivalent of a quiet room —
+    ground they never set foot on.
+    AND A BUG FROM v0.83, FOUND BY WRITING THE NEXT THING: `updateRoofs()` was
+    defined and never called. The tests called it directly and passed while the
+    mechanic was dead in actual play — the roof never came off the aircraft for
+    anyone playing the game. It is in the update loop now.
+    Measured, 12 bot runs per map, two ways: an assault bot that charges each
+    wave, and one that stays on the position. THE OUTPOST reached wave 1 of 5
+    charging and wave 3-4 holding (43s to 153s); LAST LIGHT wave 1-2 charging
+    and wave 2-3 holding (43s to 112s). Defending beats attacking on both, which
+    is the property that says the mode works. Nobody completed all the waves,
+    and that number is not calibration — the bot uses no cover, mans no turret,
+    commands nobody and throws nothing. It needs Sam's hands.
+    The first cut of THE OUTPOST was thrown away for a measured reason: it was a
+    symmetric compound of see-over cover with waves from eight bearings, so a
+    defender stood in a 360-degree beaten zone and did WORSE holding than
+    charging. A patrol base backs onto something. It backs onto rock now, and
+    the fight has a front.
 -->
 </body>
 </html>

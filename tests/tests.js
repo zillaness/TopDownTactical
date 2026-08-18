@@ -888,7 +888,10 @@ console.log('  survey vs parseLevel across six maps:',
 // the contact estimate must be a band around the truth, never exact, never wild
 let bad = [];
 for (let m = 0; m < MAPS.length; m++) {
-  const s = surveyMap(MAPS[m].src, 1);
+  // Pass the MISSION, not just its source. A hold map writes no enemies at all
+  // — every one of them arrives in a wave — so a survey that only reads the
+  // grid reports zero contacts and the band comes out around nothing.
+  const s = surveyMap(MAPS[m].src, 1, null, MAPS[m]);
   const band = contactBand(s.contacts, (MAPS[m].name.length * 7 + 13) | 0).split('–').map(Number);
   if (!(band[0] <= s.contacts && s.contacts <= band[1])) bad.push(MAPS[m].name + ' band excludes truth');
   if (band[0] === band[1]) bad.push(MAPS[m].name + ' band is exact');
@@ -1749,7 +1752,10 @@ for (let m = 0; m < MAPS.length; m++) {
   const counts = [];
   for (let d = 0; d < DENSITY.length; d++) {
     game.densityIndex = d; game.mapIndex = m; initGame();
-    counts.push(game.enemies.length);
+    // Count the men the mission will actually field, not the men standing on
+    // it at t=0. A siege map writes none — they all arrive in waves — so
+    // reading the spawn list made every density tier identical at zero.
+    counts.push(game.enemies.length + (typeof siegePending === 'function' ? siegePending() : 0));
     // uniques must stay unique or the objectives break
     const takers = game.enemies.filter(e => e.kind === 'taker').length;
     const hvts = game.enemies.filter(e => e.kind === 'hvt').length;
@@ -1786,9 +1792,11 @@ console.log('  placement legal on all ' + MAPS.length + ' maps x ' + DENSITY.len
 let drift = [];
 for (let m = 0; m < MAPS.length; m++) for (let d = 0; d < DENSITY.length; d++) {
   game.densityIndex = d; game.mapIndex = m; initGame();
-  const s = surveyMap(MAPS[m].src, game.diffIndex, MAPS[m].src2 || null);
-  if (Math.abs(s.contacts - game.enemies.length) > 1) {
-    drift.push(MAPS[m].name + '@' + DENSITY[d].key + ' brief says ' + s.contacts + ', map has ' + game.enemies.length);
+  const s = surveyMap(MAPS[m].src, game.diffIndex, MAPS[m].src2 || null, MAPS[m]);
+  // on a siege the men on the map at t=0 are not the men you will face
+  const truth = game.enemies.length + (typeof siegePending === 'function' ? siegePending() : 0);
+  if (Math.abs(s.contacts - truth) > 1) {
+    drift.push(MAPS[m].name + '@' + DENSITY[d].key + ' brief says ' + s.contacts + ', mission has ' + truth);
   }
 }
 game.densityIndex = 1; game.mapIndex = 0; initGame();
@@ -5422,4 +5430,87 @@ game.mapIndex = F; initGame(); game.state = 'play';
 }
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('ROOF / SEAT WEAR TEST DONE');
+})();
+
+(function siegeTests(){
+console.log('--- holding a position against waves ---');
+const O = MAPS.findIndex(m => m.name === 'THE OUTPOST');
+game.mapIndex = O; game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
+const cfg = MAPS[O].siege;
+console.log('  starts empty and stood to: enemies=' + game.enemies.length + ', phase=' + game.siegeState.phase +
+            ', first wave in ' + Math.ceil(game.siegeState.t) + 's',
+            game.enemies.length === 0 && game.siegeState.phase === 'lull' ? 'CORRECT' : 'WRONG');
+console.log('  objective reads: "' + OBJECTIVES.hold.label() + '"',
+            /STAND TO/.test(OBJECTIVES.hold.label()) && !OBJECTIVES.hold.done() ? 'CORRECT' : 'WRONG');
+
+// run the clock until the first wave steps off
+let t = 0;
+while (game.siegeState.phase === 'lull' && t < 60) { updateSiege(1/60); t += 1/60; }
+console.log('  wave 1 arrives after ' + t.toFixed(0) + 's: ' + game.enemies.length + ' men, all alerted',
+            game.enemies.length === cfg.sizes[0] && game.enemies.every(e => e.alerted || e.state !== 'idle')
+              ? 'CORRECT (they know where you are — that is the point)' : 'WRONG');
+console.log('  and they came from the Q points, not out of thin air:',
+            game.enemies.every(e => level.spawns.qrf.some(q => dist(q.x, q.y, e.x, e.y) < 200))
+              ? 'CORRECT' : 'WRONG');
+
+// break every wave in turn and check the mode advances
+let waves = 0, guard = 0;
+while (game.siegeState.phase !== 'done' && guard++ < 40000) {
+  if (threatsLeft() > 0) { game.enemies.forEach(e => { e.alive = false; }); waves++; }
+  updateSiege(1/60);
+}
+console.log('  broke ' + waves + ' waves and the siege ended: phase=' + game.siegeState.phase,
+            waves === cfg.sizes.length && game.siegeState.phase === 'done' ? 'CORRECT' : 'WRONG');
+console.log('  the objective completes: done=' + OBJECTIVES.hold.done() + ', reads "' + OBJECTIVES.hold.label() + '"',
+            OBJECTIVES.hold.done() ? 'CORRECT' : 'WRONG');
+// waves get bigger, or it is not a siege, it is a queue
+console.log('  and each wave is bigger than the last: ' + cfg.sizes.join(' < '),
+            cfg.sizes.every((n, i) => i === 0 || n > cfg.sizes[i - 1]) ? 'CORRECT' : 'WRONG');
+
+// LOSING THE GROUND. Standing on the position with nobody of yours on it.
+game.mapIndex = O; initGame(); game.state = 'play';
+{
+  const z = level.extraction[0];
+  const e = makeEnemy({ x: z.tx * TILE + 16, y: z.ty * TILE + 16, kind: 'guard' });
+  game.enemies.push(e);
+  game.player.x = 4 * TILE; game.player.y = 4 * TILE;      // you are not on it
+  game.squad.forEach(s2 => { s2.x = 4 * TILE; s2.y = 6 * TILE; });
+  console.log('  they step onto the position: failed=' + (OBJECTIVES.hold.failed() === null ? 'no' : 'yes'),
+              OBJECTIVES.hold.failed() === null ? 'CORRECT (not instantly — it is a problem to solve)' : 'WRONG');
+  for (let i = 0; i < 60 * (TUNE.overrunTime + 1); i++) updateOverrun(1/60);
+  const f = OBJECTIVES.hold.failed();
+  console.log('  ...and after ' + TUNE.overrunTime + 's unopposed: "' + (f || 'still holding').slice(0, 42) + '"',
+              f ? 'CORRECT (the position was lost)' : 'WRONG');
+  // but a friendly standing on it stops the clock dead
+  initGame(); game.state = 'play';
+  const z2 = level.extraction[0];
+  const e2 = makeEnemy({ x: z2.tx * TILE + 16, y: z2.ty * TILE + 16, kind: 'guard' });
+  game.enemies.push(e2);
+  game.player.x = z2.tx * TILE + 16; game.player.y = z2.ty * TILE + 16;
+  for (let i = 0; i < 60 * (TUNE.overrunTime + 2); i++) updateOverrun(1/60);
+  console.log('  contested ground is not lost ground: overrunT=' + (game.overrunT || 0).toFixed(1) + 's',
+              (game.overrunT || 0) === 0 && OBJECTIVES.hold.failed() === null ? 'CORRECT' : 'WRONG');
+}
+
+// the briefing must not tell you nobody is coming
+for (const nm of ['THE OUTPOST', 'LAST LIGHT']) {
+  const mi = MAPS.findIndex(m => m.name === nm);
+  game.mapIndex = mi; game.densityIndex = 1; initGame();
+  const s = surveyMap(MAPS[mi].src, 1, null, MAPS[mi]);
+  console.log('  ' + nm + ' briefs ' + s.contacts + ' contacts against ' + MAPS[mi].siege.sizes.reduce((a,b)=>a+b,0) + ' in the waves',
+              s.contacts === MAPS[mi].siege.sizes.reduce((a,b)=>a+b,0) ? 'CORRECT' : 'WRONG');
+}
+// and a clean hold can still reach the top band
+{
+  game.mapIndex = O; initGame();
+  Object.assign(game.stats, { time: 0, enemiesEngaged: 0, squadLost: 0, civsKilledByUs: 0, positionLostT: 0 });
+  const b = gradeBreakdown();
+  console.log('  a flawless hold reaches S: ' + b.grade + ' (' + b.score + ')',
+              b.grade === 'S' ? 'CORRECT' : 'WRONG');
+  game.stats.positionLostT = 12;
+  console.log('  and losing the ground costs you it: ' + gradeBreakdown().grade,
+              gradeBreakdown().grade !== 'S' ? 'CORRECT' : 'WRONG');
+}
+localStorage.clear(); game.mapIndex = 0; game.densityIndex = 1; initGame();
+console.log('SIEGE TEST DONE');
 })();
