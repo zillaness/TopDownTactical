@@ -1,10 +1,10 @@
 ---
-file: ART_PROMPT_AIRCRAFT_v1.0.md (top-down-tactical)
-version: 1.0
+file: ART_PROMPT_AIRCRAFT_v1.1.md (top-down-tactical)
+version: 1.1
 author: Sam Cao
 created: 2026-08-18
 last_updated: 2026-08-18
-description: Codex/GPT prompts for the FLIGHT 214 aircraft — exterior airframe, cabin interior fittings, and ground support — derived from real airframe dimensions at the game's one-tile-one-metre scale, plus the narrow-body vs wide-body decision that sets both the art and the level geometry.
+description: Codex/GPT prompts for the FLIGHT 214 aircraft — geometry LOCKED at 72x10 tiles — exterior airframe, cabin interior fittings, and ground support — derived from real airframe dimensions at the game's one-tile-one-metre scale, plus the narrow-body vs wide-body decision that sets both the art and the level geometry.
 ai_update: Update last_updated and bump version in frontmatter. Rename file to match. Append changelog at bottom.
 ---
 
@@ -44,61 +44,62 @@ furnishing it as an office. Sam: *"why is there an office desk in an airplane"*.
 
 ---
 
-## 1. THE ONE DECISION — narrow-body or wide-body
+## 1. THE GEOMETRY — DECIDED, and these numbers are now fixed
 
-This sets the cabin width, which sets the seat art, which sets the level. It is
-a **gameplay** call, not an art one, which is why it is Sam's.
+Sam: *"lets do wide body, and we can make it a little wider than a real plane
+for the sake of fun. but it should still read as a narrow plane body."*
 
-### Option A — narrow-body (737 / A320). True scale, brutal.
+**Wide-body it is, widened about a third, and the length holds the ratio that
+makes it read as an aircraft.** Everything below is locked — generate against
+these numbers, not against a real 777.
 
-Cabin interior **3.54 m = 3.5 tiles.** Seats 3+3, **one aisle 0.5 m wide.**
-A man is `r=9`, so 18 px, so **0.56 tiles.**
+### The cross-section, which is the number that matters
 
-- The aisle is barely wider than a man. There is no flanking, no bounding, no
-  wedge — the squad formation system is meaningless in a tube.
-- It is a pure straight-line fight down a corridor with hostages seated on both
-  sides of every firing lane. The corner game at each seat row is the whole
-  mission.
-- This is **authentic** and it is also **one mission that plays like nothing
-  else in the game**, which is either the point or a problem.
+Integer tiles, because tiles are how people move.
 
-### Option B — wide-body (777 / A330). Recommended.
+| across the tube | tiles |
+|---|---|
+| fuselage structure | 1 |
+| seat block (3 abreast) | 2 |
+| **aisle** | **1** |
+| seat block (3 abreast) | 2 |
+| **aisle** | **1** |
+| seat block (3 abreast) | 2 |
+| fuselage structure | 1 |
+| **fuselage outer width** | **10** |
+| **cabin interior** | **8** |
 
-Cabin interior **5.87 m = 5.9 tiles.** Seats 3+3+3, **two aisles.**
+A real 777 cabin is 5.87 m, so this is **36% wider** — Sam's "a little wider for
+the sake of fun", spent entirely on the seat blocks. **The aisles stay at one
+tile and that is deliberate.** A man is `r=9`, which is 0.56 tiles, so a
+one-tile aisle is single file: you cannot pass your own point man, the stack is
+a real stack, and every seat back is cover at arm's length. That is the thing
+that makes it feel like an aircraft, and widening it is what would kill it.
 
-- Two aisles means **two approaches**, which is an actual tactical decision
-  rather than a queue. You can split the element, take one aisle each, and the
-  centre seat block becomes cover that works both ways.
-- Still unmistakably a tube. Still no flanking in the open sense. The claustro-
-  phobia survives; the tactics come back.
-- The existing playbook plays: DYNAMIC ENTRY through a door onto two aisles is
-  a real call, and BOUND down parallel aisles is a real call.
+### The length, which is what keeps it looking like a plane
 
-**Recommendation: B.** The reason is not authenticity — both are authentic —
-it is that A deletes every squad mechanic the game has and B keeps them while
-still being a tube. It also matches the mission's own fiction better: four
-hostages in a cabin and a locked cockpit is a wide-body job.
+| | tiles |
+|---|---|
+| nose section | 9 |
+| cabin | 54 |
+| tail section | 9 |
+| **overall** | **72** |
 
-**Everything below is written for B, with the narrow-body number in brackets.**
+**72 × 10 is 7.2 : 1.** For comparison: a C-17 is 7.7 : 1, a 737 is 10.5 : 1, a
+777 is 10.3 : 1. So it sits just the wide side of a military transport and well
+clear of anything that would read as a bus. Widening the tube without lengthening
+it is exactly how this stops looking like an aircraft, which is why the two
+numbers are quoted together and neither moves on its own.
 
-### The geometry that follows
+Wingspan **48 tiles** (a real 777 is 61). Wings are scenery, not floor — they
+are pulled in to keep the whole airframe on a sane map.
 
-| part | metres | tiles | note |
-|---|---|---|---|
-| overall length | 63.7 | **64** | 777-200; use 40 for a 737 |
-| fuselage outer width | 6.20 | **6** | [3.8] |
-| cabin interior width | 5.87 | **6** | [3.5] |
-| cabin length | 50 | **50** | [30] |
-| wingspan | 60.9 | **61** | wings are scenery, not floor |
-| aisle | 0.51 | **1** | two of them [one] |
-| seat unit (3 abreast) | 1.4 × 0.8 | **1.5 × 1** | the workhorse asset |
+### What this makes the level
 
-A 64 × 6 cabin does not fit a 46-wide map. **The level has to grow to about
-72 × 40**, with the aircraft laid along the long axis and apron around it. That
-is the level work, and it is a consequence of the art decision, not a blocker
-on it.
-
----
+About **80 × 34**, aircraft laid along the long axis with apron around it. The
+biggest map in the game today is 74 × 42, so this is in range and not a new
+problem. Fuselage centred with the cabin floor as real tiles and real collision;
+nose, tail and wings drawn over the apron as scenery.
 
 ## 2. Raster or vector — vector, and this time it is not close
 
@@ -152,17 +153,20 @@ shadows; airline branding; a cabin drawn wider than it is specified.
 
 ## 4. THE MANIFEST
 
-### 4a. Exterior airframe — five pieces
+### 4a. Exterior airframe — four pieces
 
-Authored at **2×, so one tile = 64 px.** State the viewBox in every prompt.
+Authored at **2×, so one tile = 64 px.** The fuselage is **10 tiles = 640 px**
+across in every one of these. **Nose points RIGHT**, which is the house rule for
+every vehicle in this game. State the viewBox in the prompt every time.
 
 | key | viewBox | tiles | prompt line |
 |---|---|---|---|
-| `air_nose` | `0 0 640 384` | 10 × 6 | "The NOSE section of a wide-body airliner from directly above: the radome tapering to a rounded point at the LEFT edge, the cockpit glazing as a swept dark wraparound windscreen, two forward passenger doors on the left and right flanks, smooth pale grey-white skin with faint panel lines and rivet seams. The RIGHT edge is a clean vertical cut at full fuselage width so it butts against the cabin section with no seam." |
-| `air_cabin` | `0 0 640 384` | 10 × 6 | "A 10-metre section of wide-body airliner fuselage EXTERIOR from directly above: smooth pale grey-white skin, faint longitudinal panel lines running left to right, a row of small cabin windows along each flank, one overwing emergency exit. Both the LEFT and RIGHT edges are clean vertical cuts at full fuselage width so the section tiles seamlessly end to end with copies of itself." |
-| `air_tail` | `0 0 640 512` | 10 × 8 | "The TAIL section of a wide-body airliner from directly above: the fuselage tapering up and aft to the tailcone at the RIGHT edge, with the vertical stabiliser seen from above as a narrow blade running fore-and-aft along the centreline, and the two horizontal stabilisers swept back from the fuselage sides. Two aft passenger doors. The LEFT edge is a clean vertical cut at full fuselage width." |
-| `air_wing_port` | `0 0 1792 1024` | 28 × 16 | "The PORT (left) WING of a wide-body airliner from directly above, seen alone with no fuselage: swept back and tapering outboard, with one large turbofan engine nacelle slung under the leading edge about a third of the way out, flap and aileron panel lines across the trailing edge, a winglet at the tip. Root at the BOTTOM-RIGHT of the frame, tip at the upper left. Pale grey-white upper surface." |
-| `air_wing_stbd` | — | — | Do not generate. The engine mirrors `air_wing_port`. |
+| `air_nose` | `0 0 576 640` | 9 × 10 | "The NOSE section of a wide-body airliner from directly above: the radome tapering to a rounded point at the RIGHT edge of the frame, the cockpit glazing as a swept dark wraparound windscreen just behind it, one passenger door on each flank near the left, smooth pale grey-white skin with faint panel lines and rivet seams. The LEFT edge is a clean vertical cut at the full 10-tile fuselage width so it butts against the cabin section with no seam. The fuselage occupies the full height of the frame at that left edge and tapers only toward the nose." |
+| `air_cabin` | `0 0 640 640` | 10 × 10 | "A ten-metre section of wide-body airliner fuselage EXTERIOR from directly above: smooth pale grey-white skin filling the full height of the frame, faint longitudinal panel lines running left to right, a row of small evenly spaced cabin windows along each flank, one overwing emergency exit hatch on each flank. BOTH the left and right edges are clean vertical cuts at full fuselage width so the section tiles seamlessly end to end with copies of itself. No taper anywhere — this is the parallel middle of the tube." |
+| `air_tail` | `0 0 576 896` | 9 × 14 | "The TAIL section of a wide-body airliner from directly above: the fuselage entering at full width on the RIGHT edge and tapering up and aft to a tailcone at the LEFT edge, with the vertical stabiliser seen from above as a narrow blade running along the centreline, and two horizontal stabilisers swept back from the fuselage sides — these are why the frame is taller than the fuselage. One passenger door on each flank near the right. Pale grey-white." |
+| `air_wing_port` | `0 0 1536 1024` | 24 × 16 | "The PORT WING of a wide-body airliner from directly above, alone with no fuselage: swept back and tapering outboard, one large turbofan engine nacelle slung under the leading edge about a third of the way out, flap and aileron panel lines across the trailing edge, a small winglet at the tip. The root is at the BOTTOM-RIGHT of the frame and the tip at the upper left. Pale grey-white upper surface." |
+
+`air_wing_stbd` — **do not generate.** The engine mirrors `air_wing_port`.
 
 ### 4b. Cabin interior — six pieces, and the seats are the job
 
@@ -170,11 +174,11 @@ The cabin floor is drawn as tiles by the engine; these are the fittings on it.
 
 | key | viewBox | tiles | prompt line |
 |---|---|---|---|
-| `seat_triple` | `0 0 96 64` | 1.5 × 1 | "Three economy airliner passenger seats side by side in one row unit, seen from DIRECTLY ABOVE: three headrests along the top edge, three seat backs, three seat pans, thin armrests between them and at each end. Dark blue-grey fabric with a slightly lighter headrest cover. The unit is 1.5 tiles wide and 1 tile deep and reaches the left and right edges exactly so a row of them tiles seamlessly across a cabin. Readable as three distinct seats at 10% size." |
-| `seat_double` | `0 0 64 64` | 1 × 1 | "The same airliner seat unit but TWO seats abreast instead of three, same fabric, same headrests, same depth, tiling seamlessly left and right." |
+| `seat_triple` | `0 0 64 128` | 1 × 2 | **Generate this one first and look at it before anything else.** "Three economy airliner passenger seats abreast in one row unit, seen from DIRECTLY ABOVE. The aircraft nose is to the RIGHT, so all three passengers FACE RIGHT: each seat shows its headrest on the RIGHT, the seat back behind it, then the seat pan, with thin armrests between the seats and at each end. The three seats are stacked one above another in the frame, filling the full 2-tile height, and the unit is 1 tile deep left-to-right. It reaches the TOP and BOTTOM edges exactly so that stacking copies of it builds a continuous bank of seats, and reaches the LEFT and RIGHT edges so that rows abut front to back with no gap. Dark blue-grey fabric, slightly lighter headrest covers. Must read as three distinct seats at 10% size." |
+| `seat_double` | `0 0 64 96` | 1 × 1.5 | "The same airliner seat unit but TWO seats abreast instead of three, same fabric, same headrests, same facing (nose right), same 1-tile depth, tiling seamlessly top and bottom." |
 | `galley` | `0 0 128 64` | 2 × 1 | "An aircraft galley unit from directly above: a bank of brushed stainless steel trolley stowages and counter surfaces, 2 tiles by 1, with the counter edge along the front. Clean, cold, industrial." |
 | `lavatory` | `0 0 64 64` | 1 × 1 | "An aircraft lavatory module from directly above with the roof removed: a cramped moulded plastic cubicle, a small basin at one side and the toilet at the other, off-white and grey, one tile square." |
-| `cockpit_seats` | `0 0 128 128` | 2 × 2 | "An airliner flight deck from directly above with the roof removed: two pilot seats side by side facing the top of the frame, a centre pedestal with throttle levers between them, the glareshield and instrument panel as a dark band across the top edge, an overhead panel omitted. Two tiles square." |
+| `cockpit_seats` | `0 0 128 192` | 2 × 3 | "An airliner flight deck from directly above with the roof removed: two pilot seats one above the other in the frame, both facing RIGHT (the nose), a centre pedestal with throttle levers between them, the glareshield and instrument panel as a dark band down the RIGHT edge. Three tiles tall, two deep." |
 | `service_cart` | `0 0 32 64` | 0.5 × 1 | "A single aircraft galley service trolley from directly above: a narrow brushed-steel box on castors, half a tile wide and one tile deep." |
 
 ### 4c. Ground support — four pieces. This is how you get in, so it is not scenery.
@@ -226,6 +230,14 @@ drop contract in `assets/README.md` applies; the tooling measures and inlines
 and refuses to write anything that breaks the ceiling.
 
 ## CHANGELOG
+- v1.1 (2026-08-18): Geometry LOCKED after Sam chose wide-body "a little wider
+  than a real plane for the sake of fun, but it should still read as a narrow
+  plane body". 8-tile interior (36% over a real 777, all of it in the seat
+  blocks), 10-tile fuselage, 72 tiles long for a 7.2:1 silhouette — the wide
+  side of a C-17 and nowhere near a bus. The aisles stay at one tile on purpose:
+  a man is 0.56 tiles, so single file is what makes it feel like an aircraft,
+  and that is the one dimension widening would ruin. Every asset resized to
+  those numbers and reoriented nose-RIGHT per the house rule.
 - v1.0 (2026-08-18): Written after Sam's "the scale makes no sense". Measured
   the existing cabin at 2.9x too wide against a 737, put the narrow-body vs
   wide-body decision in front of him with a recommendation, and derived both
