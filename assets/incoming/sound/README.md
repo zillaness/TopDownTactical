@@ -14,6 +14,13 @@ noise. This folder is how a **recorded** sound replaces a synthesised one, one
 at a time. Nothing here is required, and the build works forever with this
 folder empty.
 
+## Verified: the files are not reachable from any sandbox
+
+Searched, not assumed (2026-08-18): no `N:` drive, no network mount, no
+`/mnt` or `/media` share, and no audio file anywhere in the container except
+LibreOffice's clip-art gallery. There is nothing here to inline. The only step
+that cannot be automated is the copy.
+
 ## Why this folder exists rather than the work being done
 
 The files are on `N:\gun sound effects`, which is a drive on Sam's machine. No
