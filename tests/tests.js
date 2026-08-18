@@ -3550,6 +3550,31 @@ console.log('  the bunker art draws for both, in different colours: ' +
 game.loadout.primary = 'carbine'; initGame(); game.state = 'play';
 console.log('  and a plain player still draws the man: ' + spriteFor(game.player).key,
             spriteFor(game.player).key === 'player' ? 'CORRECT' : 'WRONG');
+
+// Sam, on the first draft: "shield doesn't look right from above, should be a
+// simple black curve on the left arm, and the right arm should hold the
+// pistol." From directly overhead a shield is an EDGE, not a slab — the first
+// version was a filled rectangle plus a filled accent and read as a blob. The
+// suite never calls render(), so what it can hold is the geometry contract:
+// stroked not filled, dark not team-coloured, left of the centreline, with the
+// gun on the other side. Sprites are authored facing EAST, so his left is -y.
+const art = SPRITES.squad_shield;
+const shieldTag = (art.match(/<path data-part="shield"[^/]*\/>/) || [''])[0];
+const curved = /stroke="#14181c"/.test(shieldTag) && /fill="none"/.test(shieldTag) && /Q/.test(shieldTag);
+console.log('  the bunker is a stroked curve, not a filled slab: ' + curved,
+            curved ? 'CORRECT (an edge is what you see from above)' : 'WRONG');
+const ys = (shieldTag.match(/d="M([\d.]+) ([\d.]+)Q([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)"/) || []).slice(1).map(Number);
+const onTheLeft = ys.length === 6 && ys[1] < 32 && ys[5] <= 32 && ys[3] < 32;
+console.log('  and it is carried on the LEFT arm: endpoints y=' + ys[1] + ',' + ys[5] +
+            ' against a centreline of 32', onTheLeft ? 'CORRECT (-y is left of east)' : 'WRONG');
+const gun = (art.match(/<g data-part="weapon">.*?<\/g>/) || [''])[0];
+const gunYs = [...gun.matchAll(/y="([\d.]+)"/g)].map(m2 => Number(m2[1]));
+const gunRight = gunYs.length > 0 && Math.min(...gunYs) > 32;
+console.log('  the pistol is in the RIGHT hand: gun y from ' + (gunYs.length ? Math.min(...gunYs) : '—'),
+            gunRight ? 'CORRECT (+y is right of east)' : 'WRONG');
+const clear = onTheLeft && gunRight && Math.max(...ys.filter((_, i) => i % 2)) < Math.min(...gunYs);
+console.log('  the two never overlap, so both read at 40px: ' + clear,
+            clear ? 'CORRECT (the first draft hid the gun under the shield)' : 'WRONG');
 game.loadout.primary = prevGun; game.loadout.squad = prevSquad;
 console.log('SHIELD TEST DONE');
 })();
@@ -4078,6 +4103,86 @@ console.log('  THE PILLBOX slit gun stays narrow: ' + (level.turrets[0].arc * 18
             Math.abs(level.turrets[0].arc - TUNE.turretArc) < 0.01 ? 'CORRECT' : 'WRONG');
 game.mapIndex = 0; initGame();
 console.log('SHELLS+RINGS TEST DONE');
+})();
+
+// Sam: "we should also be able to mount the turret on the humvee" ... "that is
+// drawn where the turret on the humvee would be." It was drawn a metre off the
+// bonnet. The gun now sits in the hatch the Humvee art already paints, which
+// means the gunner is standing in bodywork — so this block checks the three
+// things that has to not break: he can still see out, he can still be reached
+// and stepped off, and nobody ELSE gets to see through a car.
+(function ringMountTests(){
+console.log('--- the gun goes ON the truck: the ring mount ---');
+game.diffIndex = 1; game.densityIndex = 1;
+let allOnHatch = true, allHumvee = true, allNosed = true, stepsClear = true;
+const seen2 = [];
+for (const name of ['BROKEN ARROW', 'THE STANDOFF']) {
+  game.mapIndex = MAPS.findIndex(m => m.name === name); initGame(); game.state = 'play';
+  for (const t of level.turrets.filter(t2 => t2.ring)) {
+    const v = t.veh;
+    if (!v) { allOnHatch = false; continue; }
+    const off = Math.hypot(t.x - v.x, t.y - v.y);
+    seen2.push(name.split(' ')[1] + ' ' + off.toFixed(0) + 'px');
+    if (off > 8) allOnHatch = false;
+    if (v.body !== 'humvee') allHumvee = false;
+    if (Math.abs(angDiff(t.face0, v.ang)) > 0.01) allNosed = false;
+    if (level.wall[Math.floor(t.sy / TILE)][Math.floor(t.sx / TILE)]) stepsClear = false;
+  }
+}
+console.log('  the gun sits in the painted hatch: ' + seen2.join(', ') + ' off centre',
+            allOnHatch ? 'CORRECT (the art draws its ring 3px aft of centre)' : 'WRONG');
+console.log('  and the truck under it is a Humvee: ' + allHumvee,
+            allHumvee ? 'CORRECT' : 'WRONG');
+console.log('  a gun truck rests over its own bonnet: ' + allNosed,
+            allNosed ? 'CORRECT (not aimed at whatever wall the scan found)' : 'WRONG');
+console.log('  the step you climb from is open ground: ' + stepsClear,
+            stepsClear ? 'CORRECT (nothing ever paths into bodywork)' : 'WRONG');
+
+// he must be able to SEE. Before the hull exemption this was 0 of 360 bearings
+// on both trucks, which is a gun that cannot be used.
+game.mapIndex = MAPS.findIndex(m => m.name === 'BROKEN ARROW'); initGame(); game.state = 'play';
+const rt = level.turrets.find(t2 => t2.ring);
+let bearings = 0;
+for (let i = 0; i < 360; i++) {
+  const a = i / 360 * TAU;
+  if (lineOfSight(rt.x, rt.y, rt.x + Math.cos(a) * 120, rt.y + Math.sin(a) * 120, opaque)) bearings++;
+}
+console.log('  from the ring he sees ' + bearings + '/360 bearings at 120px',
+            bearings > 60 ? 'CORRECT (his own hull is under him, not in front of him)' : 'WRONG');
+
+// ...but the exemption is the RING, not "inside a car". A wreck is still a wreck.
+const plain = level.vehicles.find(v => !v.ring);
+let throughAPlainCar = 0;
+if (plain) {
+  for (let i = 0; i < 360; i++) {
+    const a = i / 360 * TAU;
+    if (lineOfSight(plain.x, plain.y, plain.x + Math.cos(a) * 120, plain.y + Math.sin(a) * 120, opaque))
+      throughAPlainCar++;
+  }
+}
+console.log('  a car with no ring still blocks from inside: ' + throughAPlainCar + '/360',
+            plain && throughAPlainCar === 0 ? 'CORRECT (the loose version of this let a man see through a wreck)' : 'WRONG');
+
+// mount from the step, come off onto the step
+const man = game.squad[0];
+man.x = rt.sx; man.y = rt.sy; man.floor = 0;
+const got = mountTurret(man, rt);
+const onGun = got && Math.hypot(man.x - rt.x, man.y - rt.y) < 1;
+dismountTurret(man);
+const backDown = Math.abs(man.x - rt.sx) < 1 && Math.abs(man.y - rt.sy) < 1;
+console.log('  he mounts into the ring and steps back down: on=' + onGun + ', off=' + backDown,
+            onGun && backDown ? 'CORRECT (never left standing inside the truck)' : 'WRONG');
+
+// and his rounds clear his own bodywork instead of hitting it
+mountTurret(man, rt);
+man.face = rt.veh.ang + Math.PI;                       // straight back down his own hull
+const mz = muzzlePoint(man, man.face);
+const outside = Math.abs(mz.x - rt.veh.x) > rt.veh.lw / 2 || Math.abs(mz.y - rt.veh.y) > rt.veh.lh / 2;
+console.log('  the muzzle clears the hull: ' + mz.len.toFixed(0) + 'px out, past the bodywork=' + outside,
+            outside ? 'CORRECT (a ring gun fires over its own truck)' : 'WRONG');
+dismountTurret(man);
+game.mapIndex = 0; initGame();
+console.log('RING MOUNT TEST DONE');
 })();
 
 (function overwatchTests(){

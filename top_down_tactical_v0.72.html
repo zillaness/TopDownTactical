@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.71.html
-  version: 0.71
+  file: top_down_tactical_v0.72.html
+  version: 0.72
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-18
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.71 (working title)</title>
+<title>Top-Down Tactical v0.72 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.71 prototype &mdash; working title &mdash; twenty missions</h2>
+  <h2>v0.72 prototype &mdash; working title &mdash; twenty missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -174,7 +174,7 @@ const SPRITES = {
   squad_rifleman: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M20 27Q20 23 24 21L28 20H36L42 23Q45 27 45 32V36Q43 41 37 44H27Q22 42 20 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M23 28H39V40H23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/><rect x="25" y="38" width="5" height="3" rx="0.7" fill="#6b6152"/><rect x="32" y="38" width="5" height="3" rx="0.7" fill="#6b6152"/></g><path data-part="support-arm" d="M21 24Q24 22 28 25L45 32Q49 33 49 36Q48 39 44 39L35 34L25 31Q21 30 21 24Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M21 38Q23 43 28 44H31Q34 42 37 39L39 37L35 34L31 39L28 40L26 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M25 29Q26 25.5 30.5 24.5H34.5Q39.5 25.5 41 29V35Q39.5 38.5 34.5 39.5H30.5Q26 38.5 25 35Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="28.5" y="25" width="3.5" height="14" rx="1.5" fill="#TEAMCOLOR"/><rect x="28" y="24" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="28" y="38.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M40 30.5L44 31V33L40 33.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="22.5" y="31" width="3" height="2" fill="#6b6152"/><circle cx="27" cy="32" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M24.5 36L27 34.5H30V37.5H27Z" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><rect x="27" y="34.3" width="20" height="3.5" rx="0.8" fill="#14181c"/><rect x="41" y="33.5" width="12" height="5" rx="1" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><path d="M44 34.5V37.5M47.5 34.5V37.5M51 34.5V37.5" fill="none" stroke="#9aa6b2" stroke-width="1.5"/><path d="M53 36H58" fill="none" stroke="#4a5560" stroke-width="2"/><rect x="58" y="34.5" width="2" height="3" fill="#4a5560"/><rect x="34" y="34" width="5" height="4" rx="0.7" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><circle cx="37.5" cy="36" r="1" fill="#9aa6b2"/></g><ellipse cx="34.5" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="46.5" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><g data-part="nvg"><rect x="30" y="28.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="34" cy="30.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="34" cy="34" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
   squad_breacher: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><rect data-part="ram" x="18.5" y="20" width="4" height="24" rx="2" fill="#9a3f38" stroke="#14181c" stroke-width="2"/><rect x="17.5" y="19" width="6" height="3" rx="1" fill="#4a5560"/><rect x="17.5" y="42" width="6" height="3" rx="1" fill="#4a5560"/><path d="M20 27Q20 22 25 20H37Q43 22 45 28V36Q43 42 37 45H26Q20 43 19 36Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M23 28H40V41H23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/><path d="M23 38H40" fill="none" stroke="#6b6152" stroke-width="2"/></g><path data-part="support-arm" d="M20 24Q23 21 27 24L44 32Q48 33 48 36Q47 39 43 39L34 34L24 31Q20 30 20 24Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M20 38Q22 43 27 45H31Q34 43 37 39L39 37L35 34L31 39L28 41L26 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M25 29Q26 25.5 30.5 24.5H34.5Q39.5 25.5 41 29V35Q39.5 38.5 34.5 39.5H30.5Q26 38.5 25 35Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="28" y="25" width="3.5" height="14" rx="1.5" fill="#TEAMCOLOR"/><rect x="28" y="24" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="28" y="38.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M40 30.5L44 31V33L40 33.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="22" y="31" width="3" height="2" fill="#6b6152"/><circle cx="27" cy="32" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M26 36L29 34H31V38H29Z" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><rect x="29" y="33.8" width="15" height="4.5" rx="0.8" fill="#14181c"/><rect x="44" y="33" width="8" height="6" rx="1" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><path d="M47 34V38M50 34V38" fill="none" stroke="#9aa6b2" stroke-width="1.5"/><path d="M52 34.7H57M52 37.3H57" fill="none" stroke="#4a5560" stroke-width="1.5"/><rect x="57" y="34" width="1.5" height="4" fill="#4a5560"/><path d="M33.5 34V32.5H36V34" fill="none" stroke="#9aa6b2" stroke-width="1.5"/></g><ellipse cx="35" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="47" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><g data-part="nvg"><rect x="30" y="28.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="34" cy="30.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="34" cy="34" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
   squad_support: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M17.5 24Q18 21 22 20H27V44H22Q18 42 17 38Z" fill="#6b6152" stroke="#14181c" stroke-width="2"/><path d="M19 27Q19 22 25 19H38Q44 22 46 28V37Q43 43 38 46H25Q19 43 18 36Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M22 27H41V42H22Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/></g><path data-part="support-arm" d="M20 23Q23 20 27 24L46 32Q50 33 50 36Q49 40 45 40L35 34L24 31Q20 29 20 23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M19 38Q21 44 27 46H31Q34 44 37 39L39 37L35 34L31 40L28 42L25 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M25 29Q26 25.5 30.5 24.5H34.5Q39.5 25.5 41 29V35Q39.5 38.5 34.5 39.5H30.5Q26 38.5 25 35Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="28" y="25" width="3.5" height="14" rx="1.5" fill="#TEAMCOLOR"/><rect x="28" y="24" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="28" y="38.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M40 30.5L44 31V33L40 33.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="22" y="31" width="3" height="2" fill="#6b6152"/><circle cx="27" cy="32" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M23.5 36L26 33.5H30V38.5H26Z" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><rect x="25" y="33.5" width="20" height="5" rx="0.8" fill="#14181c"/><rect x="45" y="33" width="10" height="6" rx="1" fill="#2c333a" stroke="#14181c" stroke-width="1.5"/><path d="M47 34V38M50.5 34V38M54 34V38" fill="none" stroke="#9aa6b2" stroke-width="1.5"/><path d="M55 36H59" fill="none" stroke="#4a5560" stroke-width="2"/><rect x="58.5" y="34.5" width="1.5" height="3" fill="#4a5560"/><rect x="33" y="38" width="9" height="7" rx="1" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><rect x="30" y="30.5" width="6" height="3" rx="0.7" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><path d="M47 33L52 29M47 39L52 43" fill="none" stroke="#4a5560" stroke-width="1.5"/></g><ellipse cx="34.5" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="47" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><g data-part="nvg"><rect x="30" y="28.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="34" cy="30.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="34" cy="34" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
-  squad_shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M19 31Q20 25 26 23H36Q43 25 45 32V39Q42 45 36 46.5H26Q20 45 19 39Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M23 31H40V44H23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/><rect x="23" y="41" width="17" height="3" rx="1" fill="#6b6152"/></g><path data-part="firing-arm" d="M22 40Q24 46 30 47Q34 46 37 41L40 37L36 34L32 40L29 42L27 38Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M24 31Q25 27 29.5 26.5H33.5Q38.5 27 40 31V37Q38.5 41 33.5 41.5H29.5Q25 41 24 37Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="27.5" y="26" width="3.5" height="16" rx="1.5" fill="#TEAMCOLOR"/><rect x="27" y="26" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="27" y="40.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M39 32.5L43 33V35L39 35.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="21.5" y="33" width="3" height="2" fill="#6b6152"/><circle cx="26.5" cy="34" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><rect x="36" y="34.3" width="12" height="3.5" rx="0.7" fill="#14181c"/><rect x="42" y="34.5" width="3" height="1.5" rx="0.4" fill="#9aa6b2"/><rect x="46.5" y="34" width="1.5" height="4" fill="#4a5560"/></g><ellipse cx="38" cy="37" rx="2.8" ry="2.4" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><rect data-part="shield" x="29" y="14" width="30" height="12" rx="2.5" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><rect data-part="vision-port" x="45" y="18.2" width="10" height="3.6" rx="0.8" fill="#9aa6b2" stroke="#14181c" stroke-width="1.5"/><path data-part="strap-anchor" d="M31 23V27H37V23" fill="#6b6152" stroke="#14181c" stroke-width="2"/><g data-part="nvg"><rect x="30" y="30.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="33.5" cy="32.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="33.5" cy="36" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
+  squad_shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M20 27Q20 23 24 21L28 20H36L42 23Q45 27 45 32V36Q43 41 37 44H27Q22 42 20 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2" stroke-linejoin="round"/><path d="M23 28H39V40H23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/><path d="M23 38H39" fill="none" stroke="#6b6152" stroke-width="2"/></g><path data-part="shield-arm" d="M24 24Q28 19 33 21L42 18L44 23L34 27Q27 29 24 28Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M22 38Q24 43 29 45H33Q38 43 42 40L44 38L39 34L34 40L30 42L26 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M25 29Q26 25.5 30.5 24.5H34.5Q39.5 25.5 41 29V35Q39.5 38.5 34.5 39.5H30.5Q26 38.5 25 35Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="28" y="25" width="3.5" height="14" rx="1.5" fill="#TEAMCOLOR"/><rect x="28" y="24" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="28" y="38.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M40 30.5L44 31V33L40 33.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="22" y="31" width="3" height="2" fill="#6b6152"/><circle cx="27" cy="32" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M40 41.5L42.5 39.5H44.5V43H42.5Z" fill="#2c333a" stroke="#14181c" stroke-width="1.4"/><rect x="42" y="37.6" width="13" height="4" rx="0.8" fill="#2c333a" stroke="#14181c" stroke-width="1.4"/><rect x="46" y="38.4" width="4" height="1.6" rx="0.4" fill="#9aa6b2"/><rect x="54" y="37.9" width="1.8" height="3.4" fill="#4a5560"/></g><ellipse cx="42.5" cy="40.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="39" cy="21" rx="2.6" ry="2.2" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><path d="M39.5 21H43" fill="none" stroke="#6b6152" stroke-width="2"/><path data-part="shield" d="M40 6Q51 18 40 30" fill="none" stroke="#14181c" stroke-width="5" stroke-linecap="round"/><path data-part="shield-face" d="M40.8 9Q48.5 18 40.8 27" fill="none" stroke="#3b454e" stroke-width="1.5" stroke-linecap="round"/><g data-part="nvg"><rect x="30" y="28.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="34" cy="30.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="34" cy="34" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
   enemy_guard: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M21 27Q22 23 27 21H36Q42 23 44 28V37Q41 43 35 44H28Q22 42 20 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M23 30Q32 26 41 30" fill="none" stroke="#6b6152" stroke-width="2"/><rect x="24" y="37" width="5" height="3" fill="#6b6152"/></g><path data-part="support-arm" d="M21 24Q24 21 28 25L45 32Q49 33 49 36Q48 39 44 39L35 34L25 31Q21 30 21 24Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M21 38Q23 43 28 45H31Q34 43 37 39L39 37L35 34L31 39L28 41L26 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="head"><ellipse cx="34" cy="32" rx="7" ry="6.5" fill="#c8b89a" stroke="#14181c" stroke-width="2"/><path d="M28 30Q31 24 38 27L41 31Q34 28 28 33Z" fill="#2c333a"/></g><g data-part="weapon"><path d="M24.5 36L28 34H30V38H28Z" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><rect x="27" y="34" width="17" height="4" rx="0.7" fill="#14181c"/><rect x="44" y="33.2" width="6" height="5.5" rx="0.8" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><path d="M49.5 33.5L53.5 35V37L49.5 38.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><path d="M53 36H57" fill="none" stroke="#4a5560" stroke-width="2"/><path d="M52 34.5V32.5H54V36" fill="none" stroke="#9aa6b2" stroke-width="1.5"/></g><ellipse cx="34.5" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="46.5" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/></svg>`,
   enemy_patrol: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M20 27Q21 22 27 20H37Q43 23 45 29V37Q42 43 36 45H27Q21 42 19 36Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><rect x="23" y="36" width="5" height="4" rx="0.7" fill="#6b6152"/><rect x="29.5" y="37" width="5" height="4" rx="0.7" fill="#6b6152"/><rect x="36" y="36" width="5" height="4" rx="0.7" fill="#6b6152"/></g><path data-part="support-arm" d="M20 24Q23 21 27 24L45 32Q49 33 49 36Q48 39 44 39L35 34L24 31Q20 30 20 24Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M20 38Q22 43 27 45H31Q34 43 37 39L39 37L35 34L31 39L28 41L26 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="head"><path d="M27 29Q28 24 34 24Q40 25 42 30V35Q39 40 33 40Q27 38 27 33Z" fill="#6b6152" stroke="#14181c" stroke-width="2"/><path d="M28 27L23 21L20 23L23 29L19 34L27 36Z" fill="#6b6152" stroke="#14181c" stroke-width="2"/><path d="M29 30Q34 27 40 30V33Q34 31 29 34Z" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M24.5 36L28 34H30V38H28Z" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><rect x="27" y="34" width="17" height="4" rx="0.7" fill="#14181c"/><rect x="44" y="33.2" width="6" height="5.5" rx="0.8" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><path d="M49.5 33.5L53.5 35V37L49.5 38.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><path d="M53 36H57" fill="none" stroke="#4a5560" stroke-width="2"/><path d="M52 34.5V32.5H54V36" fill="none" stroke="#9aa6b2" stroke-width="1.5"/></g><ellipse cx="34.5" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="46.5" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/></svg>`,
   enemy_elite: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g><path d="M18 27Q18 22 24 19H38Q42 21 45 28V37Q42 44 38 46H25Q19 43 17 36Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path d="M21 27H42V42H21Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="1.5"/><path d="M21 38H42" fill="none" stroke="#6b6152" stroke-width="2"/><rect x="18" y="27" width="4" height="10" rx="1" fill="#6b6152"/></g><path data-part="support-arm" d="M19 23Q23 20 27 24L45 32Q49 33 49 36Q48 40 44 40L35 34L23 31Q19 29 19 23Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><path data-part="firing-arm" d="M19 38Q21 44 27 46H31Q34 44 37 39L39 37L35 34L31 40L28 42L25 37Z" fill="#TEAMCOLOR" stroke="#14181c" stroke-width="2"/><g data-part="helmet"><path d="M25 29Q26 25.5 30.5 24.5H34.5Q39.5 25.5 41 29V35Q39.5 38.5 34.5 39.5H30.5Q26 38.5 25 35Z" fill="#2c333a" stroke="#14181c" stroke-width="2"/><rect x="28" y="25" width="3.5" height="14" rx="1.5" fill="#TEAMCOLOR"/><rect x="28" y="24" width="8" height="1.5" rx="0.7" fill="#4a5560"/><rect x="28" y="38.5" width="8" height="1.5" rx="0.7" fill="#4a5560"/><path d="M40 30.5L44 31V33L40 33.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><rect x="22" y="31" width="3" height="2" fill="#6b6152"/><circle cx="27" cy="32" r="1" fill="#9aa6b2"/></g><g data-part="weapon"><path d="M24.5 36L28 34H30V38H28Z" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><rect x="27" y="34" width="17" height="4" rx="0.7" fill="#14181c"/><rect x="44" y="33.2" width="6" height="5.5" rx="0.8" fill="#6b6152" stroke="#14181c" stroke-width="1.5"/><path d="M49.5 33.5L53.5 35V37L49.5 38.5Z" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><path d="M53 36H57" fill="none" stroke="#4a5560" stroke-width="2"/><path d="M52 34.5V32.5H54V36" fill="none" stroke="#9aa6b2" stroke-width="1.5"/><rect x="33" y="34" width="5" height="4" rx="0.7" fill="#4a5560" stroke="#14181c" stroke-width="1.5"/><circle cx="36.5" cy="36" r="1" fill="#9aa6b2"/></g><ellipse cx="34.5" cy="37" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><ellipse cx="46.5" cy="35.5" rx="2.7" ry="2.3" fill="#c8b89a" stroke="#14181c" stroke-width="1.5"/><g data-part="nvg"><rect x="30" y="28.5" width="6" height="7" rx="1" fill="#14181c"/><circle cx="34" cy="30.5" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/><circle cx="34" cy="34" r="1.5" fill="#4a5560" stroke="#9aa6b2" stroke-width="1.5"/></g></svg>`,
@@ -770,7 +770,10 @@ const SPRITE_ART_ACCENTS = {
   squad_rifleman: `<path d="M18 27V37" stroke="#d8fff0" stroke-width="3"/><path d="M15 32H21" stroke="#d8fff0" stroke-width="2"/>`,
   squad_breacher: `<rect x="43" y="29" width="16" height="7" rx="2" fill="#c99a58" stroke="#eef3f5" stroke-width="1.5"/><path d="M48 37L55 40" stroke="#c99a58" stroke-width="3"/>`,
   squad_support: `<rect x="31" y="40" width="12" height="9" rx="2" fill="#9b7a46" stroke="#eef3f5" stroke-width="1.5"/><path d="M48 39L55 45M48 39L55 33" stroke="#b8c2ca" stroke-width="2"/>`,
-  squad_shield: `<path d="M37 16Q53 20 56 32Q53 44 37 48Z" fill="#536473" stroke="#eef3f5" stroke-width="2.5"/><rect x="42" y="26" width="8" height="12" rx="2" fill="#93cfe4"/>`,
+  // The role cue is the shield itself. A filled slab read as a blob from
+  // overhead — Sam's note — so this traces the same curve twice: a pale rim
+  // that survives the 40px blit, and the black edge on top of it.
+  squad_shield: `<path d="M40.3 8.5Q48.6 18 40.3 27.5" fill="none" stroke="#93cfe4" stroke-width="2" stroke-linecap="round"/>`,
   enemy_guard: `<path d="M17 25L13 29V35L17 39" fill="#6e7881" stroke="#d7dde2" stroke-width="2"/>`,
   enemy_patrol: `<rect x="15" y="23" width="9" height="18" rx="3" fill="#6f5942" stroke="#d7dde2" stroke-width="2"/><path d="M16 29H23M16 35H23" stroke="#c8a66d" stroke-width="1.5"/>`,
   enemy_elite: `<path d="M19 20L27 17L31 23L25 28L18 26ZM19 44L27 47L31 41L25 36L18 38Z" fill="#8f4f82" stroke="#f0cce8" stroke-width="2"/>`,
@@ -1330,9 +1333,25 @@ function sweepAxis(x, y, r, dx, dy, solidFn) {
 
 // DDA raycast against the tile grid. blockFn(tx,ty) -> true if tile blocks the ray.
 // Returns { x, y, d, hit } — first blocked-tile boundary hit, or endpoint at maxDist.
+// The vehicle a ray STARTED inside, or null. Only opaque() reads it, and only
+// one thing in the game can ever be standing in bodywork: a gunner on a ring
+// mount. See opaque() for why that matters and why bullets do NOT get the
+// same exemption. Set per cast, and nothing a blockFn does can nest a cast,
+// so a plain assignment is enough.
+let rayInVeh = null;
 function raycast(x0, y0, ang, maxDist, blockFn) {
   const dx = Math.cos(ang), dy = Math.sin(ang);
   let tx = Math.floor(x0 / TILE), ty = Math.floor(y0 / TILE);
+  // guarded on the wall grid first, which is an array index — an origin inside
+  // a wall is rare, so the map lookup almost never runs. The exemption is then
+  // narrowed to a gun truck, and to the ring itself: "inside bodywork" alone
+  // was too loose a proxy and quietly let a man standing in a wrecked car's
+  // footprint see straight through it.
+  rayInVeh = null;
+  if (level && level.vehAt && level.wall[ty] && level.wall[ty][tx]) {
+    const rv = level.vehAt.get(tx + "," + ty);
+    if (rv && rv.ring && Math.abs(x0 - rv.ring.x) < 20 && Math.abs(y0 - rv.ring.y) < 20) rayInVeh = rv;
+  }
   const stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1;
   const tDeltaX = dx !== 0 ? Math.abs(TILE / dx) : Infinity;
   const tDeltaY = dy !== 0 ? Math.abs(TILE / dy) : Infinity;
@@ -2467,8 +2486,12 @@ function parseLevel() {
         const rr = rows[y + oy];
         if (rr && (rr[x + ox] === "@" || rr[x + ox] === "%")) ring = true;
       }
-      level.turrets.push({ x: cx, y: cy, tx: x, ty: y, face0: face, manned: null,
-                          arc: ring ? deg(300) : TUNE.turretArc, ring });
+      // x,y is where the GUN is and sx,sy is where a man has to stand to reach
+      // it. For a tripod they are the same tile. For a ring mount they are not:
+      // the gun goes up onto the vehicle's roof hatch below, and this M tile
+      // stays behind as the step you climb on and the ground you come back to.
+      level.turrets.push({ x: cx, y: cy, sx: cx, sy: cy, tx: x, ty: y, face0: face,
+                          manned: null, arc: ring ? deg(300) : TUNE.turretArc, ring });
     }
     if (ch === "Q") level.spawns.qrf.push({ x: cx, y: cy });
     if (ch === "w") level.spawns.wounded.push({ x: cx, y: cy });
@@ -2538,9 +2561,26 @@ function parseLevel() {
     // grants near-full traverse to a gun bolted beside bodywork; if a vehicle
     // is carrying one it IS the gun truck, so it gets the Humvee body — and
     // with it the armour, which is the whole reason you would fight from it.
-    if (level.turrets.some(t => t.ring &&
-          v.tiles.some(tl => Math.abs(tl.tx - t.tx) + Math.abs(tl.ty - t.ty) === 1)))
+    // ...and the gun goes where the Humvee art already draws its hatch. That
+    // circle is painted into the sprite at 123.5,64.2 of a 256x128 frame, which
+    // at the 2x authoring scale is 3px aft of the body's centre — so the ring
+    // this code strokes lands inside the ring the artist drew, on every
+    // orientation, instead of hovering a metre off the bonnet.
+    // The M tile keeps sx,sy: it is still what you walk to and what you step
+    // back down onto, so nothing has to path into solid bodywork.
+    for (const t of level.turrets) {
+      if (!t.ring) continue;
+      if (!v.tiles.some(tl => Math.abs(tl.tx - t.tx) + Math.abs(tl.ty - t.ty) === 1)) continue;
       v.body = "humvee";
+      t.veh = v; v.ring = t;
+      t.x = v.x - Math.cos(v.ang) * 3;
+      t.y = v.y - Math.sin(v.ang) * 3;
+      // A gun truck's gun rides over the bonnet. The wall-facing scan that sets
+      // face0 is meaningless here — on BROKEN ARROW it found a building two
+      // tiles off and pointed a .50 at it point blank — and with 300 degrees of
+      // traverse this only picks the rest position and the unmanned cone.
+      t.face0 = v.ang;
+    }
     v.side = { front: 0, rear: 0, left: 0, right: 0 };
     v.hotSide = "front"; v.stage = 0;
     // Which panel each tile IS, in the car's own frame. The ends are bonnet and
@@ -2641,6 +2681,14 @@ function solidForMove(tx, ty) {
 function opaque(tx, ty) {
   if (!inBounds(tx, ty)) return true;
   if (level.smokeGrid && level.smokeGrid[ty * level.w + tx]) return true;
+  // A RING GUNNER IS ON THE ROOF. A sight ray that started inside bodywork can
+  // only be his, and his own truck is under him rather than in front of him —
+  // without this he is blind in every direction, measured at 0 of 360 bearings
+  // on both gun trucks. Rounds coming the other way start OUTSIDE and still
+  // cross the hull, which is the whole point of fighting from a Humvee: it is
+  // cover you shoot over. blocksBullet is deliberately not given this, or a
+  // round that punched into a car would cross the rest of it for free.
+  if (rayInVeh && level.vehAt.get(tx + "," + ty) === rayInVeh) return false;
   return materialAt(tx, ty).opaque;
 }
 // pathfinding traversability: doors are traversable (AI opens them); walls and
@@ -3162,6 +3210,22 @@ function shootingSide(s) {
 // the eye, clamped at the first thing solid enough to be a wall — pressing the
 // muzzle against brick means the round starts AT the brick, on your side.
 function muzzlePoint(s, ang) {
+  // A RING GUNNER IS ABOVE THE ROOFLINE. His truck is under him, not in front
+  // of him, so his rounds clear their own bodywork — measured, a gunner on the
+  // hatch firing down his own hull landed 7 of 30 without this, because the
+  // game is flat and his own bed and boot counted as two walls. Rounds coming
+  // the other way still cross the hull, and that asymmetry IS the ring mount:
+  // the hull is cover you shoot over, which is why the body is worth taking.
+  const ring = s.turret && s.turret.ring && s.turret.veh;
+  if (ring) {
+    const v = s.turret.veh;
+    // out to the corner of the bounding box along ang, plus a hand's width
+    const cx2 = Math.cos(ang), sy2 = Math.sin(ang);
+    const tx = Math.abs(cx2) > 1e-6 ? (v.lw / 2 + Math.abs(s.x - v.x)) / Math.abs(cx2) : Infinity;
+    const ty = Math.abs(sy2) > 1e-6 ? (v.lh / 2 + Math.abs(s.y - v.y)) / Math.abs(sy2) : Infinity;
+    const d2 = Math.min(tx, ty) + 4;
+    return { x: s.x + cx2 * d2, y: s.y + sy2 * d2, len: d2 };
+  }
   const eye = eyePoint(s);
   const name = (s.guns && s.guns[s.gunIndex] && s.guns[s.gunIndex].name) || (s.weapon && s.weapon.name);
   let len = TUNE.gunLen[name] ?? TUNE.gunLen.default;
@@ -3673,6 +3737,10 @@ function dismountTurret(ent) {
     ent._preGun = null;
   }
   ent.cooldown = Math.max(ent.cooldown, 0.4);
+  // Step back down onto the ground you climbed up from. On a tripod sx,sy is
+  // the tile he was already standing on; on a ring mount it is the only thing
+  // stopping him from being left standing inside the bodywork.
+  ent.x = t.sx; ent.y = t.sy;
 }
 function clampToArc(t, want) {
   const arc2 = t.arc || TUNE.turretArc;
@@ -3940,8 +4008,11 @@ function playerInteract(p) {
   if (p.turret) { dismountTurret(p); game.hint = "Off the gun"; return; }
   const cam = nearestEntity(level.cameras, p.x, p.y, 42, c2 => c2.alive);
   if (cam) { snipCamera(cam); game.hint = "Camera snipped — quietly"; sfxAt("click", cam.x, cam.y); return; }
-  const trt = nearestEntity(level.turrets, p.x, p.y, TUNE.turretReach, t2 => !t2.manned);
-  if (trt) { mountTurret(p, trt); return; }
+  // reach for the STEP, not the gun — on a ring mount the gun is up on the hull
+  // and the hull is solid, so p can never be within turretReach of it
+  const trt = nearestEntity(level.turrets.map(t2 => ({ t: t2, x: t2.sx, y: t2.sy })),
+                            p.x, p.y, TUNE.turretReach, o => !o.t.manned);
+  if (trt) { mountTurret(p, trt.t); return; }
   if (useStairs(p)) return;
   const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
   if (arr) { cuffEnemy(arr); return; }
@@ -7413,7 +7484,9 @@ function updateSquaddie(s, dt) {
       if (!t || (t.manned && t.manned !== s)) { s.order = { type: "hold", face: s.face }; break; }
       if (s.turret && s.turret !== t) dismountTurret(s);   // review catch: stuck aiming at B from A
       if (!s.turret) {
-        if (dist(s.x, s.y, t.x, t.y) > 20) squadMove(s, t.x, t.y, TUNE.squadRun, dt);
+        // walk to the step, not to the gun: sx,sy is reachable ground, t.x,t.y
+        // may be the middle of a Humvee
+        if (dist(s.x, s.y, t.sx, t.sy) > 20) squadMove(s, t.sx, t.sy, TUNE.squadRun, dt);
         else mountTurret(s, t);
       } else if (!threat) {
         s.face = angLerp(s.face, t.face0, dt * 4);   // covering the arc he was given
@@ -12006,6 +12079,46 @@ requestAnimationFrame(frame);
     One sprite, two tints: getSprite already caches per (key, tint), so the
     player's blue bunker and a squaddie's green one come off the same art at
     zero extra bytes.
+  v0.72 (2026-08-18): THE GUN GOES ON THE TRUCK, AND THE BUNKER IS AN EDGE.
+    Sam: "is there a humvee mounted turret yet? ... that is drawn where the
+    turret on the humvee would be." It was drawn a metre off the bonnet, in the
+    street, because a ring mount is an M glyph BESIDE the bodywork and the gun
+    was drawn on that glyph. The Humvee art has painted a ring hatch all along:
+    a circle at 123.5,64.2 of a 256x128 frame, which at the 2x authoring scale
+    is 3px aft of the body's centre. The gun now sits in it, on both gun trucks
+    and at every orientation, and the stroked ring lands inside the drawn one.
+    The M tile stays behind as sx,sy — the step you walk to, mount from and come
+    back down onto — so nothing ever paths into solid bodywork and a dismounting
+    gunner is never left standing inside his own truck.
+    Which put a man inside a wall, and that broke his eyes: measured, a gunner in
+    the hatch had line of sight along 0 of 360 bearings on both trucks, which is
+    a gun that cannot be used. A RING GUNNER IS ON THE ROOF, so a SIGHT ray that
+    starts inside bodywork does not stop on it — 0/360 becomes 150/360 at 120px,
+    more than the 55 he had beside the bonnet. Rounds coming the other way start
+    outside and still cross the hull, and that asymmetry IS the ring mount: the
+    hull is cover you shoot over, which is the whole reason the parser hands a
+    gun truck the Humvee body and its armour. blocksBullet deliberately gets no
+    such exemption, or a round that punched into a car would cross the rest of
+    it for free. His own muzzle clears the hull for the same reason — without it
+    he landed 7 of 30 rounds fired down the length of his own bed.
+    "Inside bodywork" alone was too loose a proxy and let a man standing in a
+    wrecked car's footprint see straight through it — the overwatch test caught
+    it — so the exemption is narrowed to a gun truck AND to within 20px of its
+    ring. A car with no ring still blocks from the inside: 0 of 360.
+    A gun truck also now rests over its own bonnet. The wall-facing scan that
+    sets face0 is meaningless for a gun bolted to a vehicle; on BROKEN ARROW it
+    found a building two tiles away and pointed a .50 at it point blank.
+    And the body bunker, on Sam's note: "should be a simple black curve on the
+    left arm, and the right arm should hold the pistol." From directly above a
+    shield is an EDGE, not a slab — the first draft was a filled rectangle with
+    a filled grey accent over it and read as a blob. It is one black curve now,
+    convex the way he faces, carried on the left, with a thin lit inner edge so
+    it survives the 40px blit; the firing arm punches out past the shield's rim,
+    which is both how you actually shoot round a bunker and the only thing that
+    makes a pistol legible against a dark torso. The suite never calls render(),
+    so what it holds is the geometry contract: stroked not filled, dark not team
+    colour, left of the centreline, gun on the other side, and the two never
+    overlapping.
 -->
 </body>
 </html>
