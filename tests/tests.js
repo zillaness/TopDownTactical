@@ -3564,17 +3564,26 @@ const curved = /stroke="#14181c"/.test(shieldTag) && /fill="none"/.test(shieldTa
 console.log('  the bunker is a stroked curve, not a filled slab: ' + curved,
             curved ? 'CORRECT (an edge is what you see from above)' : 'WRONG');
 const ys = (shieldTag.match(/d="M([\d.]+) ([\d.]+)Q([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)"/) || []).slice(1).map(Number);
-const onTheLeft = ys.length === 6 && ys[1] < 32 && ys[5] <= 32 && ys[3] < 32;
-console.log('  and it is carried on the LEFT arm: endpoints y=' + ys[1] + ',' + ys[5] +
-            ' against a centreline of 32', onTheLeft ? 'CORRECT (-y is left of east)' : 'WRONG');
+// Second note from Sam: "closer, the curve should cover their torso." The
+// first version of this test asserted the arc stayed left of the centreline —
+// which was the first draft's intent and is the wrong invariant. A shield you
+// hold in front of you SPANS the body from above; what makes it the left arm's
+// is that it is biased that way, not that it stops at the middle. The torso is
+// y 20..44 in this frame.
+const spans = ys.length === 6 && ys[1] < 20 && ys[5] >= 40;
+const biasedLeft = ys.length === 6 && (ys[1] + ys[5]) / 2 < 32;
+console.log('  it covers the torso: arc y ' + ys[1] + '..' + ys[5] + ' against a body of 20..44',
+            spans ? 'CORRECT' : 'WRONG');
+console.log('  and it is biased onto the LEFT arm: chord centre y=' + ((ys[1] + ys[5]) / 2).toFixed(1),
+            biasedLeft ? 'CORRECT (-y is left of east)' : 'WRONG');
 const gun = (art.match(/<g data-part="weapon">.*?<\/g>/) || [''])[0];
 const gunYs = [...gun.matchAll(/y="([\d.]+)"/g)].map(m2 => Number(m2[1]));
 const gunRight = gunYs.length > 0 && Math.min(...gunYs) > 32;
 console.log('  the pistol is in the RIGHT hand: gun y from ' + (gunYs.length ? Math.min(...gunYs) : '—'),
             gunRight ? 'CORRECT (+y is right of east)' : 'WRONG');
-const clear = onTheLeft && gunRight && Math.max(...ys.filter((_, i) => i % 2)) < Math.min(...gunYs);
-console.log('  the two never overlap, so both read at 40px: ' + clear,
-            clear ? 'CORRECT (the first draft hid the gun under the shield)' : 'WRONG');
+const clear = spans && gunRight && Math.max(...ys.filter((_, i) => i % 2)) < Math.min(...gunYs);
+console.log('  the gun comes round the LOW edge, clear of it: ' + clear,
+            clear ? 'CORRECT (an earlier draft hid the gun under the shield)' : 'WRONG');
 game.loadout.primary = prevGun; game.loadout.squad = prevSquad;
 console.log('SHIELD TEST DONE');
 })();
