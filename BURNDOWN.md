@@ -410,54 +410,64 @@ Suggested next session starting points (PRD §6, ranked):
 
 Phase 0 (token-burndown skill): still pending — no live meter tonight.
 
-## Session handoff — 2026-08-18, playtest + systems S3 (through v0.73)
+## Session handoff — 2026-08-18, playtest + systems S3 (through v0.75)
 
 Everything below is SHIPPED and live on Pages. Tree clean, branch and main
-both at 15546d3, suite 518 CORRECT / 0 WRONG / 0 update errors.
+both at ec1e5ff, suite 534 CORRECT / 0 WRONG / 0 update errors.
 
 Shipped this session: v0.71 pistol + body bunker; v0.72 the ring gun moved onto
 the Humvee's painted hatch (plus the sight exemption that makes a ring gunner
 able to see at all) and the bunker redrawn as an overhead edge; v0.73 Sam's two
 art notes — gun forward of the hoop and smaller, bunker curve across the torso —
-and the NVG bump taken off the bunker sprite.
+and the NVG bump taken off the bunker sprite; v0.74 the fog stopping dimming what
+you are standing next to; v0.75 the stutter chased to a negative result, the
+props unblocked, and the byte census.
 
 ### Open, ranked
 
-1. ☐ **Trees and cars are permanently dimmed through the fog — DIAGNOSED, NOT
-   FIXED.** This is the "tree clumps reveal raggedly" complaint and the cause is
-   not raggedness, it is that `inAnyView` is asked at the object's own centre.
-   A thing that STOPS sight sits exactly ON the boundary of every visibility
-   polygon that reaches it, so that question always answers NO. Measured at
-   mission start: BROKEN ARROW 0 of 3 cars and 0 of 30 trees "lit"; THE TREELINE
-   0 of 184 trees; after walking into the wood, 32 tiles seen and still 0 lit.
-   Windows are the exception and the proof — they are transparent, so 1 of 6
-   came back lit. So `TUNE.rememberedAlpha` (0.62) is in practice the ONLY alpha
-   any opaque world object has ever drawn at, and the "live at full strength,
-   remembered dimmed" contract written in the comment above `drawWorldObjects`
-   has never once fired.
-   The fix, worked out but not written: ask whether you can see the GROUND the
-   object stands on — the centre plus four points one tile out — and memoise
-   per tile per frame, because a canopy asks about its neighbours and its
-   neighbours ask right back. Same helper serves the canopy pass, the vehicle
-   pass, `drawSightBlockers`'s `lit()` and `drawProps`. Asking one tile out also
-   fixes the second half: 29 of 32 seen tree tiles have unseen tree neighbours
-   (66 holes), and a canopy is 48–64px — 1.5 to 2 tiles — so a crown that
-   overhangs ground you HAVE seen should draw.
-   There is no frame counter on `game` yet; the memo needs one.
-2. ☐ Props back into maps — `floorAt` (parseLevel's local) and `isFloorG`
-   disagree about what counts as standable, and prop placement was parked on it.
-3. ☐ The stutter with many people on screen. Never reproduced. Note that item 1's
-   memo is the first real per-frame cost reduction in the render path and may be
-   worth measuring against this.
-4. ☐ Byte ceiling: 2,259,049 against CLAUDE.md's ~1.5–2MB. Measure per art key
-   before cutting anything.
+1. ✅ **Trees and cars permanently dimmed through the fog** — FIXED in v0.74.
+   `inAnyView` was asked at the object's own centre and a thing that stops sight
+   sits on the boundary of the polygon that stops at it, so the answer was
+   always no: 0 of 3 cars and 0 of 214 trees lit across two maps. It asks about
+   the ground the object stands on now, memoised per tile per frame. The canopy
+   gate widened to the crown's own footprint: 33 crowns drawn becomes 66, holes
+   66 becomes 29, strict superset.
+2. ✅ **Props back into maps** — FIXED in v0.75. Two causes, neither of them the
+   `floorAt`/`isFloorG` mismatch that was suspected. The passable-prop interior
+   pass ran AFTER the partition classification, and it swept once over an array
+   it also writes, so a four-tile hedge laid against the scan order came out
+   0,0,0,1 and the wall beside it read concrete instead of drywall. Fixed point
+   now, and it runs first. **The twelve prop sprites and two environment sprites
+   are now placeable — that authoring work is the next thing to do.**
+3. ✅ **The stutter** — NOT REPRODUCIBLE, and that is the answer. 0/8/16/24/32/48
+   bodies, 1000 fx, 300 bullets, 36 alerted enemies with a nine-man squad: p50
+   stayed at 16.7ms throughout. The one real mid-fight hitch was lazy art
+   decode (4.2ms blocking + 158 decodes on first appearance), moved to the
+   briefing by `prewarmArt()`. A mission now records its own worst frame and
+   reports it in the debrief only if it hitched, so the next report carries a
+   number from Sam's machine.
+4. ⚠ **Byte ceiling — NEEDS SAM'S DECISION.** 2,270,317 against ~1.5–2MB. 68% of
+   the file is art. The only free saving has been taken (4 PNG → lossless WebP,
+   pixel-identical, 3,024 bytes). Everything else costs something:
+
+   | lever | saves | costs |
+   |---|---|---|
+   | re-encode every WebP at q75 | ~290KB | measurable quality: mean channel error 2.85, p99 13, max 52 on opaque pixels. q85 saves only 1%, so there is no free quality point |
+   | delete the 12 unused prop + 2 env sprites | ~104KB | that is exactly the art item 2 just unblocked |
+   | delete the 5 `_nvg` night sprites | ~13KB | art held for night missions |
+   | ascii85 instead of base64 | ~96KB | no quality cost at all; needs a decoder and blob URLs (4/3 → 5/4 overhead) |
+
+   Nothing reaches 2MB except q75 alone, or ascii85 plus deleting both sets of
+   held art (and that is still ~53KB short).
 5. ☐ **BLOCKED — sound effects.** `N:\gun sound effects` is a Windows drive on
-   Sam's machine; no mount exists in the container. `SOUND_ART` is already wired
-   to take them one key at a time; they need committing to the repo (e.g.
+   Sam's machine; no mount exists in the container. `SOUND_ART` is wired to take
+   them one key at a time; they need committing to the repo (e.g.
    `assets/incoming/sound/`) or attaching.
 6. ☐ **ASK FIRST — destructive.** The repo is ~681MB (raw art in
    `assets/incoming/` plus the same again in history) against a ~2.2MB
    deliverable. Purging is unresolved.
+7. ☐ Place the props. Now unblocked by item 2 — twelve prop sprites and two
+   environment sprites exist, are decoded, and no map uses them.
 
 Open question left with Sam: the NVG goggle group is r=1.5 in a 64px frame,
 which is a 0.94px circle at the 40px a man actually blits at — below one pixel.
