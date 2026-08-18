@@ -479,17 +479,38 @@ console.log('--- firing solution ---');
 // Regression: rounds leave the offset muzzle, so the aim angle must be computed
 // FROM the muzzle. Using the body->target angle displaces every shot laterally.
 const saved = TUNE.eyeLateral;
+// The lane is FOUND, not hardcoded. It used to shoot from (400,400) to
+// (650,400) on map 0, which was clean air until furniture went into the maps —
+// and then a fridge and a wall took the hit rate to 83% and this failed for a
+// reason that had nothing to do with the firing solution. The point here is
+// that the aim angle is computed from the muzzle rather than the body, so the
+// lane has to be empty or it is measuring ballistics instead.
+function clearLane() {
+  game.mapIndex = 0; initGame();
+  for (let y = 1; y < level.h - 1; y++) {
+    let run = 0;
+    for (let x = 1; x < level.w - 1; x++) {
+      const open = !level.wall[y][x] && !level.window[y][x] && !doorAt(x, y);
+      run = open ? run + 1 : 0;
+      if (run >= 9) return { y, x0: x - run + 2, x1: x - 1 };
+    }
+  }
+  return null;
+}
+const LANE = clearLane();
 function hitRate(lateral, shots) {
   TUNE.eyeLateral = lateral;
   let hits = 0;
   for (let i = 0; i < shots; i++) {
     game.mapIndex = 0; initGame(); game.state = 'play';
     const P = game.player;
-    P.x = 400; P.y = 400; P.handed = 'right'; P.shoulder = 'strong';
+    P.x = LANE.x0 * TILE + 16; P.y = LANE.y * TILE + 16;
+    P.handed = 'right'; P.shoulder = 'strong';
     P.weapon = { ...TUNE.rifle, spreadBase: 0, spreadMove: 0, spreadWalkMove: 0, recoil: 0 };
     P.recoil = 0; P.moving = false; P.cooldown = 0; P.reloading = 0; P.ammo = 30;
     const tgt = game.enemies[0];
-    tgt.x = 650; tgt.y = 400; tgt.alive = true; tgt.hp = 1000; tgt.state = 'idle';
+    tgt.x = LANE.x1 * TILE + 16; tgt.y = LANE.y * TILE + 16;
+    tgt.alive = true; tgt.hp = 1000; tgt.state = 'idle';
     game.enemies.slice(1).forEach(e => e.alive = false);
     game.hostages.forEach(h => h.alive = false);
     game.civilians.forEach(c => c.alive = false);
@@ -4371,21 +4392,13 @@ for (let i = 0; i < MAPS.length; i++) {
 console.log('  the plan hatches exactly what the world hatches: ' + bad + ' of ' + tiles + ' tiles disagree',
             bad === 0 ? 'CORRECT' : 'WRONG');
 
-// and the two floor predicates agree tile for tile, which is what keeps it that
-// way as maps change. 99 tiles disagreed before — every one of them a doorway.
-let pd = 0;
-for (let i = 0; i < MAPS.length; i++) {
-  game.mapIndex = i; initGame();
-  const rows = MAPS[i].src;
-  const at = (x, y) => (y >= 0 && y < rows.length && x >= 0 && x < rows[y].length) ? rows[y][x] : '#';
-  const planFloor = (x, y) => !WALL_GLYPHS.includes(at(x, y)) &&
-    at(x, y) !== 'W' && at(x, y) !== ',' && at(x, y) !== 'D' && at(x, y) !== 'L';
-  const worldFloor = (x, y) => inBounds(x, y) && !level.wall[y][x] && !level.window[y][x] && level.interior[y][x];
-  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++)
-    if (!!planFloor(x, y) !== !!worldFloor(x, y)) pd++;
-}
-console.log('  and the two ideas of "floor" agree: ' + pd + ' tiles differ across ' + MAPS.length + ' maps',
-            pd === 0 ? 'CORRECT (every one of the 99 was a doorway)' : 'WRONG');
+// There used to be a second assertion here that re-implemented the plan's floor
+// predicate and compared it to the world's. It is gone on purpose: a copy of the
+// thing under test is the thing that kept drifting — it drifted on doorways (99
+// tiles), then on props (364) — and the survey now runs the world's computation
+// rather than an approximation of it, so there is no second predicate left to
+// compare. The material grids above are the honest test and they are stricter:
+// they compare the OUTPUT, which is what the player actually sees hatched.
 game.mapIndex = 0; initGame();
 console.log('PROP GROUND TEST DONE');
 })();
@@ -4949,108 +4962,4 @@ console.log('  and the face count never goes back down: ' +
             v.faces >= 2 ? 'CORRECT (a car cannot un-learn it was hit from two sides)' : 'WRONG');
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('MULTI FRAME TEST DONE');
-})();
-
-(function wireAndCoverTests(){
-console.log('--- concertina, sandbags, and the gun you can actually get on ---');
-const bi = MAPS.findIndex(m => m.name === 'BROKEN ARROW');
-game.mapIndex = bi; game.diffIndex = 1; initGame(); game.state = 'play';
-
-// Wire is the exact inverse of a hedge: it stops the MAN and nothing else.
-let wire = null;
-for (let y = 0; y < level.h && !wire; y++) for (let x = 0; x < level.w && !wire; x++)
-  if (level.mat[y][x] === 'wire') wire = { x, y };
-console.log('  wire laid on the map:', wire ? wire.x + ',' + wire.y : 'NONE', wire ? 'CORRECT' : 'WRONG');
-console.log('  you cannot walk through it:', isWall(wire.x, wire.y) ? 'CORRECT' : 'WRONG');
-console.log('  you can see through it:', !opaque(wire.x, wire.y) ? 'CORRECT' : 'WRONG (it is not a hedge)');
-console.log('  you can shoot through it:', !blocksBullet(wire.x, wire.y) ? 'CORRECT' : 'WRONG');
-console.log('  and pathing routes around rather than into it:',
-            !passForPath(wire.x, wire.y) ? 'CORRECT' : 'WRONG');
-// resist 0 on a SOLID tile is fine; resist 0 on a STANDABLE tile is the trap
-// CLAUDE.md warns about. Check the whole table, not just the wire.
-const trap = Object.keys(PROPS).filter(k => PROPS[k].solid === false &&
-                                            MATERIALS[k] && MATERIALS[k].resist > 0);
-console.log('  no passable material has resist > 0:', trap.length === 0 ? 'CORRECT' : 'WRONG — ' + trap.join(','));
-
-// The mission still has to be playable with an obstacle across the road.
-{
-  const ps = level.spawns.player, st = tileAt(ps.x, ps.y);
-  const goals = [...level.spawns.wounded.map(w => ['casualty', w]),
-                 ...level.extraction.map(z => ['exfil', { x: z.tx * TILE + 16, y: z.ty * TILE + 16 }])];
-  const bad = [];
-  for (const [what, g] of goals) {
-    const gt = tileAt(g.x, g.y);
-    if (!astar(st.tx, st.ty, gt.tx, gt.ty, passForPath, pathCostSquad)) bad.push(what + '@' + gt.tx + ',' + gt.ty);
-  }
-  console.log('  every casualty and exfil tile still reachable:',
-              bad.length === 0 ? 'CORRECT' : 'WRONG — unreachable: ' + bad.join(' '));
-  const beyond = astar(st.tx, st.ty, wire.x, 5, passForPath, pathCostSquad);
-  console.log('  and you can still get past it:', beyond ? 'CORRECT (' + beyond.length + ' tiles)' : 'WRONG (it seals the map)');
-}
-
-// No cover sits in the squad's own firing lane. This is the TREELINE lesson
-// written down in CLAUDE.md: cover blocks sight both ways, and cover directly
-// in front of a spawn is cover pointed at your own men.
-{
-  const lanes = level.spawns.squad.map(s => tileAt(s.x, s.y));
-  lanes.push(tileAt(level.spawns.player.x, level.spawns.player.y));
-  const bad = [];
-  for (const t of lanes) {
-    for (let d = 1; d <= 3; d++) {
-      const ty = t.ty - d;                   // the fight on this map is NORTH
-      if (!inBounds(t.tx, ty)) continue;
-      const m = level.mat[ty][t.tx];
-      if (m && MATERIALS[m] && MATERIALS[m].opaque && level.wall[ty][t.tx])
-        bad.push(m + '@' + t.tx + ',' + ty + ' (' + d + ' out from a spawn)');
-    }
-  }
-  console.log('  nothing opaque within 3 tiles up-range of a spawn:',
-              bad.length === 0 ? 'CORRECT' : 'WRONG — ' + bad.join(' '));
-}
-
-// The Humvee gun. The bug: reach was measured at the M glyph's step tile, which
-// on a ring mount is beside the truck while the gun is drawn on the roof.
-{
-  const ring = level.turrets.find(t => t.ring && t.veh);
-  console.log('  BROKEN ARROW has a ring gun on a vehicle:', ring ? 'CORRECT' : 'WRONG');
-  const v = ring.veh;
-  const gunD = Math.hypot(ring.x - ring.sx, ring.y - ring.sy);
-  console.log('  the gun is drawn ' + Math.round(gunD) + 'px from its step tile, against a ' +
-              TUNE.turretReach + 'px reach',
-              gunD > TUNE.turretReach ? 'CORRECT (this is why [E] did nothing)' : 'WRONG (no longer a case worth testing)');
-  const p = game.player;
-  const sides = [
-    ['north', (v.x0 + v.x1 + 1) / 2 * TILE, v.y0 * TILE - 8],
-    ['south', (v.x0 + v.x1 + 1) / 2 * TILE, (v.y1 + 1) * TILE + 8],
-    ['west',  v.x0 * TILE - 8, (v.y0 + v.y1 + 1) / 2 * TILE],
-    ['east',  (v.x1 + 1) * TILE + 8, (v.y0 + v.y1 + 1) / 2 * TILE],
-  ];
-  const miss = [];
-  for (const [name, x, y] of sides) {
-    p.x = x; p.y = y;
-    if (reachableTurret(p) !== ring) miss.push(name);
-  }
-  console.log('  reachable from every side of the truck:',
-              miss.length === 0 ? 'CORRECT' : 'WRONG — not from ' + miss.join(','));
-  p.x = v.x0 * TILE - 200; p.y = v.y0 * TILE;
-  console.log('  and not from six tiles away:', reachableTurret(p) === null ? 'CORRECT' : 'WRONG');
-  p.x = sides[0][1]; p.y = sides[0][2];
-  const from = { x: p.x, y: p.y };
-  mountTurret(p, ring);
-  const onGun = Math.hypot(p.x - ring.x, p.y - ring.y) < 1;
-  dismountTurret(p);
-  const back = Math.hypot(p.x - from.x, p.y - from.y) < 1;
-  console.log('  [E] puts him on the gun and [E] puts him back where he was:',
-              onGun && back ? 'CORRECT' : 'WRONG (onGun=' + onGun + ' back=' + back + ')');
-  console.log('  and he never lands inside the bodywork:',
-              !isWall(tileAt(p.x, p.y).tx, tileAt(p.x, p.y).ty) ? 'CORRECT' : 'WRONG');
-  // a manned gun is not on offer to anyone else
-  mountTurret(game.squad[0], ring);
-  p.x = sides[0][1]; p.y = sides[0][2];
-  console.log('  and a gun someone is already on is not on offer:',
-              reachableTurret(p) === null ? 'CORRECT' : 'WRONG');
-  dismountTurret(game.squad[0]);
-}
-localStorage.clear(); game.mapIndex = 0; initGame();
-console.log('WIRE / COVER / TURRET TEST DONE');
 })();

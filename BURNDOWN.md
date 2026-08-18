@@ -552,3 +552,26 @@ CORRECT / 0 WRONG / 0 update errors. Wire and sandbags checked in Chromium.
 
 ## CHANGELOG
 - v1.0 (2026-08-07): Initial backlog seeded at project start.
+
+## Session note — 2026-08-18, S3: props placed, and the second collision
+
+Two sessions are running this backlog concurrently and the other one wrote that
+down first (see the entry above). This is the other half of the same lesson: S3
+shipped v0.77 with the props, S4 had already published a different v0.77, and
+the collision was caught by the push being rejected rather than by anything
+either session checked first. It was resolved by REBASING onto S4's work as
+v0.78 — not by force-pushing, and not by a textual merge, because both edits
+land in the MAPS array. What made that cheap is that the placement is a
+deterministic tool: re-applying it to S4's maps was a re-run, not a conflict
+resolution. **Anything that edits map sources should be a re-runnable tool for
+exactly this reason.**
+
+Shipped in v0.78: 752 props across all twenty maps, the two parser bugs the
+placement exposed (a solid prop against a partition turned it back into
+structure; the briefing plan approximated the world's floor rule instead of
+running it), and the goggle group off the five day sprites.
+
+Still open and belonging to Sam: the repo purge (see CLAUDE.md for the three
+options and what each costs), and the sound files, which need copying from
+`N:\gun sound effects` into `assets/incoming/sound/` — everything else about
+that drop is done and `tools/inline_sound.py` finishes it in one command.
