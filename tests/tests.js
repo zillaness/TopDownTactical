@@ -5678,3 +5678,159 @@ game.diffIndex = 1; game.densityIndex = 1; initGame(); game.state = 'play';
 localStorage.clear(); game.mapIndex = 0; initGame();
 console.log('ELEVATION / ARMING / AID TEST DONE');
 })();
+
+// The simulation. Everything below is about ONE claim: that the commander is a
+// third input source and nothing more. If he ever gets a private path into the
+// world, the sim and the game have quietly become two different games, and the
+// only way to notice is a test that watches what he touches.
+(function simTests(){
+console.log('--- the commander: a doctrine, and no private path into the world ---');
+localStorage.clear();
+
+// A doctrine that names a play nobody runs is a doctrine that silently does
+// nothing, which is exactly how a strategy picker becomes decoration.
+const badPlay = Object.entries(DOCTRINES).filter(([k, d]) => !PLAYS.find(p => p.key === d.entry));
+console.log('  every doctrine names a real entry play:',
+            Object.keys(DOCTRINES).join(' / '),
+            badPlay.length === 0 ? 'CORRECT' : 'WRONG — ' + badPlay.map(x => x[0]).join(', '));
+console.log('  every command mode is one the menu can pick: ' + Object.keys(COMMANDS).join(' / '),
+            COMMANDS.direct && COMMANDS.hybrid && COMMANDS.sim ? 'CORRECT' : 'WRONG');
+
+// DIRECT is the game as it was. The commander must not run at all.
+game.loadout.command = 'direct'; game.loadout.doctrine = 'dynamic';
+game.mapIndex = 0; initGame(); game.state = 'play';
+{
+  input.keys.clear(); input.keys.add('w');
+  simCommand(1/60);
+  console.log('  DIRECT leaves your keys alone: keys=' + [...input.keys].join(','),
+              input.keys.has('w') ? 'CORRECT (nobody is driving but you)' : 'WRONG');
+  input.keys.clear();
+}
+
+// SIMULATION drives the man, and it drives him THROUGH THE KEYBOARD.
+game.loadout.command = 'sim';
+game.mapIndex = 0; initGame(); game.state = 'play';
+{
+  const P = game.player, x0 = P.x, y0 = P.y;
+  let sawMoveKey = false, sawGoal = false;
+  for (let i = 0; i < 60 * 6; i++) {
+    input.justPressed.clear();
+    simCommand(1/60);
+    if (['w','a','s','d'].some(k => input.keys.has(k))) sawMoveKey = true;
+    if (game.sim.goal) sawGoal = true;
+    update(1/60);
+  }
+  console.log('  it walks on WASD like a person: moved ' + dist(P.x, P.y, x0, y0).toFixed(0) + 'px',
+              sawMoveKey && dist(P.x, P.y, x0, y0) > 40 ? 'CORRECT' : 'WRONG');
+  console.log('  and it has an objective it can name: "' + (game.sim.goal || {}).what + '"',
+              sawGoal ? 'CORRECT' : 'WRONG');
+}
+
+// CHECK FIRE is the game's own rule and it must bind the commander too. Park a
+// teammate on the firing line and the trigger has to come off — and, because
+// standing still is only earned by shooting, he must not freeze there either.
+{
+  game.mapIndex = 6; initGame(); game.state = 'play';        // shoot house: open bays
+  const P = game.player, D = DOCTRINES.deliberate;
+  game.enemies.forEach(e => { e.alive = false; });
+  P.shoutCd = 5;                          // skip the compliance shout: this is about the trigger
+  let ang = 0;
+  for (let a = 0; a < 16; a++) {
+    const t = a * TAU / 16;
+    if (lineOfSight(P.x, P.y, P.x + Math.cos(t) * 200, P.y + Math.sin(t) * 200, opaque)) { ang = t; break; }
+  }
+  const e = game.enemies[0];
+  e.alive = true; e.state = 'idle';
+  e.x = P.x + Math.cos(ang) * 200; e.y = P.y + Math.sin(ang) * 200;
+  const mate = game.squad[0];
+  mate.alive = true; mate.downed = false;
+  mate.x = P.x + Math.cos(ang) * 90; mate.y = P.y + Math.sin(ang) * 90;
+  game.sim.goal = { x: e.x, y: e.y, what: 'CONTACT' };
+  game.eye = eyePoint(P);            // frame() does this every frame; nothing headless does
+  // A few frames each way: the first one is spent warming the path up, and
+  // "did he ever pull the trigger" is the question, not "on this exact tick".
+  const beat = (n) => { let fire = false, move = false;
+    for (let i = 0; i < n; i++) { input.keys.clear(); input.mouse.down = false;
+      simDrive(P, D, 1/60);
+      fire = fire || input.mouse.down;
+      move = move || ['w','a','s','d'].some(k => input.keys.has(k)); }
+    return { fire, move }; };
+  const blocked = beat(12);
+  const blockedFire = blocked.fire, blockedMove = blocked.move;
+  mate.x = P.x - Math.cos(ang) * 220; mate.y = P.y - Math.sin(ang) * 220;
+  const open = beat(12);
+  const clearFire = open.fire, clearMove = open.move;
+  console.log('  a mate in the lane takes the trigger off him: firing=' + blockedFire,
+              !blockedFire ? 'CORRECT (the same CHECK FIRE the crosshair shows)' : 'WRONG');
+  console.log('  and he does not freeze there with the shot refused: moving=' + blockedMove,
+              blockedMove ? 'CORRECT' : 'WRONG (this deadlocked three maps)');
+  console.log('  lane clear he shoots, and holds his ground to do it: firing=' + clearFire +
+              ' moving=' + clearMove,
+              clearFire && !clearMove ? 'CORRECT (standing still is earned by shooting)' : 'WRONG');
+  input.keys.clear(); input.mouse.down = false;
+}
+
+// A surrendered man is an objective, not scenery: threatsLeft() counts him
+// until somebody cuffs him, and a sim that ignores him never finishes.
+{
+  game.mapIndex = 6; initGame(); game.state = 'play';
+  const P = game.player;
+  game.enemies.forEach((e, i) => { if (i) { e.alive = false; } });
+  const s = game.enemies[0];
+  s.alive = true; s.state = 'surrender'; s.x = P.x + 300; s.y = P.y;
+  const g = simGoal();
+  console.log('  hands up is still on the board: goal="' + (g || {}).what + '"',
+              g && g.what === 'CUFF HIM' ? 'CORRECT' : 'WRONG (one uncuffed man stalls the whole run)');
+}
+
+// An objective the game refuses — a hostage still covered, a tied-off man
+// swallowing [E] — must be set aside rather than stood on forever.
+{
+  game.mapIndex = 0; initGame(); game.state = 'play';
+  const P = game.player, h = game.hostages[0];
+  P.x = h.x; P.y = h.y;
+  game.enemies.forEach(e => { e.alive = false; });
+  game.sim.goal = { x: h.x, y: h.y, what: 'HOSTAGE', ent: h };
+  h.secured = false;
+  for (let i = 0; i < 30; i++) simCommand(SIM_TICK);     // ~16s of standing on it
+  console.log('  a refused objective is set aside: skipped=' + simSkipped(h),
+              simSkipped(h) ? 'CORRECT (go and find the reason)' : 'WRONG (it stands there forever)');
+}
+
+// The clock. Fast-forward must be MORE STEPS, never a bigger dt — a 4x timestep
+// is different physics, and nothing inside update() would know it happened.
+{
+  game.loadout.command = 'sim'; game.mapIndex = 0; initGame(); game.state = 'play';
+  const before = game.stats.time;
+  for (let i = 0; i < 4; i++) { simCommand(1/60); update(1/60); }
+  const elapsed = game.stats.time - before;
+  console.log('  four steps of 1/60 is ' + elapsed.toFixed(4) + 's of mission clock',
+              Math.abs(elapsed - 4/60) < 1e-6 ? 'CORRECT' : 'WRONG');
+}
+
+// The handover. HYBRID runs the squad and leaves the man to you.
+{
+  game.loadout.command = 'hybrid'; game.mapIndex = 0; initGame(); game.state = 'play';
+  input.keys.clear(); input.keys.add('w');
+  simCommand(SIM_TICK);
+  const kept = input.keys.has('w');
+  const ordered = game.squad.some(s => s.order && s.order.type !== 'follow');
+  console.log('  HYBRID: your keys survive=' + kept + ', the squad got an order=' + ordered,
+              kept && ordered ? 'CORRECT (you are one of the guns)' : 'WRONG');
+}
+
+// Waypoints must cover the ground, not just the rooms — a centroid is 620px
+// from the far end of a hall, which is outside anyone's eyes.
+{
+  game.mapIndex = 9; initGame();
+  const wps = simWaypoints();
+  const rooms = new Set();
+  for (let ty = 0; ty < level.h; ty++) for (let tx = 0; tx < level.w; tx++)
+    if (passForPath(tx, ty) && level.room[ty][tx]) rooms.add(level.room[ty][tx]);
+  console.log('  sweep covers ' + wps.length + ' points over ' + rooms.size + ' rooms',
+              wps.length > rooms.size * 2 ? 'CORRECT' : 'WRONG (too coarse to find the last man)');
+}
+
+localStorage.clear(); game.loadout.command = 'direct'; game.mapIndex = 0; initGame();
+console.log('SIM TEST DONE');
+})();

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.86.html
-  version: 0.86
+  file: top_down_tactical_v0.87.html
+  version: 0.87
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-18
-  description: Playable prototype — top-down tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, and restraint scoring.
+  last_updated: 2026-08-19
+  description: Playable prototype — top-down tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, restraint scoring, and a simulation mode where a doctrine-holding commander runs the whole thing and you watch.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
 -->
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.86 (working title)</title>
+<title>Top-Down Tactical v0.87 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.86 prototype &mdash; working title &mdash; twenty-two missions</h2>
+  <h2>v0.87 prototype &mdash; working title &mdash; twenty-two missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -104,6 +104,7 @@
       <tr><td class="key">flick &rarr;</td><td><b>BOUND</b> &mdash; leapfrog up, one element always still</td><td class="key">flick &darr;</td><td><b>HOLD</b> &mdash; stop and cover, or cover that door</td></tr>
       <tr><td class="key">flick &larr;</td><td><b>ON ME</b> &mdash; form up and follow</td><td class="key">V</td><td>cycle ROE: hold / return / free</td></tr>
       <tr><td class="key">1 2 3 / 4</td><td>select by number, if you prefer keys</td><td class="key">&nbsp;</td><td>the wheel slows the world on its own while it is open</td></tr>
+      <tr><td class="key">Y</td><td>HYBRID / SIMULATION: take the point man off the commander, or hand him back</td><td class="key">. ,</td><td>while watching: faster / real time</td></tr>
     </table>
   </details>
   <div class="sect">Mission</div>
@@ -128,6 +129,10 @@
   <div id="suppPick"></div>
   <div class="sect">Squad</div>
   <div id="squadPick"></div>
+  <div class="sect">Who is in command</div>
+  <div id="cmdPick"></div>
+  <div class="sect">Doctrine &mdash; the strategy the commander holds to</div>
+  <div id="doctPick"></div>
   <div class="sect">Saved loadouts</div>
   <div id="presetPick"></div>
   <button class="btn" id="btnStart">Breach</button>
@@ -3698,7 +3703,10 @@ function updatePlayer(p, dt) {
   if ((pressed("scrollup") || pressed("scrolldown")) && !p.turret) swapGun(p, p.gunIndex + 1);
   // The trigger lives in the world. A press that began on the squad bar was a
   // selection, not a shot, and holding the cursor over the roster is not aiming.
-  const onChrome = !!game.barDrag || !!squadCardAt(input.mouse.x, input.mouse.y);
+  // ...and the autopilot's cursor is a firing solution, not a hand on the
+  // roster — treating it as chrome refused the shot while it crossed the bar.
+  const onChrome = !(game.sim && game.sim.auto) &&
+                   (!!game.barDrag || !!squadCardAt(input.mouse.x, input.mouse.y));
   // COMMAND TIME IS NOT SHOOTING TIME. Sam: "i accidentally shot someone trying
   // to manage to move everyone around." Of course he did — opening a wheel puts
   // the game into 15% timescale precisely so that choosing is not a dexterity
@@ -8287,6 +8295,283 @@ function updatePlans(dt) {
   game.plans = game.plans.filter(p => p.state !== "done" && (p.members.length > 0 || p.state === "executing"));
 }
 
+// ---------------------------------------------------------------- S11b the sim
+// WATCHING IT HAPPEN. Sam: "briefed on the target, pick the squad and loadout,
+// choose a strategy, and then watch it unfold." Most of it already shipped —
+// the briefing and the kit are the menu, the squad has taken orders since v0.2,
+// tests/bot.js has driven the PLAYER since v0.1. Missing was a DOCTRINE and
+// someone holding it. He is a THIRD INPUT SOURCE, exactly like the gamepad: he
+// writes into the same `input` object and nothing downstream knows he exists,
+// so the sim cannot become a second game — same doorway squeeze, same recoil,
+// same shot refused by CHECK FIRE — and [Y] hands you the man mid-mission.
+const DOCTRINES = {
+  deliberate: {
+    name: "DELIBERATE", entry: "2", gait: "walk", bang: false, shout: true, standoff: 300,
+    note: "pie every door, shout before you shoot — slow, and everyone comes home",
+  },
+  dynamic: {
+    name: "DYNAMIC", entry: "1", gait: "run", bang: true, shout: false, standoff: 130,
+    note: "speed, surprise, violence of action — bang it and flood the room",
+  },
+  stealth: {
+    name: "STEALTH", entry: "2", gait: "walk", bang: false, shout: false, standoff: 380, quiet: true,
+    note: "steady gait, nothing thrown or kicked — take the ones who have not seen you",
+  },
+  support: {
+    name: "BASE OF FIRE", entry: "1", gait: "run", bang: true, shout: false, standoff: 240, base: true,
+    note: "half the team puts rounds on the position while the rest of you move on it",
+  },
+};
+const COMMANDS = {
+  direct: { name: "DIRECT", note: "you run the point man and you give the orders — the game as it was" },
+  hybrid: { name: "HYBRID", note: "the commander runs the squad to the doctrine; you are one of the guns" },
+  sim:    { name: "SIMULATION", note: "brief it, kit it, pick a doctrine and watch — [Y] takes the man back any time" },
+};
+const SIM_TICK = 0.55;              // how often the commander re-decides, in seconds
+
+function simDoctrine() { return DOCTRINES[game.loadout.doctrine] || DOCTRINES.deliberate; }
+// On a two-storey map, what is not on your floor is not in your fight.
+function simHere(e) { return (e.floor || 0) === (game.floor || 0); }
+// Set aside, briefly: some objectives refuse for a reason only a hint knows.
+function simSkipped(e) { return (e._simSkip || 0) > game.stats.time; }
+// Seen now, or recently enough that the mark is up. He may know no more than
+// the HUD does: the difference between a simulation and a cheat.
+function simKnown(e) {
+  return simHere(e) && (!!visibleToPlayerSide(e) ||
+         !!(e.lastSeen && game.stats.time - e.lastSeen.t < TUNE.memoryFade));
+}
+
+// Sweep waypoints, built once: a centroid per room plus a lattice, for when
+// everything known is cleared and the mission is not over.
+function simWaypoints() {
+  const wps = [], byRoom = new Map();
+  for (let ty = 0; ty < level.h; ty++) for (let tx = 0; tx < level.w; tx++) {
+    if (!passForPath(tx, ty)) continue;
+    const r = level.room[ty][tx];
+    if (r) {
+      let a = byRoom.get(r);
+      if (!a) byRoom.set(r, a = { n: 0, sx: 0, sy: 0 });
+      a.n++; a.sx += tx; a.sy += ty;
+    }
+    // Centroids alone are too coarse — from one, a man at the far end of a
+    // hall is outside anyone's eyes — so the lattice is what finds him.
+    if (tx % 6 === 3 && ty % 6 === 3) wps.push({ x: tx * TILE + 16, y: ty * TILE + 16, done: false });
+  }
+  for (const a of byRoom.values())
+    wps.push({ x: (a.sx / a.n) * TILE + 16, y: (a.sy / a.n) * TILE + 16, done: false });
+  return wps;
+}
+
+// --- what the force is trying to do right now: the mission's objective order,
+// with a bleeding man and anyone still shooting in front of it. Always a POINT,
+// because the path and the door in the way never wanted anything else.
+function simGoal() {
+  const S = game.sim, p = game.player, obj = game.mission.objectives;
+  const near = (list, f) => nearestEntity(list, p.x, p.y, 1e9, f);
+  const foe = near(game.enemies, e => e.alive && e.state !== "cuffed" && e.state !== "surrender" && simKnown(e));
+  S.threat = foe ? { x: foe.x, y: foe.y } : null;
+  const cas = near(game.squad, s => s.alive && s.downed && !s.stabilized);
+  // Triage measured WORSE: least-clock-left is the man deepest in, and six
+  // BROKEN ARROW runs lost him, or the point man, on the way to him.
+  if (cas) return { x: cas.x, y: cas.y, what: "AID — " + cas.name, hold: true, ent: cas };
+  if (obj.includes("stabilize")) {
+    const w = near(game.squad, s => s.alive && s.needsRescue && !simSkipped(s));
+    if (w) return { x: w.x, y: w.y, what: "REACH " + w.name, ent: w };
+  }
+  // HOLD missions do not advance: the position IS the objective.
+  if (game.mission.siege && level.extraction.length) {
+    const z = level.extraction[0];
+    return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "HOLD THE POSITION", hold: true };
+  }
+  if (foe && dist(p.x, p.y, foe.x, foe.y) < 420) return { x: foe.x, y: foe.y, what: "CONTACT" };
+  if (obj.includes("rescue")) {
+    const h = near(game.hostages, h2 => h2.alive && !h2.secured && simHere(h2) && !simSkipped(h2));
+    if (h) return { x: h.x, y: h.y, what: "HOSTAGE", ent: h };
+  }
+  if (obj.includes("capture") || obj.includes("eliminate")) {
+    const h = hvtUnit();
+    if (h && h.alive && h.state !== "cuffed" && !simSkipped(h)) return { x: h.x, y: h.y, what: "THE HVT", ent: h };
+  }
+  if (obj.includes("demolish")) {
+    const d = near(game.demo, d2 => !d2.armed && !simSkipped(d2));
+    if (d) return { x: d.x, y: d.y, what: "SET THE CHARGE", hold: true, ent: d };
+  }
+  if (foe) return { x: foe.x, y: foe.y, what: "CLEAR THE THREAT" };
+  // Hands up is still on the board — threatsLeft() counts him until cuffed,
+  // and leaving him out stalled a cleared map at one remaining threat.
+  const cuff = near(game.enemies, e => e.alive && e.state === "surrender" && simHere(e) && !simSkipped(e));
+  if (cuff) return { x: cuff.x, y: cuff.y, what: "CUFF HIM", hold: true, ent: cuff };
+  // Hauling, then leaving: a stable man in arm's reach is already coming, so
+  // the goal becomes the tile and [E] below drags him to it.
+  if (obj.includes("extract") && level.extraction.length) {
+    const z = level.extraction[0];
+    const c = near(game.squad, s => s.alive && s.qrfCasualty && s.downed && !inExtraction(s));
+    if (c && dist(p.x, p.y, c.x, c.y) > TUNE.tqReach - 8)
+      return { x: c.x, y: c.y, what: "HAUL " + c.name };
+    return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "EXFIL", hold: true };
+  }
+  // Nothing known and nothing to walk at: go and look. The list is per floor.
+  if (!S.wps || S.wpFloor !== game.floor) { S.wps = simWaypoints(); S.wpFloor = game.floor; }
+  let best = null, bd = Infinity;
+  for (const w of S.wps) {
+    if (w.done) continue;
+    if (dist(p.x, p.y, w.x, w.y) < TILE * 2.2) { w.done = true; continue; }
+    const d = dist(p.x, p.y, w.x, w.y);
+    if (d < bd) { bd = d; best = w; }
+  }
+  if (best) return { x: best.x, y: best.y, what: "SWEEPING", wp: best };
+  if (game.floors && game.floors.length > 1 && level.stairs.length && S.stairT <= 0) {
+    const st = level.stairs[0];
+    return { x: st.tx * TILE + 16, y: st.ty * TILE + 16, what: "THE STAIRS", stairs: true, hold: true };
+  }
+  // Every point walked or ruled out and the mission still open: sweep again.
+  for (const w of S.wps) w.done = false;
+  return null;
+}
+
+// --- the squad. One decision a tick, and none at all while a play it already
+// called is running: a stack re-formed twice a second never gets through.
+function simSquad(D) {
+  const S = game.sim, g = S.goal;
+  const team = game.squad.filter(s => s.alive && !s.downed && !s.needsRescue);
+  if (!team.length || !g) return;
+  if (game.plans.length || game.pie || game.bound || game.peel) return;
+  const act = simDecide(D, team, g);
+  if (!act) return;
+  // A repeat is not a new order: re-issuing nulls every path in the squad, so
+  // the men would restart the walk forever.
+  if (act.key === S.key && S.keyT < 14) { S.keyT += SIM_TICK; return; }
+  S.key = act.key; S.keyT = 0; S.intent = act.intent;
+  act.run();
+}
+
+function simDecide(D, team, g) {
+  const S = game.sim;
+  const door = firstClosedDoorToward(team, g.x, g.y);
+  if (door) {
+    // SLICE THE PIE cannot open a locked door. That is a breach regardless.
+    const key = (D.entry === "2" && !door.locked) ? "2" : "1";
+    return {
+      key: "door:" + door.tx + "," + door.ty + ":" + key,
+      intent: (key === "2" ? "SLICING " : "TAKING ") + "the door",
+      run() {
+        runPlay(key, team, { door, point: g });
+        const pl = game.plans.find(p2 => p2.door === door && p2.state !== "executing");
+        if (pl) { pl.useBang = !!D.bang; if (!g.hold) pl.after = { x: g.x, y: g.y }; }
+      },
+    };
+  }
+  // BASE OF FIRE: half nail the position down, the rest cross the ground.
+  if (D.base && S.threat && team.length > 1) {
+    const t = S.threat, half = Math.ceil(team.length / 2);
+    return {
+      key: "base:" + Math.round(t.x / 96) + "," + Math.round(t.y / 96),
+      intent: "BASE OF FIRE — half up, half shooting",
+      run() { orderBaseOfFire(team.slice(0, half), t.x, t.y); orderAdvance(team.slice(half), g.x, g.y, true); },
+    };
+  }
+  const cell = Math.round(g.x / 96) + "," + Math.round(g.y / 96);
+  if (g.hold) return { key: "hold:" + cell, intent: "ANCHOR — " + g.what,
+                       run() { orderAnchorAt(team, g.x, g.y); } };
+  return { key: "go:" + cell, intent: g.what,
+           run() { orderAdvance(team, g.x, g.y, !D.quiet); } };
+}
+
+// --- the point man. Keys and a cursor: every verb below has a binding the
+// player has too, which is what keeps the two honest.
+function simDrive(p, D, dt) {
+  const S = game.sim, g = S.goal;
+  input.keys.clear(); input.justPressed.clear();
+  input.mouse.down = false; input.mouse.rdown = false;
+  let ax = p.x + Math.cos(p.face) * 220, ay = p.y + Math.sin(p.face) * 220, stand = false;
+
+  // THE TRIGGER. Anything you can see beats where you were walking.
+  const foe = nearestEntity(game.enemies, p.x, p.y, 760,
+    e => e.alive && e.state !== "cuffed" && e.state !== "surrender" &&
+         canSee(p.x, p.y, e.x, e.y, TUNE.playerViewDist));
+  if (foe) {
+    const fd = dist(p.x, p.y, foe.x, foe.y);
+    ax = foe.x; ay = foe.y;
+    input.mouse.wx = ax; input.mouse.wy = ay;     // the hazard test reads the cursor
+    // STANDING STILL IS EARNED BY SHOOTING. Holding ground with the shot
+    // refused — mate in the lane, mid-reload, blind — froze a man 220px from a
+    // guard who never learned he was there. Three maps ran to the cap that way.
+    const clear = p.blind <= 0 && p.reloading <= 0 && !lineOfFireHazard(p);
+    stand = clear && fd < D.standoff;
+    S.contactT = 3;
+    // An arrest grades better than a kill, if the doctrine can spare a second.
+    if (D.shout && fd < 300 && p.shoutCd <= 0) input.justPressed.add("c");
+    else if (clear) input.mouse.down = true;
+  } else if (g) { ax = g.x; ay = g.y; }
+  S.contactT = Math.max(0, S.contactT - dt);
+  // The cursor is a SCREEN position everywhere else — crosshair, camera drag —
+  // so write it there too and let frame() derive the world point as it always
+  // does for a mouse.
+  input.mouse.wx = ax; input.mouse.wy = ay;
+  if (viewW) { input.mouse.x = (ax - game.cam.x) * game.zoom + viewW / 2;
+               input.mouse.y = (ay - game.cam.y) * game.zoom + viewH / 2; }
+
+  // --- the walk
+  if (g && !stand) {
+    S.repathT -= dt;
+    if (S.repathT <= 0 || !S.path) {
+      S.repathT = 0.75;
+      const a = tileAt(p.x, p.y), b = tileAt(g.x, g.y);
+      S.path = astar(a.tx, a.ty, b.tx, b.ty, passForPath, pathCostSquad);
+      S.pathI = 0;
+      if (!S.path && g.wp) g.wp.done = true;    // no route there: stop trying
+    }
+    let nx = g.x, ny = g.y;
+    if (S.path && S.pathI < S.path.length) {
+      const n = S.path[S.pathI];
+      nx = n.tx * TILE + 16; ny = n.ty * TILE + 16;
+      if (dist(p.x, p.y, nx, ny) < 15) S.pathI++;
+    }
+    if (dist(p.x, p.y, g.x, g.y) > (g.hold ? 24 : 34)) {
+      if (nx > p.x + 5) input.keys.add("d");
+      if (nx < p.x - 5) input.keys.add("a");
+      if (ny > p.y + 5) input.keys.add("s");
+      if (ny < p.y - 5) input.keys.add("w");
+      const gait = S.contactT > 0 ? "run" : D.gait;
+      if (gait === "walk") input.keys.add(" ");
+    }
+  }
+
+  // --- hands. Two of [E]'s jobs are a HOLD not a press: pressure on a wound,
+  // a charge you stay on. A man tied off does not need both hands unless you
+  // are hauling him.
+  const haul = game.mission.objectives.includes("extract");
+  const cas = nearestEntity(game.squad, p.x, p.y, TUNE.tqReach,
+                            s => s.alive && s.downed && (!s.stabilized || haul));
+  const dem = nearestEntity(game.demo, p.x, p.y, TUNE.demoReach, d => !d.armed);
+  const arr = nearestEntity(game.enemies, p.x, p.y, 46, e => e.alive && e.state === "surrender");
+  const hos = nearestEntity(game.hostages, p.x, p.y, 46, h => h.alive && !h.secured);
+  const door = nearestDoor(p.x, p.y, 50);
+  if (cas || dem) input.keys.add("e");
+  else if (arr || hos) input.justPressed.add("e");
+  else if (g && g.stairs && dist(p.x, p.y, g.x, g.y) < 36) { S.stairT = 20; input.justPressed.add("e"); }
+  else if (door && door.state === "closed" && !stand)
+    input.justPressed.add(door.locked && !D.quiet ? "f" : "e");
+  if (p.reloading <= 0 && (p.ammo <= 0 || (!foe && p.ammo < p.weapon.mag * 0.4)))
+    input.justPressed.add("r");
+}
+
+function simCommand(dt) {
+  const S = game.sim;
+  if (!S || S.mode === "direct" || !game.player) return;
+  const D = simDoctrine();
+  S.decideT -= dt; S.stairT = Math.max(0, S.stairT - dt);
+  if (S.decideT <= 0) {
+    S.decideT = SIM_TICK;
+    const g = S.goal;
+    if (g && g.ent && dist(game.player.x, game.player.y, g.x, g.y) < 64) {
+      if ((S.nagT += SIM_TICK) > 8) { g.ent._simSkip = game.stats.time + 25; S.nagT = 0; }
+    } else S.nagT = 0;
+    S.goal = simGoal(); simSquad(D);
+  }
+  if (S.auto && game.player.alive) simDrive(game.player, D, dt);
+}
+
 // ---------------------------------------------------------------- S11 render
 const ctx = canvas.getContext("2d");
 let viewW = 0, viewH = 0, dpr = 1;
@@ -10475,6 +10760,7 @@ function drawHud() {
   drawScopeOverlay();
   drawMinimap();
   drawWheel();
+  if (game.sim && game.sim.mode !== "direct") drawSimBanner();
 
   // Crosshair with spread gap. Blind and CHECK FIRE used to share one colour —
   // the two most important negative states on one signal. Blind is now a white
@@ -10511,6 +10797,27 @@ function drawHud() {
     ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, 14, 0, TAU); ctx.stroke();
   }
+}
+
+// A sim you cannot read is a screensaver: who has the man, doctrine, intent.
+function drawSimBanner() {
+  // under the objective block, which is itself under the squad bar — the first
+  // draft put it on top of THREATS 5
+  const S = game.sim;
+  const y = squadBarBottom() + 34 + game.mission.objectives.length * 16 +
+            (game.alarmTimerVisible() ? 18 : 0);
+  const txt = (S.auto ? "SIM" : "HYBRID") + " · " + simDoctrine().name + " · " +
+              (S.intent || "sizing it up") + ((game.simRate || 1) > 1 ? "  ×" + game.simRate : "");
+  ctx.textAlign = "center"; ctx.font = "13px Consolas, monospace";
+  const w = ctx.measureText(txt).width + 30;
+  ctx.fillStyle = "#000c"; ctx.fillRect(viewW / 2 - w / 2, y, w, 23);
+  ctx.strokeStyle = "#2a333c"; ctx.lineWidth = 1;
+  ctx.strokeRect(viewW / 2 - w / 2 + 0.5, y + 0.5, w - 1, 22);
+  ctx.fillStyle = COLORS.accent; ctx.fillText(txt, viewW / 2, y + 16);
+  ctx.fillStyle = COLORS.hudDim; ctx.font = "11px Consolas, monospace";
+  ctx.fillText(S.auto ? "[Y] take the point man   ·   [.] faster   [,] real time"
+                      : "[Y] hand him back to the commander", viewW / 2, y + 36);
+  ctx.textAlign = "left"; ctx.font = "13px Consolas, monospace";
 }
 
 // The wheel. It only exists while the button is down, it names what each
@@ -10873,7 +11180,8 @@ const game = {
   // Tradeoff: zooming shrinks how much map you can see, and enemy sight range
   // (up to 520px) already exceeds the viewport. Tune live with [ and ].
   zoom: 1.6, zoomSaved: undefined,
-  loadout: { primary: "carbine", ammo: "fmj", squad: "standard", armor: "soft", can: false },
+  loadout: { primary: "carbine", ammo: "fmj", squad: "standard", armor: "soft", can: false,
+             doctrine: "deliberate", command: "direct" },
   player: null, squad: [], enemies: [], hostages: [], civilians: [], demo: [],
   bullets: [], bangs: [], noises: [], fx: [], decals: [], plans: [], hurt: [], smokes: [],
   selected: new Set(),
@@ -11038,6 +11346,10 @@ function initGame() {
   game.cam.x = game.player.x; game.cam.y = game.player.y; game.camKick = 0;
   game.playerDeadT = 0; game.endReason = "";
   game.paused = false; game.slowmo = false; game.inProgress = true;
+  game.sim = { mode: game.loadout.command, auto: game.loadout.command === "sim",
+               goal: null, threat: null, intent: "", key: "", keyT: 0, decideT: 0,
+               repathT: 0, path: null, pathI: 0, contactT: 0, stairT: 0, nagT: 0, wps: null, wpFloor: 0 };
+  game.simRate = 1;
   game.wheel = null; game.nadeWheel = null; game.pie = null; game.lastPlay = null; game.incidents = []; game.aar = null; game.bound = null; game.peel = null; game.tq = null;
   game.isr = null; game.isrLeft = 1; game.fpv = null; game.fpvLeft = 1;   // FIELD TEST: one of each, tuning open
   mmBuiltAt = -1;                       // the minimap cache dies with the mission (review catch)
@@ -11713,6 +12025,16 @@ function frame(now) {
       document.getElementById("btnAbort").style.display = "";
       document.getElementById("btnRetreat").style.display = "";
     }
+    // [Y] is the handover: a run you are watching can become a game again.
+    if (game.sim && game.sim.mode !== "direct") {
+      if (pressed("y") && game.player && game.player.alive) {
+        game.sim.auto = !game.sim.auto; game.simRate = 1;
+        game.hint = game.sim.auto ? "The commander has the point man — sit back"
+                                  : "You have the point man — the team still runs itself";
+      }
+      if (pressed(".") && game.sim.auto) game.simRate = (game.simRate || 1) >= 4 ? 1 : (game.simRate || 1) * 2;
+      if (pressed(",")) game.simRate = 1;
+    }
     // The marksman rifle earns its glass: with the DMR in hand the camera can
     // pull out to 0.7x and the cursor drags the view over twice as far, which
     // is the difference between owning a street and owning a doorway.
@@ -11730,7 +12052,12 @@ function frame(now) {
       // A thrown exception here must never take the render loop with it: the
       // frame would stop being rescheduled and the game would freeze silently.
       try {
-        phaseTime("sim", () => update(game.slowmo ? dt * 0.15 : dt));
+        // Fast means MORE STEPS, never a bigger dt: a 4x timestep is different
+        // physics (bullets tunnel, bodies cross walls) that update() cannot see.
+        const reps = (game.sim && game.sim.auto) ? (game.simRate || 1) : 1;
+        phaseTime("sim", () => {
+          for (let i = 0; i < reps; i++) { simCommand(dt); update(game.slowmo ? dt * 0.15 : dt); }
+        });
       } catch (err) {
         game.simError = (err && err.message) || String(err);
         if (!game._loggedSimError) { console.error("simulation error:", err); game._loggedSimError = true; }
@@ -11800,6 +12127,8 @@ const presetPickEl = document.getElementById("presetPick");
 const squadPickEl = document.getElementById("squadPick");
 const armorPickEl = document.getElementById("armorPick");
 const suppPickEl = document.getElementById("suppPick");
+const cmdPickEl = document.getElementById("cmdPick");
+const doctPickEl = document.getElementById("doctPick");
 const adviceEl = document.getElementById("advice");
 
 function mkBtn(parent, key, title, sub, onPick) {
@@ -11842,6 +12171,8 @@ function applyLoadoutSnapshot(v, withDifficulty) {
   if (SQUAD_TEMPLATES[v.squad]) L.squad = v.squad;
   if (ARMOR[v.armor]) L.armor = v.armor;
   if (typeof v.can === "boolean") L.can = v.can;
+  if (COMMANDS[v.command]) L.command = v.command;
+  if (DOCTRINES[v.doctrine]) L.doctrine = v.doctrine;
   // ammunition is only valid FOR THE GUN it is loaded into, so it is checked
   // against that gun's own list rather than the whole table — otherwise a
   // preset saved with a shotgun puts buckshot in a carbine.
@@ -11943,6 +12274,8 @@ function refreshMenu() {
   armorPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.armor));
   suppPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === (L.can ? "can" : "loud")));
   squadPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.squad));
+  cmdPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.command));
+  doctPickEl.querySelectorAll(".mapbtn").forEach(x => x.classList.toggle("sel", x.dataset.key === L.doctrine));
   adviceEl.textContent = (MAPS[game.mapIndex] || {}).advice || "";
   renderBriefing();
 }
@@ -12037,6 +12370,10 @@ Object.entries(SQUAD_TEMPLATES).forEach(([k, v]) =>
   mkBtn(squadPickEl, k, v.name,
         (v.roles.length ? v.roles.map(r => ROLES[r].name[0]).join(" · ") : "NO SUPPORT") + " — " + v.note,
         () => { game.loadout.squad = k; refreshMenu(); }));
+Object.entries(COMMANDS).forEach(([k, v]) =>
+  mkBtn(cmdPickEl, k, v.name, v.note, () => { game.loadout.command = k; refreshMenu(); }));
+Object.entries(DOCTRINES).forEach(([k, v]) =>
+  mkBtn(doctPickEl, k, v.name, v.note, () => { game.loadout.doctrine = k; refreshMenu(); }));
 loadLoadout();     // last mission's kit, before the menu paints
 refreshMenu();
 
@@ -13966,6 +14303,15 @@ requestAnimationFrame(frame);
     than optimise something at random the debrief now splits the frame into
     sim, vision and draw and prints the per-frame cost of each. Next time it
     hitches, the readout says which third of the frame did it.
+  v0.87 (2026-08-19): SIMULATION MODE. A doctrine at the briefing — DELIBERATE,
+    DYNAMIC, STEALTH or BASE OF FIRE — and a commander who holds it all mission:
+    he picks the objective, calls the plays, and in SIMULATION drives your
+    operator too, as a third input source writing into the same `input` the
+    keyboard does. [Y] takes the man off him mid-mission; [.] and [,] run the
+    clock at 1/2/4x as MORE STEPS, never a bigger dt. Four deadlocks found by
+    running all 22 maps headless: a surrendered man nobody cuffed, an objective
+    refused for a reason only a hint knew, a tied-off casualty swallowing [E],
+    and holding ground with the shot refused.
 -->
 </body>
 </html>

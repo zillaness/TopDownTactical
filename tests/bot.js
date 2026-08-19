@@ -84,3 +84,46 @@ for (let r = 0; r < 3; r++) totalErrs += botRun(3, 'r' + r);
 for (let r = 0; r < 2; r++) totalErrs += botRun(4, 'r' + r);
 for (let r = 0; r < 2; r++) totalErrs += botRun(5, 'r' + r);
 console.log('BOT RUNS DONE, total update errors:', totalErrs);
+
+// ===== the commander drives the same path the bot does =====
+// The assault bot above proves the INPUT PATH works when something sane presses
+// the keys. This proves the thing that presses them in SIMULATION is sane: it
+// runs the real doctrine, on the real objective types, and it has to FINISH.
+// A sim that never ends is the failure mode this whole harness exists to catch
+// — four separate deadlocks were found this way and every one of them looked
+// like a healthy run until the frame counter hit the cap.
+function simPlay(mapIdx, doctrine) {
+  game.loadout.command = 'sim'; game.loadout.doctrine = doctrine;
+  game.mapIndex = mapIdx; initGame(); game.state = 'play';
+  const cap = 60 * (MAPS[mapIdx].siege ? 480 : 200);
+  let frames = 0, errs = 0;
+  input.keys.clear(); input.justPressed.clear();
+  while (game.state === 'play' && frames < cap) {
+    frames++;
+    input.justPressed.clear();
+    try { simCommand(1 / 60); update(1 / 60); }
+    catch (e) { errs++; if (errs < 3) console.log('SIM ERROR:', e.message); }
+  }
+  let steps = 0;
+  while (game.state === 'aar' && steps++ < 8) {
+    try { endMission(false, game.aar.reason); } catch (e) { errs++; }
+  }
+  const st = game.stats, stalled = frames >= cap;
+  console.log(`sim[${doctrine}] map${mapIdx} ${MAPS[mapIdx].name}: end=${game.state} t=${st.time.toFixed(0)}s ` +
+    `playerAlive=${game.player.alive} hostSec=${st.hostagesSecured} kills=${st.kills} ` +
+    `arrests=${st.arrests} squadLost=${st.squadLost} errors=${errs}` +
+    (stalled ? '  *** NEVER FINISHED — goal=' + ((game.sim.goal || {}).what || 'none') : ''));
+  return errs + (stalled ? 1 : 0);
+}
+let simErrs = 0;
+// one of every objective type, and every doctrine at least once
+simErrs += simPlay(0,  'deliberate');   // rescue + neutralize
+simErrs += simPlay(0,  'dynamic');
+simErrs += simPlay(4,  'stealth');      // rescue, one big cabin
+simErrs += simPlay(5,  'dynamic');      // capture + extract
+simErrs += simPlay(11, 'support');      // neutralize, outdoors and long
+simErrs += simPlay(18, 'deliberate');   // stabilize + extract — tourniquets and hauling
+simErrs += simPlay(21, 'dynamic');      // two storeys, so the stairs get used
+console.log('SIM RUNS DONE, total failures: ' + simErrs);
+totalErrs += simErrs;
+console.log('total update errors:', totalErrs);
