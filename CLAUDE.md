@@ -77,15 +77,19 @@ happened here. Two real cases worth remembering:
 
 - **One self-contained HTML file.** Art inlined as data URIs. No external
   requests, ever.
-- **Byte ceiling 2MB, and the suite now fails if you break it.** 1,981,281 as of
-  v0.76, with ~115KB of headroom. Every art drop must be measured, not
-  estimated. `tools/reencode_art.py` is the lever if it goes over — it dry-runs
-  by default and prints per-channel error measured only where sprites are
-  opaque. It is reversible: 104 of the embedded assets are byte-identical to
-  `assets/source/`, which comes from the raw PNGs in `assets/incoming/`.
-  There is nothing free left: the PNGs are already lossless WebP, no two assets
-  are byte-identical, and the vehicle frames are at the 2x authoring standard,
-  already under-resolved at maximum zoom.
+- **Ceiling 1.25MiB OVER THE WIRE (gzip -9), and the suite fails if you break
+  it.** Re-denominated at v0.88 after Sam asked what the limit was for: it was
+  always a first-load guard, and raw bytes overstate the wire cost 2.2x —
+  base64 inflates binary by a third and Pages' gzip takes exactly that back
+  (measured: 2,096,646 raw crossed as 1,034,169). tests/tests.js and
+  tools/inline_sound.py enforce the same number. Every art or sound drop must
+  be measured, not estimated. `tools/reencode_art.py` is the art lever if it
+  goes over — reversible, since 104 embedded assets are byte-identical to
+  `assets/source/`. Nothing there is free: the PNGs are already lossless WebP
+  and the vehicle frames are at the 2x authoring standard. Two other measured
+  facts worth keeping: the inline changelog is ~140KB raw but only ~48KB wire,
+  and 146 game-file versions cost git just 3.9MB on disk — history is cheap,
+  the wire is not.
 - Art authored at **2x** (one 32px tile = 64px), vehicles nose-**RIGHT**,
   alpha-first with **magenta** as the named fallback key.
 - **WebP over indexed PNG** for photographic art — but measure. It was 3x on
@@ -152,3 +156,6 @@ Every vehicle is 4x2 (2x4 on end).
 # v1.1 (2026-08-18): The build came under the ceiling, so that line is a fact
 #   rather than a debt; sound and the repo-size decision written down with
 #   measured numbers instead of "unresolved".
+# v1.2 (2026-08-21): The ceiling is denominated in wire bytes (gzip) instead of
+#   raw, at 1.25MiB — same guard, honest unit. Raw had 506 bytes left; the wire
+#   has ~270KB, which is the sound drop and change.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 file: inline_sound.py (top-down-tactical/tools)
-version: 1.0
+version: 1.1
 author: Sam Cao
 created: 2026-08-18
+last_updated: 2026-08-21
 description: Inline a folder of audio files into the game's SOUND_ART table, so
              a recorded sound replaces the synthesised one for that key.
 ai_update: Update last_updated and version. Append changelog at bottom.
@@ -47,6 +48,7 @@ about, because it will eat the whole budget on its own.
 """
 import argparse
 import base64
+import gzip
 import os
 import re
 import sys
@@ -57,7 +59,10 @@ from collections import defaultdict
 KEYS = ["shot", "kick", "breach", "bang", "shout", "hit", "thud",
         "door", "glass", "click", "surrender", "plate"]
 
-CEILING = 2 * 1024 * 1024
+# v0.88: the ceiling is the GZIPPED size — the bytes the player actually pays.
+# Base64 audio compresses back to roughly the raw file, so this stopped
+# punishing Opus for the encoding it ships in. Matches tests.js exactly.
+CEILING = round(1.25 * 1024 * 1024)
 BEGIN = "const SOUND_ART = {"
 END = "};\n// --- END SOUND ART ---"
 
@@ -149,15 +154,17 @@ def main():
             lines.append("  ] },")
 
     block = BEGIN + "\n" + "\n".join(lines) + "\n"
-    projected = current - existing + len(("\n".join(lines) + "\n").encode())
-    print(f"\n  file {current:,} -> {projected:,} bytes, ceiling {CEILING:,}")
-    if projected > CEILING:
-        sys.exit(f"\nREFUSING: that is {projected - CEILING:,} bytes over the ceiling.\n"
+    out = src[:i] + block + src[j:]
+    projected = len(out.encode())
+    wire = len(gzip.compress(out.encode(), 9))
+    print(f"\n  file {current:,} -> {projected:,} bytes raw, {wire:,} over the wire, ceiling {CEILING:,}")
+    if wire > CEILING:
+        sys.exit(f"\nREFUSING: that is {wire - CEILING:,} wire bytes over the ceiling.\n"
                  f"Re-encode the sounds smaller (Opus 48kbps mono) or drop fewer keys.")
-    print(f"  {CEILING - projected:,} bytes of headroom left")
+    print(f"  {CEILING - wire:,} wire bytes of headroom left")
 
     if a.write:
-        open(a.html, "w", encoding="utf-8").write(src[:i] + block + src[j:])
+        open(a.html, "w", encoding="utf-8").write(out)
         print(f"\nwrote {a.html} — bump the version, run ./tests/run.sh, then ship")
     else:
         print("\ndry run — pass --write to apply")

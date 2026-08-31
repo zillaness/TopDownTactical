@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.87.html
-  version: 0.87
+  file: top_down_tactical_v0.88.html
+  version: 0.88
   author: Sam Cao
   created: 2026-08-07
-  last_updated: 2026-08-19
+  last_updated: 2026-08-21
   description: Playable prototype — top-down tactical game with direct control of one operator (WASD + mouse aim/shoot) plus squad orders (move, hold, stack, breach on GO), six missions across pluggable objective types, handedness and the corner game, windows, blast lethality, restraint scoring, and a simulation mode where a doctrine-holding commander runs the whole thing and you watch.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
   build_progress: COMPLETE — sections 12/12, headless smoke tests + bot playthroughs green (tests/run.sh)
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.87 (working title)</title>
+<title>Top-Down Tactical v0.88 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.87 prototype &mdash; working title &mdash; twenty-two missions</h2>
+  <h2>v0.88 prototype &mdash; working title &mdash; twenty-three missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -2319,6 +2319,46 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,~,,,,,,,,,,,,,,,,,,,,,,,,,",
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] },
+{ name: "THE CULVERT", ground: "ground_dirt", fireSupport: true, beta: true,
+  ambush: { toll: 0.6, clock: 30, gap: 35, sizes: [4, 5, 6],
+            kinds: [["guard", "guard"], ["guard", "elite"], ["elite", "guard"]], march: [49, 8] },
+  advice: "This is the other side of THE LONG WALK: for once THEY are the ones in the open. A supply column walks the track left to right; you own the treeline south of it and the wire keeps them from running north. Spring it on your terms \u2014 the clock starts when the first man gets to a radio, not when the first man dies, so a suppressed kit can take men off the end of the column for free. The toll is a fraction, not a headcount: hit it and WALK AWAY. Reinforcements arrive through the road ends and they do not stop coming \u2014 the exfil is south, behind the trees, and every wave you stay to fight is one more between you and it.",
+  brief: "L-ambush on a supply column \u2014 take the toll, break contact, exfil before the reinforcements",
+  type: "AMBUSH \u2014 KILL BOX", objectives: ["ambush", "extract"], src: [
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,tt,,,,,,,ttt,,,,,,,,,tt,,,,,,,,ttt,,,,,,,,,tt,,,,,",
+",tttt,,,,,ttttt,,,~,,,tttt,,,,,,ttttt,,,*,,,tttt,,,,",
+",,tt,,,,,,,ttt,,,,,,,,,tt,,,,,,,,ttt,,,,,,,,,tt,,,,,",
+",,,,,,*,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,~,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,xxxxxxxxx,,,,xxxxxxxxxx,,,,xxxxxxxxxx,,,xxxxxx,,,",
+"Q,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Q",
+"Q,,g,,,g,,E,,,g,,,g,,,E,,,g,,,g,,,,g,,,E,,,g,,,,,,,Q",
+"Q,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Q",
+",,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,",
+",,,,,,,tttt,,,,,,,,,,,,,,,,,,,,,,,,,,,ttttt,,,,,,,,,",
+",,,,,,,,ttt,,,,,,,,,*,,,,,,,,,,,,,,*,,,tttt,,,,,,,,,",
+",,,,,,,,tt,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,J,,,,,,n,,,,,,J,,,,,,U,,,,,,J,,,,,,n,,,,,,J,,,,",
+",,,,,,,,s,,,,,,,s,,,,,,P,,,,,,,,,s,,,,,,,,,,,,,,,,,,",
+",,tt,,,,,,,ttt,,,,,,,,,,,,,tt,,,,,,,ttt,,,,,tttt,,,,",
+",tttt,,,,,ttttt,,,*,,,,,,,tttt,,,,,ttttt,,~,tttttt,,",
+",,tt,,,,,,,ttt,,,,,,,,,,,,,tt,,,,,,,ttt,,,,,,tttt,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,~,,,,,,,,,,,,,*,,,,,,,,,,,,,,,,,,*,,,,,~,,,,,,,,",
+",,,,,,,,,,tt,,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,tt,,,,,,,,,*,,,,,,,,,,tt,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,tt,,,,,,,,,~,,,,,,,,,tt,,,,,,,,*,,,,,,tt,,,,,,",
+",,,,,tttt,,,,,,,,,,,,,,,,,tttt,,,,,,,,,,,,,tttt,,,,,",
+",,,,,,tt,,,,,,,,,,,,,,,,,,,tt,,,,,,,,,,,,,,,tt,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,XX,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,XX,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+] },
 { name: "THE STANDOFF", advice: "They know you are coming — nobody in that house investigates a noise, they hold their rooms and wait. The front door is barricaded. Gas through a window beats a bang through the funnel, and the flank beats the front.",
   brief: "Barricaded suspects — advance across the yard, make entry, dig them out",
   type: "BARRICADED SUSPECTS", objectives: ["neutralize"], src: [
@@ -2644,6 +2684,10 @@ let MAP_SRC = MAPS[0].src;
       if (!m.siege) throw new Error(`${m.name} has a hold objective but no siege config`);
       if (count("Q") === 0) throw new Error(`${m.name} holds against waves but declares no Q spawn points`);
       if (count("X") === 0) throw new Error(`${m.name} has a hold objective but no X tiles to hold`);
+    }
+    if (m.objectives.includes("ambush")) {
+      if (!m.ambush) throw new Error(`${m.name} has an ambush objective but no ambush config`);
+      if (count("Q") === 0) throw new Error(`${m.name} springs an ambush but has no Q gates for the reinforcements`);
     }
     if (m.objectives.includes("extract") && count("X") === 0)
       throw new Error(`${m.name} has an extract objective but no X extraction tiles`);
@@ -4162,6 +4206,52 @@ function updateSiege(dt) {
       game.hint = "WAVE " + st.wave + " BROKEN — " + Math.round(cfg.gap) + "s until the next";
     }
   }
+}
+
+// THE AMBUSH CLOCK. Quiet until the column KNOWS — game.alarm, not the first
+// death, because reinforcements answer a radio call and a man who died unheard
+// never made one. A suppressed kit can eat the tail of the column for free,
+// and ghosting the whole toll means nobody ever comes at all. Once sprung the
+// waves never stop: unlike a siege there is no "last of them", because the
+// mission was never to win the fight — it was to leave it.
+function updateAmbush(dt) {
+  const st = game.ambushState; if (!st) return;
+  const cfg = game.mission.ambush;
+  if (st.phase === "quiet") {
+    if (!game.alarm) return;
+    st.phase = "sprung"; st.t = cfg.clock;
+    // THE FIRST VOLLEY OWNS THE BOX. A column caught in the open does what men
+    // caught in the open do — it gets down. Stagger stops the return fire for
+    // a couple of seconds and full suppression ruins it for a few more, both
+    // decaying on the same clocks as everywhere else. That window is the whole
+    // reason ambushers get to pick the ground; after it, it is just a fight.
+    for (const e of game.enemies) if (e.march && e.alive) { e.stagger = Math.max(e.stagger, rand(0.5, 1.5)); e.suppress = TUNE.suppressMax; }
+    // ...and the squad goes weapons-free NOW, not at deploy. Free ROE from the
+    // truck had them springing it themselves the moment a marcher crossed a
+    // sightline. The spring is the go-code; roe "hold" is still your off switch.
+    game.squad.forEach(s2 => { if (!s2.qrfCasualty && s2.roe === "return") s2.roe = "free"; });
+    game.hint = "THEY ARE ON THE RADIO — reinforcements in " + Math.round(cfg.clock) + "s. Take the toll and GO.";
+    sfxAt("shout", game.player.x, game.player.y);
+    return;
+  }
+  st.t -= dt;
+  if (st.t > 0) return;
+  const n = Math.max(1, Math.round(cfg.sizes[Math.min(st.wave, cfg.sizes.length - 1)] *
+                                   (game.density ? game.density.mul : 1)));
+  const kinds = (cfg.kinds && cfg.kinds[Math.min(st.wave, cfg.kinds.length - 1)]) || ["guard"];
+  const pts = level.spawns.qrf.length ? level.spawns.qrf : [level.spawns.player];
+  for (let i = 0; i < n; i++) {
+    const base = pts[(i + st.wave) % pts.length];
+    const sp = nearestPassable(base.x + Math.cos(i * 2.1) * 30, base.y + Math.sin(i * 2.1) * 30);
+    const e = makeEnemy({ x: sp.x, y: sp.y, kind: kinds[i % kinds.length] });
+    e.original = false;
+    game.enemies.push(e);
+    alertEnemy(e, game.player.x, game.player.y);
+  }
+  st.wave++; st.t = cfg.gap;
+  game.hint = "REINFORCEMENTS ON THE ROAD — " + n + " more, and they will keep coming";
+  sfxAt("shout", game.player.x, game.player.y);
+  game.camKick = Math.min(6, game.camKick + 2);
 }
 
 // Is the ground you were told to hold in enemy hands? The position is the map's
@@ -5995,7 +6085,13 @@ function updateEnemy(e, dt) {
       if (!t || !t.alive || t.downed) continue;   // a downed man is out of the fight
       if ((t.floor || 0) !== (e.floor || 0)) continue;
       const fov = e.alerted ? TUNE.aiFovAlert : TUNE.aiFov;
+      // A column on the march watches the road, which is the entire reason
+      // ambushes work: weapons-free at deploy plus full marching eyesight
+      // meant either side sprang it by accident inside six seconds, and the
+      // player never once chose the moment. He gets his full eyes back the
+      // instant anything alerts him.
       const vd = (e.alerted ? TUNE.aiViewDistAlert : TUNE.aiViewDist) * (game.diff ? game.diff.sightMul : 1)
+               * (e.march && !e.alerted ? 0.55 : 1)
                * windowVisionMul(e.x, e.y, t.x, t.y);
       if (canSee(e.x, e.y, t.x, t.y, vd, e.face, fov)) {
         const d = dist(e.x, e.y, t.x, t.y);
@@ -6119,6 +6215,13 @@ function updateEnemy(e, dt) {
       break;
     }
     case "idle": {
+      // A column on the move: he walks his route until something makes him a
+      // combatant, and it survives suspicion — a man who walked down a noise
+      // and found nothing falls back in and keeps marching.
+      if (e.march) {
+        if (moveAlongPath(e, e.march.x, e.march.y, TUNE.enemyWalk, dt, pathCostEnemy)) e.march = null;
+        break;
+      }
       if (e.kind === "patrol") {
         e.wanderT -= dt;
         if (e.wanderT <= 0 && !e._wanderGoal) {
@@ -8383,6 +8486,12 @@ function simGoal() {
     const z = level.extraction[0];
     return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "HOLD THE POSITION", hold: true };
   }
+  // AMBUSH with the toll paid: the mission is the door, not the fight — the
+  // drive still shoots whatever crosses the lane on the way out.
+  if (obj.includes("ambush") && OBJECTIVES.ambush.done() && level.extraction.length) {
+    const z = level.extraction[0];
+    return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "BREAK CONTACT — EXFIL", hold: true, rush: true, exact: true };
+  }
   if (foe && dist(p.x, p.y, foe.x, foe.y) < 420) return { x: foe.x, y: foe.y, what: "CONTACT" };
   if (obj.includes("rescue")) {
     const h = near(game.hostages, h2 => h2.alive && !h2.secured && simHere(h2) && !simSkipped(h2));
@@ -8408,7 +8517,7 @@ function simGoal() {
     const c = near(game.squad, s => s.alive && s.qrfCasualty && s.downed && !inExtraction(s));
     if (c && dist(p.x, p.y, c.x, c.y) > TUNE.tqReach - 8)
       return { x: c.x, y: c.y, what: "HAUL " + c.name };
-    return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "EXFIL", hold: true };
+    return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "EXFIL", hold: true, exact: true };
   }
   // Nothing known and nothing to walk at: go and look. The list is per floor.
   if (!S.wps || S.wpFloor !== game.floor) { S.wps = simWaypoints(); S.wpFloor = game.floor; }
@@ -8461,6 +8570,14 @@ function simDecide(D, team, g) {
       },
     };
   }
+  // An ambush is fought FROM THE LINE. Walking the squad at the column is how
+  // the advantage of having chosen the ground gets handed straight back.
+  if (game.ambushState && !OBJECTIVES.ambush.done() && !g.hold) {
+    const cx = team.reduce((a, s2) => a + s2.x, 0) / team.length;
+    const cy = team.reduce((a, s2) => a + s2.y, 0) / team.length;
+    return { key: "line", intent: "HOLD THE LINE — work the box",
+             run() { orderAnchorAt(team, cx, cy); } };
+  }
   // BASE OF FIRE: half nail the position down, the rest cross the ground.
   if (D.base && S.threat && team.length > 1) {
     const t = S.threat, half = Math.ceil(team.length / 2);
@@ -8497,7 +8614,9 @@ function simDrive(p, D, dt) {
     // refused — mate in the lane, mid-reload, blind — froze a man 220px from a
     // guard who never learned he was there. Three maps ran to the cap that way.
     const clear = p.blind <= 0 && p.reloading <= 0 && !lineOfFireHazard(p);
-    stand = clear && fd < D.standoff;
+    // rush: breaking contact. Nothing you can see is worth stopping for — you
+    // shoot it while you move, badly, which is what breaking contact costs.
+    stand = clear && fd < D.standoff && !(g && g.rush);
     S.contactT = 3;
     // An arrest grades better than a kill, if the doctrine can spare a second.
     if (D.shout && fd < 300 && p.shoutCd <= 0) input.justPressed.add("c");
@@ -8527,13 +8646,16 @@ function simDrive(p, D, dt) {
       nx = n.tx * TILE + 16; ny = n.ty * TILE + 16;
       if (dist(p.x, p.y, nx, ny) < 15) S.pathI++;
     }
-    if (dist(p.x, p.y, g.x, g.y) > (g.hold ? 24 : 34)) {
+    // A goal that IS a tile (the exfil X) must be arrived on exactly: 24px of
+    // slack parked a man one tile short of it, forever, until a wave found him.
+    if (dist(p.x, p.y, g.x, g.y) > (g.exact ? 6 : g.hold ? 24 : 34)) {
       if (nx > p.x + 5) input.keys.add("d");
       if (nx < p.x - 5) input.keys.add("a");
       if (ny > p.y + 5) input.keys.add("s");
       if (ny < p.y - 5) input.keys.add("w");
-      const gait = S.contactT > 0 ? "run" : D.gait;
+      const gait = g.rush ? (foe ? "run" : "sprint") : S.contactT > 0 ? "run" : D.gait;
       if (gait === "walk") input.keys.add(" ");
+      if (gait === "sprint") input.keys.add("shift");
     }
   }
 
@@ -11356,6 +11478,20 @@ function initGame() {
   game.fireMission = null; game.fireMissionsLeft = game.mission.fireSupport ? 2 : 0;
   game.enemies.forEach(e => e.original = true);
   game.qrfState = game.mission.qrf ? { phase: "waiting", t: 0 } : null;
+  // AMBUSH: the toll is a FRACTION of the column, priced here after density has
+  // had its say — a hard count of 6 against a LIGHT column of 6 is a wipe-out
+  // order wearing a toll's clothes.
+  game.ambushState = game.mission.ambush
+    ? { phase: "quiet", t: 0, wave: 0,
+        toll: Math.max(1, Math.round(game.enemies.length * game.mission.ambush.toll)) } : null;
+  if (game.ambushState) {
+    // the column marches on the gate in its written order — a column, not a mob
+    const mA = game.mission.ambush.march;
+    const gx = mA[0] * TILE + 16, gy = mA[1] * TILE + 16;
+    game.enemies.slice().sort((a, b) => b.x - a.x).forEach((e, i) => {
+      e.march = nearestPassable(gx - i * 30, gy + ((i % 2) ? 16 : -16));
+    });
+  }
   game.siegeState = game.mission.siege
     ? { phase: "lull", t: (game.mission.siege.first !== undefined ? game.mission.siege.first : game.mission.siege.gap), wave: 0 } : null;
   game.overrunT = 0; game._overrunWarned = false;
@@ -11427,6 +11563,7 @@ function update(dt) {
   updatePeel(dt);
   updateQRF(dt);
   updateSiege(dt);
+  updateAmbush(dt);
   updateOverrun(dt);
   updateRoofs();
   updateWalkingWounded();
@@ -11558,6 +11695,18 @@ const OBJECTIVES = {
       if ((game.overrunT || 0) < TUNE.overrunTime) return null;
       return "The position was overrun. You were told to hold it.";
     },
+  },
+  // AMBUSH: inflict the toll, not the wipe-out. done() leans on the paired
+  // extract objective for the leaving half — the toll alone never ends it.
+  ambush: {
+    label() {
+      const st = game.ambushState;
+      const t = "TOLL " + Math.min(game.stats.kills, st.toll) + "/" + st.toll;
+      if (st.phase === "quiet") return t + " — NOT SPRUNG";
+      return t + (st.wave > 0 ? " · THEY KEEP COMING" : " · REINFORCEMENTS " + Math.ceil(st.t) + "s");
+    },
+    done() { return !!game.ambushState && game.stats.kills >= game.ambushState.toll; },
+    failed() { return null; },
   },
   capture: {
     label() {
@@ -14312,6 +14461,20 @@ requestAnimationFrame(frame);
     running all 22 maps headless: a surrendered man nobody cuffed, an objective
     refused for a reason only a hint knew, a tied-off casualty swallowing [E],
     and holding ground with the shot refused.
+  v0.88 (2026-08-21): THE CULVERT — an ambush is a shape, not a headcount.
+    A column marches the road into an L-shaped kill box; the toll is a FRACTION
+    of it, priced after density; the exfil is the other half of the objective
+    and reinforcements pour through the road ends forever once the alarm is up,
+    so leaving IS the mission. The spring is the go-code: the squad deploys
+    holding fire and goes weapons-free the moment it is sprung, the column gets
+    down (staggered, suppressed — the window the ground was chosen for), and a
+    man on the march watches the road at 0.55x eyesight, which is the entire
+    reason ambushes work. A kill nobody heard starts no clock: reinforcements
+    answer a radio call, and ghosting the whole toll is legal. Also: the byte
+    ceiling is now denominated in WIRE bytes (gzip, 1.25MiB) across the test,
+    inline_sound.py and CLAUDE.md — raw bytes overstated the player's cost
+    2.2x, measured — and the sim's exfil arrival is tile-exact, which fixes a
+    general bug where 24px of slack parked the point man one tile off the X.
 -->
 </body>
 </html>

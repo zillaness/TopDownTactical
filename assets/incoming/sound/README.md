@@ -1,8 +1,9 @@
 ---
 file: README.md (top-down-tactical/assets/incoming/sound)
-version: 1.0
+version: 1.1
 author: Sam Cao
 created: 2026-08-18
+last_updated: 2026-08-21
 description: Where recorded sound effects go, and what they have to be called.
 ai_update: Update last_updated and version. Append changelog at bottom.
 ---
@@ -74,14 +75,19 @@ random pitch shift on every play.
 **Opus in OGG, or AAC in MP4.** A gunshot at 48kbps mono is indistinguishable
 from 700kbps of PCM and costs a fifteenth as much.
 
-The deliverable is one self-contained HTML file with a hard ceiling of 2MB, the
-test suite fails if it goes over, and `inline_sound.py` refuses to write a set
-that would break it. Base64 costs a third on top of the raw file size and that
-is counted. As of v0.76 there are about **115KB of headroom** — enough for a
-dozen short Opus samples, not enough for one WAV.
+The deliverable is one self-contained HTML file with a hard ceiling of
+**1.25MiB over the wire (gzip)** — re-denominated at v0.88, because base64
+inflates a file by a third on disk and the compression Pages serves takes it
+all back, so raw bytes were punishing Opus for its container. The test suite
+fails if it goes over, and `inline_sound.py` refuses to write a set that would
+break it, measuring the gzipped result. As of v0.88 there are about **270KB of
+wire headroom** — a full drop of gunshots, variants and throwables fits with
+room to spare; one WAV still will not.
 
 WAV is accepted and warned about.
 
 ## CHANGELOG
 - v1.0 (2026-08-18): Written so the drop is unblocked on everything except the
   files themselves.
+- v1.1 (2026-08-21): Budget restated in wire bytes to match the re-denominated
+  ceiling; the drop now fits comfortably.

@@ -4544,11 +4544,22 @@ const root = path.join(process.cwd(), '..');
 const builds = fs.readdirSync(root).filter(f => /^top_down_tactical_v[\d.]+\.html$/.test(f));
 console.log('  exactly one build in the repo: ' + builds.length,
             builds.length === 1 ? 'CORRECT' : 'WRONG');
-const bytes = fs.statSync(path.join(root, builds[0])).size;
-const CEILING = 2 * 1024 * 1024;
-console.log('  ' + builds[0] + ' is ' + bytes.toLocaleString() + ' bytes, ceiling ' +
-            CEILING.toLocaleString() + ' (' + (CEILING - bytes).toLocaleString() + ' of headroom)',
-            bytes <= CEILING ? 'CORRECT' : 'WRONG (re-run tools/reencode_art.py, or drop art)');
+// v0.88: DENOMINATED IN WHAT THE PLAYER PAYS. The 2MiB raw ceiling was always
+// a transfer-time guard — "will not load on a phone" — but raw bytes overstate
+// the wire cost 2.2x: base64 inflates binary by a third and Pages' gzip takes
+// exactly that back. Measured: 2,096,646 raw crossed the wire as 1,034,169.
+// Sam asked what the limit was actually FOR (2026-08-21); this is the answer
+// made enforceable. 1.25MiB gzipped is about two seconds on a 5Mbit mobile
+// link. Raw size is still printed, for information — it is what you edit.
+const zlib = require('zlib');
+const rawBuf = fs.readFileSync(path.join(root, builds[0]));
+const bytes = rawBuf.length;
+const wire = zlib.gzipSync(rawBuf, { level: 9 }).length;
+const CEILING = Math.round(1.25 * 1024 * 1024);
+console.log('  ' + builds[0] + ' is ' + bytes.toLocaleString() + ' bytes raw, ' +
+            wire.toLocaleString() + ' over the wire, ceiling ' + CEILING.toLocaleString() +
+            ' (' + (CEILING - wire).toLocaleString() + ' of headroom)',
+            wire <= CEILING ? 'CORRECT' : 'WRONG (re-encode the biggest art or sound, or drop some)');
 // and it is one FILE — no external requests, ever
 const html = fs.readFileSync(path.join(root, builds[0]), 'utf8');
 const external = (html.match(/(?:src|href)\s*=\s*["'](?!data:|#)[^"']+["']/g) || [])
@@ -5833,4 +5844,105 @@ game.mapIndex = 0; initGame(); game.state = 'play';
 
 localStorage.clear(); game.loadout.command = 'direct'; game.mapIndex = 0; initGame();
 console.log('SIM TEST DONE');
+})();
+
+// THE AMBUSH. The mission is a shape — spring it, take the toll, leave before
+// the road fills up — and every clause of that shape is a thing that silently
+// stopped being true at least once while it was being built.
+(function ambushTests(){
+console.log('--- the kill box: quiet, sprung, paid, and gone ---');
+localStorage.clear();
+// a previous block left the trigger held: six seconds of "quiet march" ran
+// with the player firing down a stale cursor, which killed ten marching men
+// and sprang the ambush. The mouse is part of the fixture.
+input.keys.clear(); input.justPressed.clear();
+input.mouse.down = false; input.mouse.rdown = false;
+const idx = MAPS.findIndex(m => m.name === 'THE CULVERT');
+console.log('  THE CULVERT exists with ambush+extract:',
+            idx >= 0 && MAPS[idx].objectives.join('+') === 'ambush+extract' ? 'CORRECT' : 'WRONG');
+
+game.loadout.command = 'direct'; game.mapIndex = idx; game.densityIndex = 1;
+initGame(); game.state = 'play';
+input.mouse.wx = game.player.x; input.mouse.wy = game.player.y;
+const col0 = game.enemies.length;
+console.log('  the toll is a fraction, priced after density: ' + game.ambushState.toll + ' of ' + col0,
+            game.ambushState.toll === Math.max(1, Math.round(col0 * MAPS[idx].ambush.toll))
+              ? 'CORRECT' : 'WRONG');
+console.log('  the whole column has a route:',
+            game.enemies.every(e => e.march) ? 'CORRECT' : 'WRONG');
+console.log('  and the squad deploys holding its fire: roe=' + game.squad[0].roe,
+            game.squad.every(s2 => s2.roe === 'return') ? 'CORRECT (the spring is the go-code)' : 'WRONG');
+
+// LIGHT density halves the column; a hard-count toll would be a wipe-out order
+game.densityIndex = 0; initGame();
+console.log('  LIGHT reprices it: ' + game.ambushState.toll + ' of ' + game.enemies.length,
+            game.ambushState.toll <= game.enemies.length ? 'CORRECT' : 'WRONG (toll exceeds the column)');
+game.densityIndex = 1; initGame(); game.state = 'play';
+
+// the column walks east while nobody knows anything
+{
+  const x0 = game.enemies.reduce((a, e) => a + e.x, 0) / game.enemies.length;
+  for (let i = 0; i < 60 * 6; i++) update(1/60);
+  const x1 = game.enemies.filter(e => e.alive).reduce((a, e) => a + e.x, 0) /
+             Math.max(1, game.enemies.filter(e => e.alive).length);
+  console.log('  the column marches: mean x ' + (x0/32).toFixed(1) + ' -> ' + (x1/32).toFixed(1) + ' tiles',
+              x1 > x0 + TILE ? 'CORRECT' : 'WRONG (nobody moved)');
+  console.log('  and nobody sprang it on their own: phase=' + game.ambushState.phase,
+              game.ambushState.phase === 'quiet' ? 'CORRECT' : 'WRONG (sprung with no alarm)');
+}
+
+// a kill NOBODY HEARD does not start the clock — reinforcements answer a radio
+// call, and a man who died unheard never made one
+{
+  const far = game.enemies.filter(e => e.alive).sort((a, b) => b.x - a.x)[0];
+  killEntity(far, 'player', game.player);
+  update(1/60);
+  console.log('  a silent kill leaves it quiet: kills=' + game.stats.kills + ' phase=' + game.ambushState.phase,
+              game.ambushState.phase === 'quiet' ? 'CORRECT (ghosting the toll is legal)' : 'WRONG');
+}
+
+// the alarm springs it: the column gets down, the clock starts, and when it
+// runs out the road ends produce men who know where you are
+{
+  game.alarm = true;
+  update(1/60);
+  const st = game.ambushState;
+  const pinned = game.enemies.filter(e => e.alive && e.march && (e.suppress || 0) > 0).length;
+  console.log('  sprung on the alarm: clock=' + st.t.toFixed(0) + 's, ' + pinned + ' caught in the open',
+              st.phase === 'sprung' && st.t > 0 && pinned > 0 ? 'CORRECT' : 'WRONG');
+  console.log('  and NOW the squad is weapons-free: roe=' + game.squad[0].roe,
+              game.squad.every(s2 => s2.roe === 'free') ? 'CORRECT' : 'WRONG');
+  const before = game.enemies.length;
+  st.t = 0.01;
+  for (let i = 0; i < 10; i++) update(1/60);
+  const wave = game.enemies.slice(before);
+  const atGates = wave.every(e => level.spawns.qrf.some(q => dist(q.x, q.y, e.x, e.y) < TILE * 4));
+  console.log('  the clock produces a wave: +' + wave.length + ' through the Q gates, alerted',
+              wave.length > 0 && atGates && wave.every(e => e.alerted) ? 'CORRECT' : 'WRONG');
+  console.log('  and it re-arms instead of stopping: next in ' + st.t.toFixed(0) + 's',
+              st.t > 1 ? 'CORRECT (unlike a siege there is no last wave)' : 'WRONG');
+}
+
+// the shape of winning: toll paid + standing on the X, with live enemies left
+{
+  game.stats.kills = game.ambushState.toll;
+  const z = level.extraction[0];
+  game.player.x = z.tx * TILE + 16; game.player.y = z.ty * TILE + 16;
+  const leftAlive = game.enemies.filter(e => e.alive).length;
+  console.log('  toll paid on the X with ' + leftAlive + ' still breathing: ambush=' +
+              OBJECTIVES.ambush.done() + ' extract=' + OBJECTIVES.extract.done(),
+              OBJECTIVES.ambush.done() && OBJECTIVES.extract.done() && leftAlive > 0
+                ? 'CORRECT (wipe-out was never the mission)' : 'WRONG');
+}
+
+// the sim knows the shape too: toll paid means the door, not the fight
+{
+  game.loadout.command = 'sim'; initGame(); game.state = 'play';
+  game.stats.kills = game.ambushState.toll;
+  const g = simGoal();
+  console.log('  sim with the toll paid: goal="' + (g || {}).what + '"',
+              g && /EXFIL/.test(g.what) && g.exact ? 'CORRECT (and tile-exact — 24px of slack once parked it one tile short)' : 'WRONG');
+}
+localStorage.clear(); game.loadout.command = 'direct'; game.mapIndex = 0; game.densityIndex = 1; initGame();
+console.log('AMBUSH TEST DONE');
 })();

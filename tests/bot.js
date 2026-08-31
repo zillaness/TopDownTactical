@@ -124,6 +124,7 @@ simErrs += simPlay(5,  'dynamic');      // capture + extract
 simErrs += simPlay(11, 'support');      // neutralize, outdoors and long
 simErrs += simPlay(18, 'deliberate');   // stabilize + extract — tourniquets and hauling
 simErrs += simPlay(21, 'dynamic');      // two storeys, so the stairs get used
+simErrs += simPlay(MAPS.findIndex(m => m.name === 'THE CULVERT'), 'deliberate');  // spring it, take the toll, leave
 console.log('SIM RUNS DONE, total failures: ' + simErrs);
 totalErrs += simErrs;
 console.log('total update errors:', totalErrs);
