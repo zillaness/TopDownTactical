@@ -5946,3 +5946,87 @@ game.densityIndex = 1; initGame(); game.state = 'play';
 localStorage.clear(); game.loadout.command = 'direct'; game.mapIndex = 0; game.densityIndex = 1; initGame();
 console.log('AMBUSH TEST DONE');
 })();
+
+// OVERLAPPING SECTORS AND THE BOX. Sam: "an ambush like overlapping sectors of
+// fire, and a kill box." The box is authored ground and the line is laid in
+// against it — every claim below is the difference between doctrine and a
+// row of men all staring straight ahead.
+(function killBoxTests(){
+console.log('--- the kill box: sectors crossed, counted, and worth waiting for ---');
+localStorage.clear();
+input.keys.clear(); input.justPressed.clear();
+input.mouse.down = false; input.mouse.rdown = false;
+const idx = MAPS.findIndex(m => m.name === 'THE CULVERT');
+game.loadout.command = 'direct'; game.mapIndex = idx; game.densityIndex = 1;
+initGame(); game.state = 'play';
+input.mouse.wx = game.player.x; input.mouse.wy = game.player.y;
+const b = killBoxRect();
+console.log('  the box is authored ground:', b ? Math.round((b.x1-b.x0)/TILE) + 'x' + Math.round((b.y1-b.y0)/TILE) + ' tiles' : 'none',
+            !!b ? 'CORRECT' : 'WRONG');
+
+// laid in: every man holds a sector, and the ends CROSS — the west gun works
+// east, the east gun works west
+{
+  const guns = game.squad.filter(s2 => s2.alive).sort((a, c) => a.x - c.x);
+  const laid = guns.every(s2 => s2.order.type === 'hold' && s2.order.sector);
+  const west = guns[0], east = guns[guns.length - 1];
+  const crossed = Math.cos(west.order.face) > 0.15 && Math.cos(east.order.face) < -0.15;
+  console.log('  the line deploys laid in: ' + guns.map(g2 => g2.order.type).join('/'),
+              laid ? 'CORRECT' : 'WRONG');
+  console.log('  and the fires cross: west gun bears ' + Math.round(west.order.face / Math.PI * 180) +
+              '°, east gun ' + Math.round(east.order.face / Math.PI * 180) + '°',
+              crossed ? 'CORRECT (the west gun works the east half)' : 'WRONG (everyone stares straight ahead)');
+  // overlap: the centre of the box sits inside at least two arcs
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  const covering = guns.filter(g2 =>
+    Math.abs(angDiff(g2.order.face, angleTo(g2.x, g2.y, cx, cy))) < g2.order.sector / 2).length;
+  console.log('  the middle of the box is inside ' + covering + ' of ' + guns.length + ' arcs',
+              covering >= 2 ? 'CORRECT (overlap, not adjacency)' : 'WRONG (a dead seam down the middle)');
+}
+
+// the HUD counts them in — the label is the player's trigger discipline
+{
+  const before = OBJECTIVES.ambush.label();
+  const m = game.enemies.filter(e => e.alive && e.march);
+  m.forEach(e => { e.x = (b.x0 + b.x1) / 2; e.y = (b.y0 + b.y1) / 2; });
+  const full = OBJECTIVES.ambush.label();
+  console.log('  IN THE BOX counts: "' + before + '" -> "' + full + '"',
+              /IN THE BOX \d/.test(before) && full.includes('IN THE BOX ' + m.length + '/' + m.length)
+                ? 'CORRECT' : 'WRONG');
+}
+
+// the spring only catches the men in the box — the tail heard shooting, it was
+// not caught in the open
+{
+  initGame(); game.state = 'play';
+  const m = game.enemies.filter(e => e.alive && e.march);
+  const inMan = m[0], outMan = m[1];
+  inMan.x = (b.x0 + b.x1) / 2; inMan.y = (b.y0 + b.y1) / 2;
+  outMan.x = b.x0 - TILE * 6;  outMan.y = (b.y0 + b.y1) / 2;
+  game.alarm = true; update(1/60);
+  console.log('  the pin respects the box: in=' + (inMan.stagger > 0) + ' out=' + (outMan.stagger > 0),
+              inMan.stagger > 0 && outMan.stagger <= 0 ? 'CORRECT (timing the spring is the job)' : 'WRONG');
+}
+
+// the sim WAITS. One man in the box: gate holds the trigger with a marcher in
+// plain sight. Box filled: the volley is released.
+{
+  game.loadout.command = 'sim'; initGame(); game.state = 'play';
+  const P = game.player, m = game.enemies.filter(e => e.alive && e.march);
+  m.forEach((e, i) => { e.x = b.x0 - TILE * (3 + i * 2); e.y = (b.y0 + b.y1) / 2; });
+  m[0].x = (b.x0 + b.x1) / 2;                       // one man in, the rest short
+  game.eye = eyePoint(P);
+  input.keys.clear(); input.mouse.down = false;
+  simDrive(P, DOCTRINES.dynamic, 1/60);
+  const held = !input.mouse.down;
+  m.forEach(e => { e.x = (b.x0 + b.x1) / 2 + rand(-40, 40); e.y = (b.y0 + b.y1) / 2; });
+  input.keys.clear(); input.mouse.down = false;
+  for (let i = 0; i < 10 && !input.mouse.down; i++) simDrive(P, DOCTRINES.dynamic, 1/60);
+  console.log('  the sim holds until the box fills: one-in=' + (held ? 'HELD' : 'fired') +
+              ', full=' + (input.mouse.down ? 'FIRED' : 'held'),
+              held && input.mouse.down ? 'CORRECT (it waits — the bot never did)' : 'WRONG');
+  input.mouse.down = false;
+}
+localStorage.clear(); game.loadout.command = 'direct'; game.mapIndex = 0; initGame();
+console.log('KILL BOX TEST DONE');
+})();

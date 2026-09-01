@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  file: top_down_tactical_v0.88.html
-  version: 0.88
+  file: top_down_tactical_v0.89.html
+  version: 0.89
   author: Sam Cao
   created: 2026-08-07
   last_updated: 2026-08-21
@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top-Down Tactical v0.88 (working title)</title>
+<title>Top-Down Tactical v0.89 (working title)</title>
 <style>
   html, body { margin: 0; padding: 0; background: #0b0e11; color: #cfd6dd; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; height: 100%; }
   #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
@@ -64,7 +64,7 @@
 
 <div id="menu" class="screen">
   <h1>Top-Down Tactical</h1>
-  <h2>v0.88 prototype &mdash; working title &mdash; twenty-three missions</h2>
+  <h2>v0.89 prototype &mdash; working title &mdash; twenty-three missions</h2>
   <details class="panel" id="controlsFold">
     <summary>Controls &mdash; click to open</summary>
     <h3>You are the point man</h3>
@@ -2320,7 +2320,7 @@ const MAPS = [
 ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
 ] },
 { name: "THE CULVERT", ground: "ground_dirt", fireSupport: true, beta: true,
-  ambush: { toll: 0.6, clock: 30, gap: 35, sizes: [4, 5, 6],
+  ambush: { toll: 0.6, clock: 30, gap: 35, sizes: [4, 5, 6], box: [13, 6, 39, 11],
             kinds: [["guard", "guard"], ["guard", "elite"], ["elite", "guard"]], march: [49, 8] },
   advice: "This is the other side of THE LONG WALK: for once THEY are the ones in the open. A supply column walks the track left to right; you own the treeline south of it and the wire keeps them from running north. Spring it on your terms \u2014 the clock starts when the first man gets to a radio, not when the first man dies, so a suppressed kit can take men off the end of the column for free. The toll is a fraction, not a headcount: hit it and WALK AWAY. Reinforcements arrive through the road ends and they do not stop coming \u2014 the exfil is south, behind the trees, and every wave you stay to fight is one more between you and it.",
   brief: "L-ambush on a supply column \u2014 take the toll, break contact, exfil before the reinforcements",
@@ -4225,7 +4225,11 @@ function updateAmbush(dt) {
     // a couple of seconds and full suppression ruins it for a few more, both
     // decaying on the same clocks as everywhere else. That window is the whole
     // reason ambushers get to pick the ground; after it, it is just a fight.
-    for (const e of game.enemies) if (e.march && e.alive) { e.stagger = Math.max(e.stagger, rand(0.5, 1.5)); e.suppress = TUNE.suppressMax; }
+    // ...and it only catches the men IN THE BOX. The tail of a column that has
+    // not filed in yet heard shooting; it was not caught in the open. Timing
+    // the spring against the IN THE BOX count is the player's whole job.
+    for (const e of game.enemies)
+      if (e.march && e.alive && (!killBoxRect() || inKillBox(e))) { e.stagger = Math.max(e.stagger, rand(0.5, 1.5)); e.suppress = TUNE.suppressMax; }
     // ...and the squad goes weapons-free NOW, not at deploy. Free ROE from the
     // truck had them springing it themselves the moment a marcher crossed a
     // sightline. The spring is the go-code; roe "hold" is still your off switch.
@@ -7517,6 +7521,40 @@ function orderWallBreach(team, wall) {
   return "WALL BREACH — " + (breacher.name || "breacher") + " is setting it";
 }
 
+// The kill box is authored ground: the stretch of road the sectors are laid
+// against. Everything about the ambush keys off it — who the spring catches,
+// what the HUD counts, when the sim lets the trigger break.
+function killBoxRect() {
+  const b = game.mission.ambush && game.mission.ambush.box;
+  return b ? { x0: b[0] * TILE, y0: b[1] * TILE, x1: b[2] * TILE, y1: b[3] * TILE } : null;
+}
+function inKillBox(e) {
+  const b = killBoxRect();
+  return !!b && e.x >= b.x0 && e.x <= b.x1 && e.y >= b.y0 && e.y <= b.y1;
+}
+
+// OVERLAPPING SECTORS OF FIRE. The line is laid in, not huddled: every man's
+// arc is angled INWARD across the box so the fires cross — the west gun works
+// the east half and the east gun the west. Overlap is the point: a runner who
+// leaves one man's sector is already deep inside his neighbour's, and the
+// middle of the box sits inside everyone's.
+function layAmbushLine(team) {
+  const b = killBoxRect();
+  if (!b || !team.length) return "";
+  const xs = team.map(s => s.x);
+  const minX = Math.min(...xs), span = Math.max(1, Math.max(...xs) - minX);
+  const cy = (b.y0 + b.y1) / 2;
+  team.forEach(s => {
+    removeFromPlans(s);
+    const k = (s.x - minX) / span;
+    const ax = b.x0 + (1 - k) * (b.x1 - b.x0);
+    s.order = { type: "hold", face: angleTo(s.x, s.y, ax, cy), sector: deg(80) };
+    s.path = null;
+  });
+  bark(team[0], "SECTORS SET — LET THEM COME");
+  return "THE LINE IS IN — sectors crossed over the box";
+}
+
 function orderBaseOfFire(team, x, y) {
   team.forEach(s => {
     removeFromPlans(s);
@@ -8486,6 +8524,13 @@ function simGoal() {
     const z = level.extraction[0];
     return { x: z.tx * TILE + 16, y: z.ty * TILE + 16, what: "HOLD THE POSITION", hold: true };
   }
+  // AMBUSH still quiet AND still owed: you are already standing where you
+  // chose to stand. Sit in it and let the box fill; the gate in simDrive owns
+  // the trigger. A toll already paid in silence falls through to the exfil —
+  // the whole point of ghosting it is that you leave before anyone knows.
+  if (obj.includes("ambush") && game.ambushState && game.ambushState.phase === "quiet" &&
+      !OBJECTIVES.ambush.done())
+    return { x: p.x, y: p.y, what: "SET — LET THEM COME", hold: true };
   // AMBUSH with the toll paid: the mission is the door, not the fight — the
   // drive still shoots whatever crosses the lane on the way out.
   if (obj.includes("ambush") && OBJECTIVES.ambush.done() && level.extraction.length) {
@@ -8572,11 +8617,9 @@ function simDecide(D, team, g) {
   }
   // An ambush is fought FROM THE LINE. Walking the squad at the column is how
   // the advantage of having chosen the ground gets handed straight back.
-  if (game.ambushState && !OBJECTIVES.ambush.done() && !g.hold) {
-    const cx = team.reduce((a, s2) => a + s2.x, 0) / team.length;
-    const cy = team.reduce((a, s2) => a + s2.y, 0) / team.length;
-    return { key: "line", intent: "HOLD THE LINE — work the box",
-             run() { orderAnchorAt(team, cx, cy); } };
+  if (game.ambushState && !OBJECTIVES.ambush.done()) {
+    return { key: "line", intent: "HOLD THE LINE — sectors crossed",
+             run() { layAmbushLine(team); } };
   }
   // BASE OF FIRE: half nail the position down, the rest cross the ground.
   if (D.base && S.threat && team.length > 1) {
@@ -8592,6 +8635,19 @@ function simDecide(D, team, g) {
                        run() { orderAnchorAt(team, g.x, g.y); } };
   return { key: "go:" + cell, intent: g.what,
            run() { orderAdvance(team, g.x, g.y, !D.quiet); } };
+}
+
+// The sim's trigger discipline, and the box does the deciding: hold while the
+// column is still filing in, and stop holding the moment the head starts out
+// the far side or a marcher is about to trip over you. This is the one place
+// the commander is BETTER than the assault bot ever was — it waits.
+function simAmbushGate(p) {
+  const st = game.ambushState, b = killBoxRect();
+  if (!st || st.phase !== "quiet" || !b) return false;
+  const m = game.enemies.filter(e => e.alive && e.march);
+  if (!m.length) return false;
+  if (m.some(e => e.x > b.x1 || dist(e.x, e.y, p.x, p.y) < 150)) return false;
+  return m.filter(inKillBox).length < Math.ceil(m.length * 0.6);
 }
 
 // --- the point man. Keys and a cursor: every verb below has a binding the
@@ -8619,7 +8675,8 @@ function simDrive(p, D, dt) {
     stand = clear && fd < D.standoff && !(g && g.rush);
     S.contactT = 3;
     // An arrest grades better than a kill, if the doctrine can spare a second.
-    if (D.shout && fd < 300 && p.shoutCd <= 0) input.justPressed.add("c");
+    if (simAmbushGate(p)) stand = true;                 // watch him walk in
+    else if (D.shout && fd < 300 && p.shoutCd <= 0) input.justPressed.add("c");
     else if (clear) input.mouse.down = true;
   } else if (g) { ax = g.x; ay = g.y; }
   S.contactT = Math.max(0, S.contactT - dt);
@@ -9082,6 +9139,7 @@ function render() {
     drawLastKnown(e);
   }
   for (const p of game.plans) drawPlan(p);
+  drawKillBox();
   // selection rings + move-order lines
   ctx.lineWidth = 1.5;
   game.selected.forEach(i => {
@@ -10327,6 +10385,24 @@ function drawGhost(e) {
   ctx.restore();
 }
 
+// The kill box while it is still a plan: dashed red over the ground you
+// intend to own, above the fog because it is intent, not intel. It vanishes
+// on the spring — after that it is just ground with bodies on it.
+function drawKillBox() {
+  const st = game.ambushState;
+  if (!st || st.phase !== "quiet") return;
+  const b = killBoxRect();
+  if (!b) return;
+  ctx.strokeStyle = "rgba(255,85,85,0.45)"; ctx.lineWidth = 1.5 / game.zoom;
+  ctx.setLineDash([8, 6]);
+  ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(255,85,85,0.6)";
+  ctx.font = (11 / game.zoom).toFixed(1) + "px Consolas, monospace"; ctx.textAlign = "center";
+  ctx.fillText("KILL BOX", (b.x0 + b.x1) / 2, b.y0 - 6 / game.zoom);
+  ctx.textAlign = "left";
+}
+
 function drawPlan(p) {
   const c = doorCenter(p.door);
   const ready = p.state === "ready";
@@ -11491,6 +11567,7 @@ function initGame() {
     game.enemies.slice().sort((a, b) => b.x - a.x).forEach((e, i) => {
       e.march = nearestPassable(gx - i * 30, gy + ((i % 2) ? 16 : -16));
     });
+    layAmbushLine(game.squad.filter(s2 => s2.alive && !s2.qrfCasualty));
   }
   game.siegeState = game.mission.siege
     ? { phase: "lull", t: (game.mission.siege.first !== undefined ? game.mission.siege.first : game.mission.siege.gap), wave: 0 } : null;
@@ -11702,7 +11779,10 @@ const OBJECTIVES = {
     label() {
       const st = game.ambushState;
       const t = "TOLL " + Math.min(game.stats.kills, st.toll) + "/" + st.toll;
-      if (st.phase === "quiet") return t + " — NOT SPRUNG";
+      if (st.phase === "quiet") {
+        const m = game.enemies.filter(e => e.alive && e.march);
+        return t + " — IN THE BOX " + m.filter(inKillBox).length + "/" + m.length;
+      }
       return t + (st.wave > 0 ? " · THEY KEEP COMING" : " · REINFORCEMENTS " + Math.ceil(st.t) + "s");
     },
     done() { return !!game.ambushState && game.stats.kills >= game.ambushState.toll; },
@@ -14475,6 +14555,18 @@ requestAnimationFrame(frame);
     inline_sound.py and CLAUDE.md — raw bytes overstated the player's cost
     2.2x, measured — and the sim's exfil arrival is tile-exact, which fixes a
     general bug where 24px of slack parked the point man one tile off the X.
+  v0.89 (2026-08-21): OVERLAPPING SECTORS AND THE BOX. Sam: "an ambush like
+    overlapping sectors of fire — and a kill box." The box is authored ground
+    now (dashed red while it is still a plan, gone once sprung), and the line
+    deploys LAID IN against it: every man's arc angled inward so the fires
+    cross — the west gun works the east half, the middle of the box sits
+    inside everyone's sector, and a runner who leaves one arc is already deep
+    in the next. The spring only pins the men IN the box — the tail heard
+    shooting, it was not caught in the open — and the HUD counts the column
+    in (IN THE BOX n/m), which makes timing the spring the player's whole
+    job. The sim learned trigger discipline from the same count: it holds its
+    fire until the box fills or the head starts walking out the far side,
+    which is the first thing it does that the assault bot never could.
 -->
 </body>
 </html>
