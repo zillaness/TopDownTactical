@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--
+  file: index.html (raycaster)
+  version: 1.0
+  author: Sam Cao
+  created: 2026-09-04
+  last_updated: 2026-09-04
+  description: GitHub Pages entry point for the raycaster experiment. Redirects to the current build so the URL always loads the newest version without the version number in the link.
+  ai_update: Update the redirect target whenever the POC file is renamed. raycaster/tests/tests.js asserts this file points at the one POC file that exists.
+
+  Same cache split as the root index.html, and for the same reason: the POC file
+  is IMMUTABLE UNDER ITS NAME (a new build is a new filename), so it caches hard;
+  this 1KB pointer is the only thing allowed to go stale and the one thing that
+  must not.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raycaster POC</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- REDIRECT TARGET — the version test keeps this in step with the build -->
+<meta http-equiv="refresh" content="0; url=raycaster_poc_v1.0.html">
+<script>
+  (function () {
+    var TARGET = "raycaster_poc_v1.0.html";
+    try {
+      if (location.hash === "#stale") { location.replace(TARGET); return; }
+      location.replace(TARGET);
+    } catch (e) { location.href = TARGET; }
+  })();
+</script>
+<style>
+  body { background: #0a0c0e; color: #c9d4de; font: 15px/1.6 Consolas, monospace;
+         display: grid; place-items: center; height: 100vh; margin: 0; text-align: center; }
+  a { color: #e8b53a; }
+  .hint { color: #7f8b96; font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<p>Loading the raycaster &mdash; <a href="raycaster_poc_v1.0.html">open it</a> if it does not.</p>
+<p class="hint">Click the page to lock the mouse. Esc releases it.</p>
+</body>
+</html>
