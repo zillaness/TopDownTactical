@@ -37,11 +37,23 @@ function makeCanvas(w, h) {
   return c;
 }
 
-const elements = { view: makeCanvas(1280, 800), overlay: { classList: { toggle: () => {} }, addEventListener: () => {} } };
+// The briefing writes real markup into the overlay, so the stub needs enough of
+// an element to survive it: classList add/remove/toggle, innerHTML, and query
+// selectors that return nothing rather than throwing.
+function makeEl() {
+  return {
+    innerHTML: "", style: {}, dataset: {},
+    classList: { toggle: () => {}, add: () => {}, remove: () => {}, contains: () => false },
+    addEventListener: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  };
+}
+const elements = { view: makeCanvas(1280, 800), overlay: makeEl() };
 
 globalThis.document = {
   getElementById: id => elements[id] || null,
-  createElement: tag => (tag === "canvas" ? makeCanvas(32, 32) : { style: {}, addEventListener: () => {} }),
+  createElement: tag => (tag === "canvas" ? makeCanvas(32, 32) : makeEl()),
   addEventListener: () => {},
   pointerLockElement: null,
 };

@@ -1,10 +1,10 @@
 <!--
-  file: raycaster_poc_v1.0.html
-  version: 1.0
+  file: raycaster_poc_v1.1.html
+  version: 1.1
   author: Sam Cao
   created: 2026-09-04
   last_updated: 2026-09-04
-  description: Wolfenstein-style first-person raycaster proof of concept, carrying the top-down-tactical weapon model (spread, recoil, turn bloom, material penetration) into a first-person camera.
+  description: Wolfenstein-style first-person raycaster proof of concept, carrying the top-down-tactical weapon model (spread, recoil, turn bloom, material penetration, loadouts, the shield and the reaction clock) into a first-person camera.
   ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
 
   SCOPE: this is an EXPERIMENT that happens to share a repository with the game.
@@ -33,6 +33,21 @@
     padding: 1px 6px; color: #dbe4ea; font: inherit; }
   #overlay .go { color: #6fd08c; letter-spacing: .1em; }
   #overlay .note { color: #5d6a74; font-size: 11px; margin-top: 18px; max-width: 460px; line-height: 1.6; }
+  .brief { max-width: 720px; }
+  .brief .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 20px; }
+  .brief .pick { display: flex; flex-direction: column; gap: 3px; text-align: left;
+    background: #12181d; border: 1px solid #24303a; border-radius: 5px; padding: 9px 12px;
+    color: #9aa8b3; font: inherit; cursor: pointer; }
+  .brief .pick b { color: #dbe4ea; letter-spacing: .06em; font-weight: 600; }
+  .brief .pick span { font-size: 11px; color: #74838f; }
+  .brief .pick:hover { border-color: #3c4c59; }
+  .brief .pick.on { border-color: #6fd08c; background: #16211b; }
+  .brief .pick.on b { color: #8fe0a6; }
+  .brief button.go { display: block; width: 100%; background: #16211b; border: 1px solid #2f6b45;
+    border-radius: 5px; padding: 11px; color: #6fd08c; font: inherit; letter-spacing: .12em;
+    cursor: pointer; }
+  .brief button.go:hover { background: #1b2a20; }
+  .brief .keys { color: #5d6a74; font-size: 11px; margin-top: 16px; line-height: 1.7; }
 </style>
 
 <canvas id="view"></canvas>
@@ -47,7 +62,9 @@
           <td class="k"><kbd>Space</kbd></td><td>steady the sights</td></tr>
       <tr><td class="k"><kbd>LMB</kbd></td><td>fire</td>
           <td class="k"><kbd>R</kbd></td><td>reload</td></tr>
-      <tr><td class="k"><kbd>1</kbd>&ndash;<kbd>5</kbd></td><td>select weapon</td>
+      <tr><td class="k"><kbd>RMB</kbd></td><td>steady the sights</td>
+          <td class="k"><kbd>MMB</kbd></td><td>throw the grenade</td></tr>
+      <tr><td class="k"><kbd>Scroll</kbd></td><td>primary &harr; sidearm</td>
           <td class="k"><kbd>X</kbd></td><td>cycle ammunition</td></tr>
       <tr><td class="k"><kbd>E</kbd></td><td>open / close door</td>
           <td class="k"><kbd>M</kbd></td><td>minimap</td></tr>
@@ -100,10 +117,15 @@ const AMMO = {
   fmj:   { name: "5.56 FMJ", pen: 26, dmgMul: 1.00 },
   hp:    { name: "5.56 HP",  pen: 4,  dmgMul: 1.30 },   // will not cross drywall
   ap:    { name: "5.56 AP",  pen: 46, dmgMul: 0.85 },
+  x39:   { name: "7.62 FMJ", pen: 32, dmgMul: 1.00 },   // what the garrison feeds
   pistol:{ name: "9mm FMJ",  pen: 12, dmgMul: 1.00 },
   hp9:   { name: "9mm HP",   pen: 3,  dmgMul: 1.25 },
-  buck:  { name: "BUCKSHOT", pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
-  bird:  { name: "BIRDSHOT", pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
+  // v0.89 tightened the patterns: buck 7 -> 4.4 degrees, bird 11 -> 7.2. At 7
+  // degrees a buck pattern was wider than a doorway by the far side of a room,
+  // so the shotgun missed a man it was pointed at. v1.0 of this POC was ported
+  // from a build predating that pass and still carried the old numbers.
+  buck:  { name: "BUCKSHOT", pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(4.4) },
+  bird:  { name: "BIRDSHOT", pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(7.2) },
   slug:  { name: "SLUG",     pen: 34, dmgMul: 1.70 },
 };
 
@@ -116,33 +138,114 @@ const TUNE = {
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
   mouseSens: 0.0022,
   fov: deg(75),
+  // RMB is the source game's STEADY, which had no home in a first-person camera
+  // because Space already holds it. The cone maths is identical; the view pulls
+  // in so the pixels get bigger, which is the part a fixed overhead camera
+  // could never have shown you.
+  fovAds: deg(52), adsLerp: 9,
   wallH: 1.8,        // walls are 1.8 tiles tall, so a room has a ceiling
   figureH: 0.62,     // a man against that ceiling
   viewDist: 900,
-  playerHp: 100,
+  playerHp: 100, enemyHp: 82,
+  // Sam's call: NO dead time on the swap. The source charged 0.35s, but the
+  // swap exists precisely to beat a reload and the price is already paid by
+  // the worse gun now in your hands. Charging both is charging twice.
+  gunSwapTime: 0,
+
+  // THE OPENING BEAT IS YOURS. For this long an UNALERTED man who sees you goes
+  // suspicious and turns to look rather than straight to his trigger. Gunfire is
+  // deliberately exempt: the first round fired ends the settle for everyone.
+  missionSettle: 2.5,
+  // Seconds from first line-of-sight acquisition to first round, by band:
+  // cold, already alerted, or already looking your way when you stepped out.
+  enemyReact: [0.42, 0.85], enemyReactAlert: [0.25, 0.5], enemyReactWatching: [0.17, 0.28],
+  enemySight: 620, enemyTurn: deg(220), enemyAimTol: deg(12), enemyWatchArc: deg(35),
+
+  // grenades
+  nadeFuse: 1.6, nadeThrowSpeed: 430, nadeFriction: 2.6, nadeBounce: 0.42,
+  decalMax: 96, tracerLife: 0.055,
 };
 
-const BASE = { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
-  spreadBase: deg(0.54), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
-  recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 900, penMul: 1 };
+// Re-ported verbatim from top-down-tactical v0.89's TUNE.rifle. v1.0 of this POC
+// carried spreadBase 0.54, range 900 and reload 1.9 from a build that predated
+// the accuracy pass; the source comment naming "0.54 to 0.34" and "900 to 1150"
+// is what identified the drift.
+const BASE = { dmg: 34, rpm: 640, mag: 30, reload: 1.45, speed: 1500, ammo: "fmj",
+  spreadBase: deg(0.34), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
+  recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 1150, penMul: 1 };
 
-const WEAPONS = [
-  { id: "carbine", name: "M4 CARBINE", ammo: ["fmj", "hp", "ap"], w: { ...BASE } },
-  { id: "smg", name: "MP5 SMG", ammo: ["pistol", "hp9"],
-    w: { ...BASE, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
-         spreadBase: deg(0.72), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
-  { id: "shotgun", name: "SHOTGUN", ammo: ["buck", "slug", "bird"],
-    w: { ...BASE, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
-         spreadBase: deg(1.08), recoil: deg(3), recoilMax: deg(9) } },
-  { id: "dmr", name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
-    w: { ...BASE, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
-         spreadBase: deg(0.32), spreadMove: deg(12), spreadWalkMove: deg(5),
-         recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 } },
-  { id: "sidearm", name: "SIDEARM", ammo: ["pistol", "hp9"],
-    w: { ...BASE, dmg: 22, rpm: 380, mag: 15, reload: 1.5, range: 480,
-         spreadBase: deg(0.99), spreadMove: deg(7), recoil: deg(0.9),
-         recoilMax: deg(7), recoilDecay: deg(6), penMul: 0.7, speed: 1150 } },
-];
+// What the garrison carries. Deliberately worse than yours, and BURSTY. v1.0
+// armed every enemy with the player's own MP5: 800rpm through a 0.48 degree
+// cone, fired continuously. That, not the map, is what made the spawn lethal.
+const AKM = { dmg: 21, rpm: 420, mag: 30, reload: 2.35, speed: 1300, ammo: "x39",
+  spreadBase: deg(1.20), spreadMove: deg(8), spreadWalkMove: deg(4),
+  recoil: deg(0.8), recoilMax: deg(8), recoilDecay: deg(5), range: 880, penMul: 1,
+  burst: [2, 5], burstPause: [0.5, 1.1] };
+
+// ONE primary, picked at the briefing and carried for the mission. The pick is
+// the point: five hot slots on the number row deleted every downside a gun had.
+// Everybody also carries a sidearm, and scroll swaps to it faster than a reload.
+const PRIMARIES = {
+  carbine: { id: "carbine", name: "M4 CARBINE", ammo: ["fmj", "hp", "ap"],
+             note: "reach and penetration",
+             w: { ...BASE } },
+  smg:     { id: "smg", name: "MP5 SMG", ammo: ["pistol", "hp9"],
+             note: "fast and controllable, poor through cover",
+             w: { ...BASE, dmg: 24, rpm: 800, mag: 30, reload: 1.15, range: 700,
+                  spreadBase: deg(0.48), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
+  shotgun: { id: "shotgun", name: "SHOTGUN", ammo: ["buck", "slug", "bird"],
+             note: "devastating close, useless far",
+             w: { ...BASE, dmg: 30, rpm: 180, mag: 7, reload: 3.2, range: 560,
+                  spreadBase: deg(0.70), recoil: deg(3), recoilMax: deg(9) } },
+  saw:     { id: "saw", name: "SQUAD AUTOMATIC", ammo: ["fmj", "ap"],
+             note: "belt-fed, you are the base of fire and you are slow",
+             moveMul: 0.86,
+             w: { ...BASE, dmg: 30, rpm: 720, mag: 100, reload: 6.2, range: 1100,
+                  spreadBase: deg(1.08), spreadMove: deg(13), spreadWalkMove: deg(6.5),
+                  recoil: deg(0.75), recoilMax: deg(8), recoilDecay: deg(4.5),
+                  recoilRamp: 1.30 } },   // long strings are the belt-fed's whole job
+  dmr:     { id: "dmr", name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
+             note: "one round at a time, from across the map",
+             moveMul: 0.95,
+             w: { ...BASE, dmg: 68, rpm: 160, mag: 20, reload: 2.4, range: 1450,
+                  spreadBase: deg(0.19), spreadMove: deg(12), spreadWalkMove: deg(5),
+                  recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 } },
+  // The source refuses the swap here: "the bunker buys the primary slot, so
+  // there is no second gun to swap to", and the shield man carries a one-handed
+  // pistol all mission. Sam's answer is better and costs no new numbers, because
+  // both states were already in v0.89's tables and nobody wired a door between
+  // them: SCROLL STOWS THE SHIELD. Cone 1.35 -> 0.99 degrees, reload 1.9 -> 1.5s,
+  // move 0.75x -> 1.0x, and the wall goes away. Reversible, because the bunker
+  // already bleeds you every second you hold it and does not need a one-way
+  // switch on top; the live question is WHEN to stow it, asked at every doorway.
+  shield:  { id: "shield", name: "PISTOL + SHIELD", ammo: ["pistol", "hp9"],
+             note: "a wall you carry, scroll STOWS it for a two-handed reload",
+             shield: true, moveMul: 0.75,
+             w: { dmg: 22, rpm: 380, mag: 15, reload: 1.9, speed: 1150, ammo: "pistol",
+                  spreadBase: deg(1.35), spreadMove: deg(9.5), spreadWalkMove: deg(4.5),
+                  recoil: deg(1.15), recoilMax: deg(8), recoilDecay: deg(6),
+                  range: 480, penMul: 0.7 } },
+};
+const PRIMARY_KEYS = ["carbine", "smg", "shotgun", "saw", "dmr", "shield"];
+
+// Everybody carries one. It is not a choice at the briefing, it is the gun you
+// go to when the primary runs dry mid-room, which is faster than a reload.
+const SIDEARM = { id: "sidearm", name: "SIDEARM", ammo: ["pistol", "hp9"],
+  w: { dmg: 22, rpm: 380, mag: 15, reload: 1.5, speed: 1150, ammo: "pistol",
+       spreadBase: deg(0.99), spreadMove: deg(7), spreadWalkMove: deg(3),
+       recoil: deg(0.9), recoilMax: deg(7), recoilDecay: deg(6),
+       range: 480, penMul: 0.7 } };
+
+// Armour you POINT. hp 300 against dmg * 0.88 absorbed, so a 21-damage AKM round
+// costs 18.5: sixteen rounds, about four bursts. Long enough to cross a room,
+// nowhere near long enough to live in the open. Worth nothing from the flank.
+const SHIELD = { name: "BODY BUNKER", hp: 300, rating: 36, arc: deg(80), cover: 0.88 };
+
+const GRENADES = {
+  frag:  { name: "FRAG",      radius: 96,  dmg: 98, falloff: 0.55 },
+  flash: { name: "FLASHBANG", radius: 230, blind: 3.6 },
+};
+const GRENADE_KEYS = ["frag", "flash"];
 
 // The cone of a shot, assembled from everything the shooter is doing wrong.
 // Ported verbatim in structure from the source game's currentSpread().
@@ -357,70 +460,150 @@ function circleHits(x, y, r) {
 // ===========================================================================
 
 const game = {
-  t: 0, player: null, enemies: [], bullets: [], fx: [],
-  showMap: false, showDebug: false, paused: false, over: null,
+  t: 0, player: null, enemies: [], bullets: [], nades: [], fx: [], decals: [],
+  showMap: false, showDebug: false, paused: false, over: null, started: false,
   shots: 0, hits: 0, kills: 0, penetrations: 0,
+  settleT: 0, adsT: 0, hint: "", hintT: 0,
+  loadout: { primary: "carbine", ammo: "fmj", nade: "frag" },
 };
 
-function makeShooter(x, y, side) {
-  return { x, y, r: 9, face: 0, hp: 100, alive: true, side,
-    recoil: 0, turnBloom: 0, moving: false, walking: false, sprinting: false,
-    steady: false, cool: 0, reloading: 0, weaponIdx: 0, ammoIdx: 0,
-    mag: 0, weapon: null, muzzle: 0 };
+function makeGun(id, name, w, ammoType) {
+  return { id, name, w, ammoType, mag: w.mag, reloading: 0 };
 }
 
-function equip(s, idx) {
-  s.weaponIdx = clamp(idx, 0, WEAPONS.length - 1);
-  s.ammoIdx = 0;
-  s.weapon = WEAPONS[s.weaponIdx].w;
-  s.mag = s.weapon.mag;
-  s.reloading = 0;
+function makeShooter(x, y, side) {
+  return { x, y, vx: 0, vy: 0, r: 9, face: 0, hp: 100, alive: true, side,
+    recoil: 0, turnBloom: 0, moving: false, walking: false, sprinting: false,
+    steady: false, cool: 0, reloading: 0,
+    guns: [], gunIndex: 0, primaryKey: "carbine", weapon: null,
+    ammoType: "fmj", mag: 0, muzzle: 0,
+    hasShield: false, shieldHp: 0, shieldMax: 0, moveMul: 1,
+    blind: 0, burst: 0, burstPause: 0, nadeCool: 0,
+    react: null, suspicious: false, alerted: false, alertness: 0 };
 }
-function ammoOf(s) { return AMMO[WEAPONS[s.weaponIdx].ammo[s.ammoIdx]]; }
+
+function syncGun(s) {
+  const g = s.guns[s.gunIndex];
+  s.weapon = g.w; s.ammoType = g.ammoType; s.mag = g.mag; s.reloading = g.reloading;
+}
+function stashGun(s) {
+  const g = s.guns[s.gunIndex];
+  g.mag = s.mag; g.reloading = s.reloading; g.ammoType = s.ammoType;
+}
+
+// Index 0 is the primary, index 1 is always the sidearm. For the shield loadout
+// index 0 IS the shield, so swapping to the sidearm is the act of stowing it.
+function equipLoadout(s, key, ammoType) {
+  const prim = PRIMARIES[key] || PRIMARIES.carbine;
+  const at = prim.ammo.includes(ammoType) ? ammoType : prim.ammo[0];
+  s.guns = [ makeGun(prim.id, prim.name, prim.w, at),
+             makeGun(SIDEARM.id, SIDEARM.name, SIDEARM.w, SIDEARM.ammo[0]) ];
+  s.gunIndex = 0;
+  s.primaryKey = key;
+  s.moveMul = prim.moveMul || 1;
+  s.hasShield = !!prim.shield;
+  s.shieldHp = prim.shield ? SHIELD.hp : 0;
+  s.shieldMax = s.shieldHp;
+  syncGun(s);
+}
+
+function swapGun(s) {
+  if (s.guns.length < 2) return false;
+  stashGun(s);
+  s.gunIndex = (s.gunIndex + 1) % s.guns.length;
+  syncGun(s);
+  s.recoil = 0; s.burst = 0;               // a fresh gun is a settled gun
+  if (TUNE.gunSwapTime > 0) s.cool = Math.max(s.cool, TUNE.gunSwapTime);
+  return true;
+}
+
+// A stowed shield is no shield: only the primary slot carries it, and moving to
+// the sidearm is what puts it down. Also worth nothing from the flank, and worth
+// nothing once it is shot through, though you keep paying the weight either way.
+function shieldUp(s) { return s.hasShield && s.gunIndex === 0 && s.shieldHp > 0; }
+function moveMulOf(s) { return s.hasShield && s.gunIndex !== 0 ? 1 : s.moveMul; }
+
+// Scroll changes GUNS, X changes what the gun is loaded with, and the change
+// costs most of a reload. Ported from the source's cycleAmmo.
+function cycleAmmo(s) {
+  if (s.gunIndex !== 0) return "the sidearm feeds what it feeds";
+  const prim = PRIMARIES[s.primaryKey] || PRIMARIES.carbine;
+  if (prim.ammo.length < 2) return "nothing else in the pouch";
+  const i = (prim.ammo.indexOf(s.ammoType) + 1) % prim.ammo.length;
+  s.ammoType = prim.ammo[i];
+  s.guns[0].ammoType = s.ammoType;
+  s.reloading = Math.max(s.reloading, s.weapon.reload * 0.7);
+  return "loading " + AMMO[s.ammoType].name;
+}
+
+function ammoOf(s) { return AMMO[s.ammoType] || AMMO.fmj; }
 
 function initGame() {
   level = parseMap(MAP_SRC);
-  game.t = 0; game.bullets = []; game.fx = []; game.over = null;
+  game.t = 0; game.bullets = []; game.nades = []; game.fx = []; game.decals = [];
+  game.over = null; game.adsT = 0; game.hint = ""; game.hintT = 0;
   game.shots = 0; game.hits = 0; game.kills = 0; game.penetrations = 0;
+  game.settleT = TUNE.missionSettle;             // the opening beat is yours
   const p = makeShooter(level.start.x, level.start.y, "player");
-  p.hp = TUNE.playerHp; p.vx = 0; p.vy = 0;
-  equip(p, 0);
+  p.hp = TUNE.playerHp;
+  equipLoadout(p, game.loadout.primary, game.loadout.ammo);
   game.player = p;
   game.enemies = level.enemySpawns.map(sp => {
     const e = makeShooter(sp.x, sp.y, "enemy");
-    e.hp = 70; e.face = rand(0, Math.PI * 2);
-    e.weaponIdx = 1; e.ammoIdx = 0; e.weapon = WEAPONS[1].w; e.mag = e.weapon.mag;
-    e.alertness = 0; e.think = 0;
+    e.hp = TUNE.enemyHp;
+    e.face = rand(0, Math.PI * 2);               // randomised at spawn, as in the source
+    e.guns = [ { id: "akm", name: "AKM", w: AKM, ammoType: AKM.ammo, mag: AKM.mag, reloading: 0 } ];
+    e.gunIndex = 0;
+    syncGun(e);
     return e;
   });
 }
 
 // ===========================================================================
-// S5  shooting  —  the tactical weapon model in a first-person camera
+// S5  shooting  and  the things you are finally allowed to SEE
 // ===========================================================================
 
 function fire(s) {
-  if (s.cool > 0 || s.reloading > 0) return;
+  if (s.reloading > 0 || s.cool > 0 || s.blind > 0) return;
   if (s.mag <= 0) { startReload(s); return; }
   const w = s.weapon, a = ammoOf(s);
   s.mag--;
   s.cool = 60 / w.rpm;
   s.muzzle = 0.06;
+  // Gunfire is deliberately exempt from the settle: the first round fired ends
+  // the opening beat for everyone, which is what stops it being a free clear.
+  game.settleT = 0;
   const spread = currentSpread(s);
   const pellets = a.pellets || 1;
   for (let i = 0; i < pellets; i++) {
     const cone = a.pellets ? a.spread : spread;
     const ang = s.face + rand(-cone / 2, cone / 2);
+    // A spread cone is a CONE. The simulation only resolves it horizontally,
+    // which is the axis that decides hits, so the vertical half is carried as a
+    // draw-only angle. It is not a lie about the sim: a decal only ever exists
+    // for a round that MISSED a man and met a wall, and this is where in the
+    // cone that round actually went. Steady shooting groups tight; spraying
+    // scatters, and now you can see which one you just did.
     game.bullets.push({
       x: s.x + Math.cos(s.face) * 12, y: s.y + Math.sin(s.face) * 12,
-      ang, spd: w.speed, dmg: w.dmg * a.dmgMul, pen: a.pen * (w.penMul || 1),
+      ang, vang: rand(-cone / 2, cone / 2),
+      spd: w.speed, dmg: w.dmg * a.dmgMul, pen: a.pen * (w.penMul || 1),
       side: s.side, traveled: 0, range: w.range, alive: true, ricochets: 0,
       penetrated: [],
     });
   }
   // Recoil ramps while you hold the trigger; it settles when you stop.
-  s.recoil = Math.min(w.recoilMax, s.recoil + w.recoil * TUNE.recoilRamp);
+  s.recoil = Math.min(w.recoilMax, s.recoil + w.recoil * (w.recoilRamp || TUNE.recoilRamp));
   if (s === game.player) game.shots++;
+  // Burst discipline. The garrison fires 2 to 5 and then pauses, which is the
+  // difference between incoming you can move under and a firehose.
+  if (w.burst) {
+    s.burst++;
+    if (s.burst >= Math.round(rand(w.burst[0], w.burst[1] + 0.999))) {
+      s.burst = 0;
+      s.burstPause = rand(w.burstPause[0], w.burstPause[1]);
+    }
+  }
 }
 
 function startReload(s) {
@@ -428,13 +611,29 @@ function startReload(s) {
   s.reloading = s.weapon.reload;
 }
 
+// A wall you POINT. Only inside the arc you are facing, only while it is on the
+// primary slot, and only until the 300hp pool is gone. AP goes through it.
+function shieldBlock(v, dmg, pen, travelAng) {
+  if (!shieldUp(v)) return dmg;
+  const fromV = travelAng + Math.PI;                  // where the shooter is, from him
+  if (Math.abs(angDiff(fromV, v.face)) > SHIELD.arc / 2) return dmg;   // flanked
+  if (pen > SHIELD.rating) return dmg * 0.65;         // AP defeats it and still slows
+  const absorbed = dmg * SHIELD.cover;
+  const had = v.shieldHp;
+  v.shieldHp = Math.max(0, v.shieldHp - absorbed);
+  if (had > 0 && v.shieldHp <= 0 && v === game.player)
+    say("THE BUNKER IS SHOT THROUGH - you are still carrying the weight");
+  return dmg - absorbed;
+}
+
 function updateBullets(dt) {
   for (const b of game.bullets) {
     if (!b.alive) continue;
     let remain = b.spd * dt;
     let guard = 0;
-    while (remain > 0 && b.alive && guard++ < 64) {
-      const step = Math.min(remain, TILE * 0.5);
+    b.px = b.x; b.py = b.y;                           // where the tracer starts this frame
+    while (remain > 0 && b.alive && guard++ < 200) {
+      const step = Math.min(remain, 6);
       const nx = b.x + Math.cos(b.ang) * step, ny = b.y + Math.sin(b.ang) * step;
 
       // bodies first
@@ -445,13 +644,17 @@ function updateBullets(dt) {
         if (segCircle(b.x, b.y, nx, ny, v.x, v.y, v.r)) { struck = v; break; }
       }
       if (struck) {
-        struck.hp -= b.dmg;
+        const dmg = shieldBlock(struck, b.dmg, b.pen, b.ang);
         b.alive = false;
-        game.fx.push({ kind: "blood", x: struck.x, y: struck.y, t: .25, max: .25 });
-        if (b.side === "player") game.hits++;
+        if (dmg < b.dmg) fxAt("clang", nx, ny, 0.18);   // it hit the bunker, not the man
+        if (dmg > 0) {
+          struck.hp -= dmg;
+          fxAt("blood", struck.x, struck.y, 0.30);
+        }
+        if (b.side === "player") { game.hits++; game.fx.push({ kind: "hitmark", t: .18, max: .18 }); }
         if (struck.hp <= 0 && struck.alive) {
           struck.alive = false;
-          if (struck !== game.player) game.kills++;
+          if (struck !== game.player) { game.kills++; game.fx.push({ kind: "killmark", t: .35, max: .35 }); }
           else game.over = "DOWN";
         } else if (struck === game.player) {
           game.fx.push({ kind: "sting", t: .3, max: .3 });
@@ -479,7 +682,8 @@ function updateBullets(dt) {
 // Penetration is caliber against material resistance, straight from the source
 // game: beat the resist and you come out the far side, crooked and weaker.
 function resolveImpact(b, hx, hy, tx, ty, mat) {
-  game.fx.push({ kind: "spark", x: hx, y: hy, t: .1, max: .1 });
+  fxAt("spark", hx, hy, 0.12, b.vang);
+  addDecal(hx, hy, b.side, b.vang);
   if (b.pen > mat.resist) {
     b.pen -= mat.resist;
     b.dmg *= mat.dmgKeep;
@@ -489,14 +693,33 @@ function resolveImpact(b, hx, hy, tx, ty, mat) {
     const skip = TILE * 1.05;
     b.x = hx + Math.cos(b.ang) * skip;
     b.y = hy + Math.sin(b.ang) * skip;
-    b.traveled += skip;
-    if (b.dmg < 4) b.alive = false;
-    return;
+    if (b.dmg < 2) b.alive = false;
+  } else {
+    b.alive = false;
   }
-  b.alive = false;
 }
 
+// v1.0 pushed spark and blood into game.fx and then never drew either of them:
+// grep returned the push site and nothing else. Rounds crossed the room, struck
+// a wall or a man, and produced no pixel at all. That, not the tuning, is why
+// you could not tell where your shots were landing.
+function fxAt(kind, x, y, life, vang) {
+  game.fx.push({ kind, x, y, t: life, max: life, vang: vang || 0 });
+}
+
+// A bullet hole stays. Its height on the wall is the shot's own vertical cone
+// angle (see fire): a tight group when you were steady, a scattered one when you
+// sprayed. Without it every hole in the game sat on one dead-straight line
+// through the middle of the screen, which read as a bug rather than as physics.
+function addDecal(x, y, side, vang) {
+  game.decals.push({ x, y, side, vang: vang || 0, r: 1.6 + Math.random() * 1.1 });
+  if (game.decals.length > TUNE.decalMax) game.decals.shift();
+}
+
+function say(msg) { game.hint = msg; game.hintT = 3.2; }
+
 function segCircle(x1, y1, x2, y2, cx, cy, r) {
+
   const dx = x2 - x1, dy = y2 - y1;
   const len2 = dx * dx + dy * dy;
   let t = len2 > 0 ? ((cx - x1) * dx + (cy - y1) * dy) / len2 : 0;
@@ -509,21 +732,26 @@ function segCircle(x1, y1, x2, y2, cx, cy, r) {
 // S6  update
 // ===========================================================================
 
-const input = { keys: {}, mouseDX: 0, firing: false, locked: false };
+const input = { keys: {}, mouseDX: 0, firing: false, locked: false, ads: false };
 
 function update(dt) {
   game.t += dt;
+  game.settleT = Math.max(0, game.settleT - dt);
+  if (game.hintT > 0) game.hintT -= dt;
   const p = game.player;
-  if (!p || !p.alive) { updateFx(dt); return; }
+  if (!p || !p.alive) { updateFx(dt); updateNades(dt); updateBullets(dt); return; }
 
   // ---- look
   const yawWas = p.face;
-  p.face += input.mouseDX * TUNE.mouseSens;
+  p.face += input.mouseDX * TUNE.mouseSens * (input.ads ? 0.55 : 1);
   input.mouseDX = 0;
   const swung = Math.abs(angDiff(p.face, yawWas));
   // Whipping the muzzle onto a new contact opens the cone. Snapped shot, worse
   // shot. This is what makes cornering slowly pay.
   p.turnBloom = Math.max(0, p.turnBloom - dt * TUNE.turnBloomDecay) + swung * TUNE.turnBloomGain;
+
+  // ---- the view travels between hip and shoulder; the CONE is unchanged
+  game.adsT += ((input.ads ? 1 : 0) - game.adsT) * Math.min(1, dt * TUNE.adsLerp);
 
   // ---- move
   const k = input.keys;
@@ -531,10 +759,13 @@ function update(dt) {
   if (k["w"]) iy += 1; if (k["s"]) iy -= 1;
   if (k["d"]) ix += 1; if (k["a"]) ix -= 1;
   const mag = Math.hypot(ix, iy);
-  p.sprinting = !!k["shift"] && mag > 0 && iy > 0;
-  p.steady = !!k[" "] && !p.sprinting;
+  p.sprinting = !!k["shift"] && mag > 0 && iy > 0 && !input.ads;
+  // RMB is STEADY. Same mechanic as the source's Space, same steadyMul, and
+  // Space still works: two bindings on one behaviour, not a new mechanic.
+  p.steady = (!!k[" "] || input.ads) && !p.sprinting;
   p.walking = p.steady;
-  const speed = TUNE.moveSpeed * (p.sprinting ? TUNE.sprintMul : p.walking ? TUNE.walkMul : 1);
+  const speed = TUNE.moveSpeed * moveMulOf(p) *
+    (p.sprinting ? TUNE.sprintMul : p.walking ? TUNE.walkMul : 1);
 
   let wx = 0, wy = 0;
   if (mag > 0) {
@@ -555,6 +786,8 @@ function update(dt) {
   p.recoil = Math.max(0, p.recoil - dt * p.weapon.recoilDecay * TUNE.recoilSettle);
   p.cool = Math.max(0, p.cool - dt);
   p.muzzle = Math.max(0, p.muzzle - dt);
+  p.blind = Math.max(0, p.blind - dt);
+  p.nadeCool = Math.max(0, p.nadeCool - dt);
   if (p.reloading > 0) {
     p.reloading -= dt;
     if (p.reloading <= 0) { p.mag = p.weapon.mag; p.reloading = 0; }
@@ -562,6 +795,7 @@ function update(dt) {
 
   updateEnemies(dt);
   updateDoors(dt);
+  updateNades(dt);
   updateBullets(dt);
   updateFx(dt);
 
@@ -583,6 +817,8 @@ function updateEnemies(dt) {
     e.recoil = Math.max(0, e.recoil - dt * e.weapon.recoilDecay);
     e.cool = Math.max(0, e.cool - dt);
     e.muzzle = Math.max(0, e.muzzle - dt);
+    e.blind = Math.max(0, e.blind - dt);
+    e.burstPause = Math.max(0, e.burstPause - dt);
     if (e.reloading > 0) {
       e.reloading -= dt;
       if (e.reloading <= 0) { e.mag = e.weapon.mag; e.reloading = 0; }
@@ -590,19 +826,98 @@ function updateEnemies(dt) {
     }
     if (!p.alive) continue;
     const d = Math.hypot(p.x - e.x, p.y - e.y);
-    const see = d < 620 && lineOfSight(e.x, e.y, p.x, p.y);
-    if (see) {
-      e.alertness = Math.min(1, e.alertness + dt * 2.4);
-      const want = Math.atan2(p.y - e.y, p.x - e.x);
-      const turn = angDiff(want, e.face);
-      e.face += clamp(turn, -dt * deg(220), dt * deg(220));
-      e.moving = false;
-      if (e.alertness > 0.55 && Math.abs(turn) < deg(12)) {
-        if (e.mag <= 0) startReload(e);
-        else fire(e);
-      }
-    } else {
+    const see = e.blind <= 0 && d < TUNE.enemySight && lineOfSight(e.x, e.y, p.x, p.y);
+    if (!see) {
+      // Lost him. The clock re-rolls on reacquisition, but ALERTED is sticky: a
+      // man who has already been in this fight does not go back to surprised.
+      e.react = null; e.suspicious = false;
       e.alertness = Math.max(0, e.alertness - dt * 0.5);
+      continue;
+    }
+    const want = Math.atan2(p.y - e.y, p.x - e.x);
+    const turn = angDiff(want, e.face);
+
+    // THE REACTION CLOCK. v1.0 ramped a flat alertness at 2.4/sec to a 0.55
+    // threshold: 0.23 seconds for every man, every time, with no roll and no
+    // variance, and no settle in front of it. Measured, that killed a player who
+    // stood still and never fired in 0.92s from spawn, 200 times out of 200.
+    // This rolls one of the source's three bands on acquisition, depending on
+    // whether he was already looking your way when you stepped out.
+    if (e.react === null) {
+      const looking = Math.abs(turn) < TUNE.enemyWatchArc;
+      const band = e.alerted ? TUNE.enemyReactAlert
+                 : looking ? TUNE.enemyReactWatching : TUNE.enemyReact;
+      e.react = rand(band[0], band[1]);
+      // SUSPICIOUS: inside the settle an unalerted man turns to look at you and
+      // his clock does not start until the beat is over.
+      e.suspicious = game.settleT > 0 && !e.alerted;
+    }
+    if (e.suspicious && game.settleT <= 0) e.suspicious = false;
+
+    e.alertness = Math.min(1, e.alertness + dt * 2.4);
+    e.face += clamp(turn, -dt * TUNE.enemyTurn, dt * TUNE.enemyTurn);
+    e.moving = false;
+    if (e.suspicious) continue;
+
+    e.react -= dt;
+    if (e.react <= 0 && e.burstPause <= 0 && Math.abs(turn) < TUNE.enemyAimTol) {
+      e.alerted = true;
+      if (e.mag <= 0) startReload(e);
+      else fire(e);
+    }
+  }
+}
+
+// ---- grenades. MMB throws the one in your hand, G changes which one it is.
+function throwNade(s, kind) {
+  const g = GRENADES[kind];
+  if (!g || s.nadeCool > 0 || s.blind > 0) return false;
+  game.nades.push({
+    x: s.x + Math.cos(s.face) * 14, y: s.y + Math.sin(s.face) * 14,
+    vx: Math.cos(s.face) * TUNE.nadeThrowSpeed, vy: Math.sin(s.face) * TUNE.nadeThrowSpeed,
+    fuse: TUNE.nadeFuse, kind, side: s.side, alive: true,
+  });
+  s.nadeCool = 0.9;             // the only cost is cadence, as in the source
+  return true;
+}
+
+function updateNades(dt) {
+  for (const n of game.nades) {
+    if (!n.alive) continue;
+    n.fuse -= dt;
+    const nx = n.x + n.vx * dt, ny = n.y + n.vy * dt;
+    // it bounces off what it meets, per axis, so a bad throw comes back at you
+    if (solidForMove(Math.floor(nx / TILE), Math.floor(n.y / TILE))) n.vx = -n.vx * TUNE.nadeBounce;
+    else n.x = nx;
+    if (solidForMove(Math.floor(n.x / TILE), Math.floor(ny / TILE))) n.vy = -n.vy * TUNE.nadeBounce;
+    else n.y = ny;
+    const f = Math.max(0, 1 - TUNE.nadeFriction * dt);
+    n.vx *= f; n.vy *= f;
+    if (n.fuse <= 0) { detonate(n); n.alive = false; }
+  }
+  game.nades = game.nades.filter(n => n.alive);
+}
+
+function detonate(n) {
+  const g = GRENADES[n.kind];
+  fxAt(n.kind === "flash" ? "flash" : "boom", n.x, n.y, n.kind === "flash" ? 0.5 : 0.45);
+  for (const v of [game.player, ...game.enemies]) {
+    if (!v || !v.alive) continue;
+    const d = Math.hypot(v.x - n.x, v.y - n.y);
+    if (d > g.radius) continue;
+    if (!lineOfSight(n.x, n.y, v.x, v.y)) continue;      // a wall is a wall
+    const frac = clamp(1 - (d / g.radius) * (g.falloff !== undefined ? g.falloff : 1), 0, 1);
+    if (n.kind === "flash") {
+      v.blind = Math.max(v.blind, g.blind * frac);
+      if (v === game.player) game.fx.push({ kind: "whiteout", t: 0.55, max: 0.55 });
+    } else {
+      v.hp -= g.dmg * frac;
+      fxAt("blood", v.x, v.y, 0.3);
+      if (v.hp <= 0 && v.alive) {
+        v.alive = false;
+        if (v === game.player) game.over = "DOWN";
+        else { game.kills++; game.fx.push({ kind: "killmark", t: .35, max: .35 }); }
+      }
     }
   }
 }
@@ -704,12 +1019,13 @@ function render() {
   flGrad.addColorStop(0, "#191b1a"); flGrad.addColorStop(1, "#2a2c28");
   ctx.fillStyle = flGrad; ctx.fillRect(0, H / 2, W, H / 2);
 
-  const columns = castColumns(p.x, p.y, p.face, TUNE.fov, cols, TUNE.viewDist);
+  const fov = fovNow();
+  const columns = castColumns(p.x, p.y, p.face, fov, cols, TUNE.viewDist);
   if (!zBuf || zBuf.length !== cols) zBuf = new Float32Array(cols);
 
   // Projection: a wall is one tile tall, so its screen height is the plane
   // distance over the perpendicular distance.
-  const projDist = (cols / 2) / Math.tan(TUNE.fov / 2);
+  const projDist = (cols / 2) / Math.tan(fov / 2);
   // One wall-height function, used by walls and sprites alike. The eye sits at
   // mid-wall, so a wall is symmetric about the horizon and a body standing on
   // the floor has its feet at the wall's base.
@@ -748,22 +1064,171 @@ function render() {
     }
   }
 
-  drawSprites(columns, cols, colW, projDist, wallPx);
+  const proj = makeProjector(p, cols, colW, fov);
+  drawDecals(cols, colW, proj, projDist * colW);
+  drawSprites(columns, cols, colW, projDist, wallPx, fov);
+  drawWorldFx(cols, colW, wallPx, proj, projDist * colW);
   drawWeapon();
   drawHud();
   if (game.showMap) drawMinimap();
   if (game.showDebug) drawDebug(columns);
 }
 
+// RMB pulls the view in. The cone is untouched: this is the source game's
+// STEADY, and all a narrower field does is spend more pixels on the same angle.
+function fovNow() { return TUNE.fov + (TUNE.fovAds - TUNE.fov) * game.adsT; }
+
+// One projector, shared by billboards, impacts, tracers and grenades, so they
+// cannot disagree about where a world point lands on the screen.
+function makeProjector(p, cols, colW, fov) {
+  const dirX = Math.cos(p.face), dirY = Math.sin(p.face);
+  const planeLen = Math.tan(fov / 2);
+  const planeX = -dirY * planeLen, planeY = dirX * planeLen;
+  const invDet = 1 / (planeX * dirY - dirX * planeY);
+  return (wx, wy) => {
+    const rx = wx - p.x, ry = wy - p.y;
+    const tX = invDet * (dirY * rx - dirX * ry);
+    const tY = invDet * (-planeY * rx + planeX * ry);
+    return { sx: (cols / 2) * (1 + tX / tY) * colW, depth: tY };
+  };
+}
+
+// A world point is visible if the wall in its column is no nearer than it is.
+// Impacts sit ON a wall, so they tie with it: the epsilon is what stops a bullet
+// hole z-fighting with the brick it is in.
+function visibleAt(sx, depth, cols, colW, eps) {
+  if (depth <= 1) return false;
+  const c = Math.floor(sx / colW);
+  if (c < 0 || c >= cols) return false;
+  return zBuf[c] >= depth - (eps || 0);
+}
+
+// Bullet holes. They stay for the rest of the mission, capped at decalMax.
+// See addDecal for why every one of them sits on the horizon line.
+function drawDecals(cols, colW, proj, projPx) {
+  for (const d of game.decals) {
+    const { sx, depth } = proj(d.x, d.y);
+    if (!visibleAt(sx, depth, cols, colW, 26)) continue;
+    const scale = clamp(240 / depth, 0.35, 4);
+    const r = d.r * scale;
+    const fog = clamp(1 - depth / TUNE.viewDist, 0.15, 1);
+    const y = H / 2 + Math.tan(d.vang) * projPx;
+    ctx.fillStyle = `rgba(12,10,9,${0.75 * fog})`;
+    ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(190,180,165,${0.30 * fog})`;
+    ctx.beginPath(); ctx.arc(sx - r * 0.3, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// Tracers, impact sparks, blood, and grenades in flight. v1.0 created three of
+// these four and drew none of them, which is why rounds vanished on contact.
+function drawWorldFx(cols, colW, wallPx, proj, projPx) {
+  // rounds in flight, drawn as a streak from where they were to where they are
+  for (const b of game.bullets) {
+    // One frame of travel is 25px at rifle speed, which reads as a dash rather
+    // than a tracer. The streak is a fixed length of trail behind the head,
+    // clipped so it never starts behind the muzzle it came out of.
+    const tail = Math.min(90, Math.max(12, b.traveled));
+    const a = proj(b.x - Math.cos(b.ang) * tail, b.y - Math.sin(b.ang) * tail);
+    const c = proj(b.x, b.y);
+    if (c.depth <= 1) continue;
+    if (!visibleAt(c.sx, c.depth, cols, colW, 0)) continue;
+    const fog = clamp(1 - c.depth / TUNE.viewDist, 0.1, 1);
+    const y = H / 2 + Math.tan(b.vang || 0) * projPx;
+    const grad = ctx.createLinearGradient(a.depth > 1 ? a.sx : c.sx, y, c.sx, y);
+    const lead = b.side === "player" ? "255,232,168" : "255,150,110";
+    grad.addColorStop(0, `rgba(${lead},0)`);
+    grad.addColorStop(1, `rgba(${lead},${0.9 * fog})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = clamp(150 / c.depth, 0.8, 4);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(a.depth > 1 ? a.sx : c.sx, y);
+    ctx.lineTo(c.sx, y);
+    ctx.stroke();
+  }
+
+  // grenades in flight
+  for (const n of game.nades) {
+    const { sx, depth } = proj(n.x, n.y);
+    if (!visibleAt(sx, depth, cols, colW, 0)) continue;
+    const wall = wallPx(depth);
+    const r = clamp(wall * 0.035, 1.5, 14);
+    const y = H / 2 + wall / 2 - r * 1.6;             // it is on the floor
+    ctx.fillStyle = n.kind === "flash" ? "#c9ccd2" : "#3a4630";
+    ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI * 2); ctx.fill();
+    // the fuse blinks faster as it runs out
+    if (Math.sin(game.t * (28 - n.fuse * 10)) > 0) {
+      ctx.fillStyle = "#ff6a4a";
+      ctx.beginPath(); ctx.arc(sx, y - r * 0.7, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  for (const f of game.fx) {
+    if (f.x === undefined) continue;                  // screen-space effects draw in the HUD
+    const { sx, depth } = proj(f.x, f.y);
+    const eps = (f.kind === "spark" || f.kind === "clang") ? 26 : 0;
+    if (!visibleAt(sx, depth, cols, colW, eps)) continue;
+    const k = f.t / f.max;
+    const wall = wallPx(depth);
+    const fy = H / 2 + Math.tan(f.vang || 0) * projPx;
+    if (f.kind === "spark" || f.kind === "clang") {
+      const r = clamp(wall * 0.02, 1.2, 9) * (0.6 + k);
+      ctx.fillStyle = f.kind === "clang"
+        ? `rgba(210,225,255,${k})` : `rgba(255,236,170,${k})`;
+      ctx.beginPath(); ctx.arc(sx, fy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,255,240,${k * 0.9})`;
+      ctx.beginPath(); ctx.arc(sx, fy, r * 0.4, 0, Math.PI * 2); ctx.fill();
+      // a few sparks thrown off the strike, so an impact reads as an impact
+      for (let i = 0; i < 4; i++) {
+        const a2 = (i / 4) * Math.PI * 2 + f.max * 11;
+        const d2 = r * (1.4 + (1 - k) * 3.2);
+        ctx.fillStyle = `rgba(255,214,120,${k * 0.7})`;
+        ctx.fillRect(sx + Math.cos(a2) * d2, fy + Math.sin(a2) * d2, r * 0.4, r * 0.4);
+      }
+    } else if (f.kind === "blood") {
+      // Droplets, not a disc. One filled circle at close range covered the man's
+      // head and read as a floating red ball rather than as a hit.
+      const r = clamp(wall * TUNE.figureH * 0.045, 0.9, 7);
+      for (let i = 0; i < 6; i++) {
+        const a2 = (i / 6) * Math.PI * 2 + f.max * 17;
+        const d2 = r * (0.6 + (1 - k) * 3.4);
+        ctx.fillStyle = `rgba(148,31,36,${k * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(sx + Math.cos(a2) * d2, fy + Math.sin(a2) * d2 * 0.7,
+                r * (0.35 + 0.4 * (i % 2)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(190,44,48,${k * 0.75})`;
+      ctx.beginPath(); ctx.arc(sx, fy, r * 0.75, 0, Math.PI * 2); ctx.fill();
+    } else if (f.kind === "boom") {
+      const r = clamp(wall * 0.34, 4, 260) * (1.15 - k * 0.5);
+      const g = ctx.createRadialGradient(sx, H / 2, 0, sx, H / 2, r);
+      g.addColorStop(0, `rgba(255,244,206,${k})`);
+      g.addColorStop(0.45, `rgba(255,150,60,${k * 0.8})`);
+      g.addColorStop(1, "rgba(60,40,30,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sx, H / 2, r, 0, Math.PI * 2); ctx.fill();
+    } else if (f.kind === "flash") {
+      const r = clamp(wall * 0.6, 6, 520) * (1.2 - k * 0.4);
+      const g = ctx.createRadialGradient(sx, H / 2, 0, sx, H / 2, r);
+      g.addColorStop(0, `rgba(255,255,255,${k})`);
+      g.addColorStop(1, "rgba(255,255,235,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sx, H / 2, r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
 // Billboards, painted back to front and clipped per column against the z-buffer.
-function drawSprites(columns, cols, colW, projDist, wallPx) {
+function drawSprites(columns, cols, colW, projDist, wallPx, fov) {
   const p = game.player;
   const list = game.enemies.filter(e => true).map(e => ({
     e, d: Math.hypot(e.x - p.x, e.y - p.y),
   })).sort((a, b) => b.d - a.d);
 
   const dirX = Math.cos(p.face), dirY = Math.sin(p.face);
-  const planeLen = Math.tan(TUNE.fov / 2);
+  const planeLen = Math.tan(fov / 2);
   const planeX = -dirY * planeLen, planeY = dirX * planeLen;
   const invDet = 1 / (planeX * dirY - dirX * planeY);
 
@@ -850,15 +1315,17 @@ function taperQuad(g, ax, ay, bx2, by2, wa, wb) {
 
 function drawWeapon() {
   const p = game.player;
-  const id = WEAPONS[p.weaponIdx].id;
+  const id = (p.guns[p.gunIndex] || {}).id || "carbine";
   // length: butt-to-muzzle run in screen px. girth: half-width at butt / muzzle.
   const SHAPE = {
     carbine: { len: 330, buttW: 26, muzW: 11, mag: 62, stock: true },
     smg:     { len: 250, buttW: 25, muzW: 10, mag: 74, stock: false },
     shotgun: { len: 355, buttW: 30, muzW: 14, mag: 0,  stock: true },
     dmr:     { len: 400, buttW: 25, muzW: 10, mag: 48, stock: true },
+    saw:     { len: 420, buttW: 34, muzW: 13, mag: 96, stock: true },
+    shield:  { len: 150, buttW: 21, muzW: 9,  mag: 52, stock: false, bunker: true },
     sidearm: { len: 150, buttW: 21, muzW: 9,  mag: 52, stock: false },
-  }[id];
+  }[id] || { len: 330, buttW: 26, muzW: 11, mag: 62, stock: true };
 
   const K = clamp(H / 660, 0.85, 1.7);
   const bobT = game.t * 9;
@@ -943,6 +1410,65 @@ function drawWeapon() {
     ctx.restore();
   }
   ctx.restore();
+
+  // THE BUNKER. Without this the shield loadout was a pistol and a blue bar:
+  // nothing on screen said you were behind a wall, which is the entire loadout.
+  // It occupies the lower left because the gun is in the right hand, and it
+  // scuffs as the pool goes down so a spent shield looks spent.
+  if (shieldUp(p)) {
+    const wear = 1 - clamp(p.shieldHp / p.shieldMax, 0, 1);
+    const bw = W * 0.46, bh = H * 0.62;
+    const bx = -W * 0.06 + Math.sin(game.t * 1.7) * 3 * K;
+    const by = H - bh * 0.82 + Math.sin(game.t * 2.3) * 3 * K;
+    ctx.save();
+    // The first pass at this filled rgb(38,46,54) against a floor of rgb(42,44,40)
+    // and vanished: the shield was on screen and looked like ambient shadow.
+    // A gradient body, a hard dark outline and a lit leading edge separate it.
+    const face = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+    face.addColorStop(0, `rgba(88,100,112,${0.97 - wear * 0.10})`);
+    face.addColorStop(0.55, `rgba(58,68,79,${0.97 - wear * 0.10})`);
+    face.addColorStop(1, `rgba(34,41,48,${0.97 - wear * 0.10})`);
+    ctx.beginPath();
+    ctx.moveTo(bx, by + bh);
+    ctx.lineTo(bx, by + bh * 0.12);
+    ctx.quadraticCurveTo(bx + bw * 0.10, by, bx + bw * 0.42, by - bh * 0.02);
+    ctx.lineTo(bx + bw, by + bh * 0.30);
+    ctx.lineTo(bx + bw, by + bh);
+    ctx.closePath();
+    ctx.fillStyle = face; ctx.fill();
+    ctx.strokeStyle = "rgba(12,16,20,.95)"; ctx.lineWidth = 4 * K; ctx.stroke();
+    // the lit top edge, which is what actually reads as "a wall in front of you"
+    ctx.strokeStyle = "rgba(168,184,198,.55)"; ctx.lineWidth = 2.2 * K;
+    ctx.beginPath();
+    ctx.moveTo(bx, by + bh * 0.12);
+    ctx.quadraticCurveTo(bx + bw * 0.10, by, bx + bw * 0.42, by - bh * 0.02);
+    ctx.lineTo(bx + bw, by + bh * 0.30);
+    ctx.stroke();
+    // the viewport, and the ballistic glass in it
+    const vw = bw * 0.34, vh = bh * 0.15;
+    const vx = bx + bw * 0.30, vy = by + bh * 0.06;
+    ctx.fillStyle = `rgba(150,182,200,${0.26 - wear * 0.10})`;
+    ctx.fillRect(vx, vy, vw, vh);
+    ctx.strokeStyle = "rgba(14,19,24,.98)"; ctx.lineWidth = 4 * K;
+    ctx.strokeRect(vx, vy, vw, vh);
+    ctx.strokeStyle = "rgba(178,198,214,.35)"; ctx.lineWidth = 1.4 * K;
+    ctx.strokeRect(vx + 3 * K, vy + 3 * K, vw - 6 * K, vh - 6 * K);
+    // ribs, and the scuffing that tracks the pool
+    ctx.strokeStyle = "rgba(18,23,29,.65)"; ctx.lineWidth = 2.4 * K;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh * (0.30 + i * 0.17));
+      ctx.lineTo(bx + bw * (1 - i * 0.06), by + bh * (0.42 + i * 0.16));
+      ctx.stroke();
+    }
+    for (let i = 0; i < Math.floor(wear * 22); i++) {
+      const a2 = (i * 2.399);
+      ctx.fillStyle = "rgba(196,204,212,.30)";
+      ctx.fillRect(bx + bw * (0.18 + 0.62 * ((Math.sin(a2) + 1) / 2)),
+                   by + bh * (0.24 + 0.60 * ((Math.cos(a2 * 1.7) + 1) / 2)), 3 * K, 3 * K);
+    }
+    ctx.restore();
+  }
 }
 
 function drawHud() {
@@ -963,6 +1489,23 @@ function drawHud() {
   ctx.fillStyle = "rgba(225,235,240,.85)";
   ctx.fillRect(W / 2 - 1, H / 2 - 1, 2, 2);
 
+  // HIT MARKER. The unambiguous "that one landed" signal, and the thing whose
+  // absence made accuracy unreadable: with no impact, no tracer and no marker, a
+  // round that struck a man looked exactly like a round that struck nothing.
+  const hm = game.fx.find(f => f.kind === "hitmark" || f.kind === "killmark");
+  if (hm) {
+    const k = hm.t / hm.max, kill = hm.kind === "killmark";
+    const g = rPx + 4, len = kill ? 11 : 7;
+    ctx.strokeStyle = kill ? `rgba(224,82,82,${k})` : `rgba(255,255,255,${k})`;
+    ctx.lineWidth = kill ? 2.4 : 1.8;
+    for (const [ox, oy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + ox * g, H / 2 + oy * g);
+      ctx.lineTo(W / 2 + ox * (g + len), H / 2 + oy * (g + len));
+      ctx.stroke();
+    }
+  }
+
   // damage sting
   const sting = game.fx.find(f => f.kind === "sting");
   if (sting) {
@@ -970,8 +1513,16 @@ function drawHud() {
     ctx.fillRect(0, 0, W, H);
   }
 
+  // a flashbang you were standing in front of
+  const wo = game.fx.find(f => f.kind === "whiteout");
+  if (wo) { ctx.fillStyle = `rgba(255,255,250,${(wo.t / wo.max) * .95})`; ctx.fillRect(0, 0, W, H); }
+  if (p.blind > 0) {
+    ctx.fillStyle = `rgba(245,245,238,${clamp(p.blind / 3.6, 0, 1) * .55})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
   // bottom bar
-  const wpn = WEAPONS[p.weaponIdx], am = ammoOf(p);
+  const wpn = p.guns[p.gunIndex] || { name: "-" }, am = ammoOf(p);
   ctx.font = "600 13px ui-monospace, Menlo, monospace";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "rgba(10,13,15,.72)";
@@ -981,6 +1532,13 @@ function drawHud() {
   ctx.fillText(wpn.name, 16, H - 13);
   ctx.fillStyle = "#8fa0ad";
   ctx.fillText(am.name, 16 + ctx.measureText(wpn.name).width + 16, H - 13);
+
+  const nd = GRENADES[game.loadout.nade];
+  if (nd) {
+    ctx.fillStyle = p.nadeCool > 0 ? "#5d6a74" : "#8fa0ad";
+    ctx.fillText(nd.name, 16 + ctx.measureText(wpn.name).width + 16 +
+                 ctx.measureText(am.name).width + 20, H - 13);
+  }
 
   ctx.textAlign = "right";
   if (p.reloading > 0) { ctx.fillStyle = "#e0b74a"; ctx.fillText("RELOADING", W - 16, H - 13); }
@@ -995,6 +1553,28 @@ function drawHud() {
   ctx.fillStyle = "#1d2429"; ctx.fillRect(W / 2 - 70, H - 24, 140, 6);
   ctx.fillStyle = hpFrac > .5 ? "#5fae74" : hpFrac > .25 ? "#c9a03f" : "#c04a4a";
   ctx.fillRect(W / 2 - 70, H - 24, 140 * hpFrac, 6);
+
+  // the bunker's own pool, drawn only while it is actually up
+  if (shieldUp(p)) {
+    const sf = clamp(p.shieldHp / p.shieldMax, 0, 1);
+    ctx.fillStyle = "#1d2429"; ctx.fillRect(W / 2 - 70, H - 32, 140, 4);
+    ctx.fillStyle = "#5b8fc9"; ctx.fillRect(W / 2 - 70, H - 32, 140 * sf, 4);
+  } else if (p.hasShield) {
+    ctx.fillStyle = "#3a4148"; ctx.fillRect(W / 2 - 70, H - 32, 140, 4);
+  }
+
+  // THE OPENING BEAT. Worth saying out loud that it exists, because the whole
+  // point is that you spend it rather than wonder about it.
+  if (game.settleT > 0) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = `rgba(143,224,166,${clamp(game.settleT / TUNE.missionSettle, 0, 1) * .85})`;
+    ctx.fillText("THEY HAVE NOT SEEN YOU YET  " + game.settleT.toFixed(1) + "s", W / 2, 30);
+  }
+  if (game.hintT > 0 && game.hint) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = `rgba(219,228,234,${clamp(game.hintT, 0, 1) * .9})`;
+    ctx.fillText(game.hint, W / 2, H - 48);
+  }
 
   // state chips
   ctx.textAlign = "center";
@@ -1067,14 +1647,39 @@ function drawDebug(columns) {
 const overlay = document.getElementById("overlay");
 
 cv.addEventListener("click", () => { if (!input.locked) cv.requestPointerLock(); });
-overlay.addEventListener("click", () => cv.requestPointerLock());
+overlay.addEventListener("click", () => { if (game.started) cv.requestPointerLock(); });
 document.addEventListener("pointerlockchange", () => {
   input.locked = document.pointerLockElement === cv;
+  input.ads = false; input.firing = false;      // never strand a held button
   overlay.classList.toggle("hide", input.locked);
 });
 document.addEventListener("mousemove", e => { if (input.locked) input.mouseDX += e.movementX; });
-document.addEventListener("mousedown", e => { if (input.locked && e.button === 0) input.firing = true; });
-document.addEventListener("mouseup", e => { if (e.button === 0) input.firing = false; });
+document.addEventListener("mousedown", e => {
+  if (!input.locked) return;
+  if (e.button === 0) input.firing = true;
+  // RMB is STEADY, wearing a narrower field of view. MMB throws the grenade in
+  // your hand. In the source both of these were squad furniture; with nobody
+  // behind you the buttons are free, so they went to the two things a point man
+  // actually does on his own.
+  if (e.button === 2) input.ads = true;
+  if (e.button === 1) { throwNade(game.player, game.loadout.nade); e.preventDefault(); }
+});
+document.addEventListener("mouseup", e => {
+  if (e.button === 0) input.firing = false;
+  if (e.button === 2) input.ads = false;
+});
+document.addEventListener("contextmenu", e => e.preventDefault());
+// Scroll swaps primary <-> sidearm. On the shield loadout that IS the stow.
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (!input.locked) return;
+  const p = game.player;
+  const wasShield = shieldUp(p);
+  if (!swapGun(p)) return;
+  say(wasShield ? "BUNKER STOWED - two hands on the gun"
+     : p.hasShield && p.gunIndex === 0 ? "BUNKER UP"
+     : p.guns[p.gunIndex].name + " up");
+}, { passive: false });
 
 document.addEventListener("keydown", e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
@@ -1083,9 +1688,12 @@ document.addEventListener("keydown", e => {
   if (k === "e") tryDoor();
   if (k === "m") game.showMap = !game.showMap;
   if (k === "f") game.showDebug = !game.showDebug;
-  if (k === "x") { const p = game.player; p.ammoIdx = (p.ammoIdx + 1) % WEAPONS[p.weaponIdx].ammo.length; p.mag = 0; startReload(p); }
-  if (k >= "1" && k <= "5") equip(game.player, parseInt(k, 10) - 1);
-  if (k === "enter" && game.over) initGame();
+  if (k === "x") say(cycleAmmo(game.player));
+  if (k === "g") { const gi = (GRENADE_KEYS.indexOf(game.loadout.nade) + 1) % GRENADE_KEYS.length;
+                   game.loadout.nade = GRENADE_KEYS[gi]; say(GRENADES[game.loadout.nade].name + " in hand"); }
+  if (k === "q") { const p = game.player; const was = shieldUp(p);
+                   if (swapGun(p)) say(was ? "BUNKER STOWED" : p.guns[p.gunIndex].name + " up"); }
+  if (k === "enter" && game.over) { game.started = false; showBriefing(); }
   if ([" ", "w", "a", "s", "d"].includes(k)) e.preventDefault();
 });
 document.addEventListener("keyup", e => {
@@ -1103,10 +1711,46 @@ function frame(ts) {
   requestAnimationFrame(frame);
 }
 
+// ---- the briefing. ONE primary, carried for the mission: the pick is the point.
+function showBriefing() {
+  if (!overlay) return;
+  const rows = PRIMARY_KEYS.map((key, i) => {
+    const w = PRIMARIES[key];
+    const on = key === game.loadout.primary ? " on" : "";
+    return `<button class="pick${on}" data-key="${key}"><b>${i + 1}. ${w.name}</b>` +
+           `<span>${w.note}</span></button>`;
+  }).join("");
+  overlay.innerHTML =
+    `<div class="brief"><h1>PICK YOUR PRIMARY</h1>` +
+    `<p class="sub">One gun for the mission. Everybody carries a sidearm; SCROLL swaps to it, ` +
+    `which beats a reload. X changes what the primary is loaded with.</p>` +
+    `<div class="picks">${rows}</div>` +
+    `<button id="go" class="go">CLICK TO DEPLOY</button>` +
+    `<p class="keys">WASD move &middot; MOUSE look &middot; LMB fire &middot; RMB steady ` +
+    `&middot; MMB grenade &middot; G change grenade &middot; SCROLL or Q swap gun &middot; ` +
+    `R reload &middot; X ammo &middot; E door &middot; M map &middot; F debug</p></div>`;
+  overlay.classList.remove("hide");
+  overlay.querySelectorAll(".pick").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation();
+    game.loadout.primary = b.dataset.key;
+    game.loadout.ammo = PRIMARIES[b.dataset.key].ammo[0];
+    overlay.querySelectorAll(".pick").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+  }));
+  const go = overlay.querySelector("#go");
+  if (go) go.addEventListener("click", ev => {
+    ev.stopPropagation();
+    game.started = true;
+    initGame();
+    cv.requestPointerLock();
+  });
+}
+
 // Headless harness bootstraps by hand; a browser starts itself.
 if (typeof window !== "undefined" && typeof document !== "undefined" && cv) {
   resize();
   initGame();
+  showBriefing();
   requestAnimationFrame(frame);
 }
 
@@ -1114,17 +1758,68 @@ if (typeof window !== "undefined" && typeof document !== "undefined" && cv) {
 // against a DOM stub, so everything the tests touch has to be reachable here).
 if (typeof globalThis !== "undefined") {
   Object.assign(globalThis, {
-    TILE, deg, clamp, MATERIALS, AMMO, WEAPONS, TUNE, BASE,
+    TILE, deg, clamp, MATERIALS, AMMO, PRIMARIES, PRIMARY_KEYS, SIDEARM, SHIELD,
+    GRENADES, GRENADE_KEYS, AKM, TUNE, BASE,
     parseMap, MAP_SRC, castColumns, raycastHit, lineOfSight,
     materialAt, opaqueAt, solidForMove, moveCircle, circleHits,
     currentSpread, initGame, update, fire, startReload, updateBullets,
-    resolveImpact, segCircle, equip, ammoOf, game, input, render, resize,
+    resolveImpact, segCircle, ammoOf, equipLoadout, swapGun, shieldUp, moveMulOf,
+    cycleAmmo, shieldBlock, throwNade, updateNades, detonate, updateEnemies,
+    updateFx, addDecal, fovNow, drawDecals, drawWorldFx, game, input, render, resize,
     get level() { return level; },
   });
 }
 </script>
 
 <!-- CHANGELOG
+  v1.1 (2026-09-04): Everything Sam reported in the first playtest.
+
+    YOU CAN SEE YOUR SHOTS NOW. v1.0 pushed "spark" and "blood" into game.fx and
+    drew neither: grep returned the push site and nothing else. It never drew
+    game.bullets at all. Rounds crossed the room, struck a wall or a man, and
+    produced no pixel. Added tracers, impact sparks, blood, persistent bullet
+    holes capped at 96, and a hit marker. Holes and impacts sit on the horizon
+    because the simulation is 2D: rounds fly level, so a level round meets a wall
+    at eye height. Faking vertical scatter would lie about the one axis the
+    spread cone actually resolves.
+
+    THE SPAWN. Measured on v1.0: standing still and never firing killed you in
+    0.92s median, 200 times out of 200, with the first incoming round at 0.38s.
+    Three causes, all ported from the source rather than invented. TUNE.missionSettle
+    (2.5s) gives an unalerted man a SUSPICIOUS state instead of a trigger, and
+    gunfire is deliberately exempt so the first shot ends it for everyone. The
+    reaction clock rolls one of three bands on acquisition (cold, alerted, or
+    already looking your way) in place of v1.0's flat 0.23s ramp. And the
+    garrison now carries the AKM with 2-5 round burst discipline instead of the
+    player's own MP5 fired continuously. Measured after: first incoming 2.67s,
+    death 3.40s at the earliest.
+
+    WEAPON NUMBERS RE-PORTED FROM v0.89. v1.0 was ported from a build predating
+    the accuracy pass and carried the rejected values throughout: carbine cone
+    0.54deg against 0.34, range 900 against 1150; shotgun 95rpm against 180,
+    which had it cycling slower than the marksman rifle; buckshot 7deg against
+    4.4, wide enough to spray past a doorway across a room. A test now pins every
+    one of them.
+
+    ONE PRIMARY, PICKED AT A BRIEFING. Five hot slots on the number row deleted
+    every downside a gun had, so the pick is now a commitment. Added the SAW and
+    PISTOL + SHIELD. Everyone carries a sidearm and scroll swaps to it, at no
+    dead time: the source charged 0.35s, and per Sam the worse gun in your hand
+    is already the price. X cycles the primary's ammunition and costs most of a
+    reload.
+
+    THE SHIELD STOWS. The source refuses this outright ("the bunker buys the
+    primary slot, so there is no second gun to swap to"). Sam's answer needs no
+    new numbers because both states were already in v0.89 and nobody had wired a
+    door between them: scroll drops the bunker for a two-handed grip. Cone 1.35
+    to 0.99deg, reload 1.9 to 1.5s, move 0.75x to 1.0x. Reversible, because it
+    already bleeds you every second you hold it.
+
+    RMB IS STEADY, wearing a narrower field. Same steadyMul, same cone maths as
+    Space; the FOV pulls 75 to 52 degrees so more pixels land on the same angle.
+    MMB throws a grenade, G swaps frag for flashbang, and a blinded man does not
+    shoot.
+
   v1.0 (2026-09-04): Initial proof of concept. DDA column solver split as a pure
     function from the painter; procedural per-material wall textures; billboard
     enemies clipped per column against a z-buffer; sliding doors; the

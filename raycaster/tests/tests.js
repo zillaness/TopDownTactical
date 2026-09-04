@@ -1,9 +1,9 @@
 // file: tests.js (raycaster-poc/tests)
-// version: 1.0
+// version: 1.1
 // author: Sam Cao
 // created: 2026-09-04
 // last_updated: 2026-09-04
-// description: Headless assertions for the raycaster column solver, world queries, and weapon model.
+// description: Headless assertions for the raycaster column solver, world queries, weapon model, loadouts, the spawn reaction clock, and impact feedback.
 // ai_update: Update last_updated and version. Append changelog at bottom.
 
 let PASS = 0, FAIL = 0;
@@ -236,7 +236,7 @@ head("shooting THROUGH a wall — the headline mechanic");
   // Map row 7 columns 1-7 are drywall (resist 5). Stand south of it and put a
   // man on the far side, out of sight. FMJ (pen 26) must reach him; HP (pen 4)
   // must not.
-  function tryThroughWall(ammoIdx) {
+  function tryThroughWall(ammoKey) {
     initGame();
     const p = game.player;
     for (const o of game.enemies) o.alive = false;
@@ -246,7 +246,7 @@ head("shooting THROUGH a wall — the headline mechanic");
     p.recoil = 0; p.turnBloom = 0; p.moving = false; p.sprinting = false;
     e.x = 4 * TILE + 16; e.y = 5 * TILE + 16;
     const blind = !lineOfSight(p.x, p.y, e.x, e.y);
-    p.ammoIdx = ammoIdx;
+    p.ammoType = ammoKey;
     const hp0 = e.hp;
     for (let i = 0; i < 40; i++) {
       p.cool = 0; p.mag = p.weapon.mag; fire(p);
@@ -254,13 +254,13 @@ head("shooting THROUGH a wall — the headline mechanic");
     }
     return { blind, dealt: hp0 - e.hp, wall: materialAt(4, 7) };
   }
-  const fmj = tryThroughWall(0);   // carbine slot 0 = fmj
+  const fmj = tryThroughWall("fmj");   // pen 26 against the drywall's resist 5
   ok("the wall between them is drywall", fmj.wall === MATERIALS.drywall);
   ok("he is not visible through it", fmj.blind);
   ok("5.56 FMJ kills through drywall", fmj.dealt > 0, "dealt " + fmj.dealt.toFixed(1));
   ok("penetrations were counted", game.penetrations > 0, game.penetrations + " crossings");
 
-  const hp = tryThroughWall(1);    // carbine slot 1 = hp, pen 4 vs resist 5
+  const hp = tryThroughWall("hp");     // pen 4, which does not beat resist 5
   ok("5.56 HP does NOT reach him through the same wall", hp.dealt === 0,
      "dealt " + hp.dealt.toFixed(1));
 }
@@ -296,9 +296,271 @@ head("the sim runs without exploding");
      game.player.x > 0 && game.player.x < level.w * TILE, game.player.x.toFixed(0));
 }
 
+
+// ---------------------------------------------------------------------------
+head("the spawn is survivable  (v1.0 killed you 200/200 in 0.92s)");
+{
+  // v1.0 had no settle and no reaction clock: every enemy went from zero to
+  // firing in a flat 0.23s, and one of them sits 6.3 tiles from the start with
+  // clear line of sight. Standing still and never firing was a guaranteed death
+  // inside a second. This is the regression guard for that.
+  let deaths = 0, firstShot = [], N = 120;
+  for (let i = 0; i < N; i++) {
+    initGame();
+    let shot = null;
+    for (let f = 0; f < 60 * 6; f++) {
+      update(1 / 60);
+      if (shot === null && game.bullets.some(b => b.side === "enemy")) shot = f / 60;
+      if (!game.player.alive) { deaths++; break; }
+    }
+    if (shot !== null) firstShot.push(shot);
+  }
+  const earliest = firstShot.length ? Math.min(...firstShot) : Infinity;
+  ok("nobody shoots during the settle", earliest >= TUNE.missionSettle,
+     "earliest incoming round " + earliest.toFixed(2) + "s vs settle " + TUNE.missionSettle + "s");
+  ok("you are not dead before the settle expires", deaths === 0 || earliest >= TUNE.missionSettle,
+     deaths + "/" + N + " died within 6s");
+  // The clock is a ROLL, not a constant. v1.0's flat ramp produced one value.
+  const spread = firstShot.length > 1 ? Math.max(...firstShot) - earliest : 0;
+  ok("the reaction clock varies between spawns", spread > 0.15,
+     "spread " + spread.toFixed(2) + "s across " + firstShot.length + " runs");
+}
+
+head("gunfire is exempt from the settle");
+{
+  initGame();
+  ok("the settle is running at spawn", game.settleT > 0, game.settleT.toFixed(2) + "s");
+  fire(game.player);
+  ok("your first round ends it for everyone", game.settleT === 0,
+     "otherwise the opening beat would be a free clear");
+}
+
+head("the garrison carries an AKM, not your MP5");
+{
+  initGame();
+  const e = game.enemies[0];
+  ok("enemy weapon is the AKM", e.weapon === AKM, e.guns[0].name);
+  ok("it is worse than yours", AKM.spreadBase > PRIMARIES.carbine.w.spreadBase,
+     `${(AKM.spreadBase * 180 / Math.PI).toFixed(2)}deg vs ${(PRIMARIES.carbine.w.spreadBase * 180 / Math.PI).toFixed(2)}deg`);
+  ok("it fires in bursts", Array.isArray(AKM.burst) && Array.isArray(AKM.burstPause),
+     AKM.burst.join("-") + " rounds, then " + AKM.burstPause.join("-") + "s");
+  // Burst discipline means a pause actually lands.
+  let paused = false;
+  for (let i = 0; i < 40 && !paused; i++) { e.cool = 0; e.mag = 30; fire(e); if (e.burstPause > 0) paused = true; }
+  ok("a burst ends in a pause", paused, "burstPause " + e.burstPause.toFixed(2) + "s");
+}
+
+head("weapon numbers match top-down-tactical v0.89");
+{
+  // v1.0 was ported from a build predating the accuracy pass and carried the
+  // rejected values. These are the current ones; this guard fails on drift.
+  const d = a => +(a * 180 / Math.PI).toFixed(2);
+  ok("carbine cone is 0.34deg, not the old 0.54", d(PRIMARIES.carbine.w.spreadBase) === 0.34);
+  ok("carbine reaches 1150, not the old 900", PRIMARIES.carbine.w.range === 1150);
+  ok("carbine reloads in 1.45s, not the old 1.9", PRIMARIES.carbine.w.reload === 1.45);
+  ok("shotgun cycles at 180rpm, not the old 95", PRIMARIES.shotgun.w.rpm === 180);
+  ok("shotgun no longer cycles slower than the DMR",
+     PRIMARIES.shotgun.w.rpm > PRIMARIES.dmr.w.rpm,
+     `${PRIMARIES.shotgun.w.rpm} vs ${PRIMARIES.dmr.w.rpm}`);
+  ok("buckshot patterns at 4.4deg, not the old 7", d(AMMO.buck.spread) === 4.4);
+  ok("birdshot patterns at 7.2deg, not the old 11", d(AMMO.bird.spread) === 7.2);
+  ok("DMR cone is 0.19deg, not the old 0.32", d(PRIMARIES.dmr.w.spreadBase) === 0.19);
+  ok("SMG reloads in 1.15s, not the old 1.8", PRIMARIES.smg.w.reload === 1.15);
+  ok("a buck pattern is narrower than a doorway across a room",
+     Math.tan(AMMO.buck.spread / 2) * 2 * (10 * TILE) < TILE,
+     (Math.tan(AMMO.buck.spread / 2) * 2 * (10 * TILE)).toFixed(1) + "px at 10 tiles vs a " + TILE + "px door");
+}
+
+head("one primary, picked at the briefing, plus a sidearm on scroll");
+{
+  initGame();
+  const p = game.player;
+  ok("six primaries to choose between", PRIMARY_KEYS.length === 6, PRIMARY_KEYS.join(" "));
+  // A missing id silently falls back to the carbine's shape, so the shield man
+  // was drawn holding a rifle. Caught in a screenshot, not by any assertion.
+  ok("every primary names a viewmodel shape",
+     PRIMARY_KEYS.every(k => PRIMARIES[k].id === k),
+     PRIMARY_KEYS.filter(k => PRIMARIES[k].id !== k).join(",") || "all six");
+  ok("the sidearm names one too", SIDEARM.id === "sidearm");
+  ok("you carry exactly two guns", p.guns.length === 2, p.guns.map(g => g.name).join(" + "));
+  ok("slot 1 is always the sidearm", p.guns[1].name === SIDEARM.name);
+  const before = p.guns[0].name;
+  swapGun(p);
+  ok("scroll reaches the sidearm", p.weapon === SIDEARM.w, p.guns[p.gunIndex].name);
+  ok("the swap costs no dead time", p.cool === 0, "Sam's call: the worse gun IS the price");
+  ok("the sidearm beats reloading the primary", SIDEARM.w.reload < PRIMARIES.saw.w.reload,
+     `${SIDEARM.w.reload}s vs the SAW's ${PRIMARIES.saw.w.reload}s`);
+  swapGun(p);
+  ok("and back to the primary", p.guns[p.gunIndex].name === before, before);
+  // Ammo cycling belongs to the primary and costs most of a reload.
+  p.reloading = 0;
+  const msg = cycleAmmo(p);
+  ok("X changes what the primary is loaded with", p.ammoType !== "fmj", msg);
+  ok("and it costs most of a reload", p.reloading > p.weapon.reload * 0.5,
+     p.reloading.toFixed(2) + "s");
+  swapGun(p);
+  ok("the sidearm feeds what it feeds", cycleAmmo(p).includes("feeds"));
+}
+
+head("the shield: scroll STOWS it");
+{
+  game.loadout.primary = "shield"; game.loadout.ammo = "pistol";
+  initGame();
+  const p = game.player;
+  ok("the bunker is up on the primary slot", shieldUp(p), p.shieldHp + "hp");
+  ok("it costs you speed while it is up", moveMulOf(p) < 1, moveMulOf(p) + "x");
+  const coneUp = p.weapon.spreadBase, reloadUp = p.weapon.reload;
+  swapGun(p);
+  ok("swapping to the sidearm stows it", !shieldUp(p));
+  ok("stowed, you get your legs back", moveMulOf(p) === 1);
+  ok("stowed, the cone tightens", p.weapon.spreadBase < coneUp,
+     `${(p.weapon.spreadBase * 180 / Math.PI).toFixed(2)}deg from ${(coneUp * 180 / Math.PI).toFixed(2)}deg`);
+  ok("stowed, the reload speeds up", p.weapon.reload < reloadUp,
+     `${p.weapon.reload}s from ${reloadUp}s`);
+  swapGun(p);
+  ok("and it is reversible", shieldUp(p), "the live question is WHEN to stow it");
+
+  // Directional: it is a wall you POINT. He faces +x, so a round arriving from
+  // in front of him is one TRAVELLING -x. Passing travelAng 0 here would be a
+  // round taking him in the back, which the bunker is supposed to ignore.
+  p.face = 0;
+  p.shieldHp = SHIELD.hp;
+  const front = shieldBlock(p, 100, AMMO.pistol.pen, Math.PI);
+  ok("a round from the front is eaten", front < 100, front.toFixed(1) + " of 100 got through");
+  p.shieldHp = SHIELD.hp;
+  const back = shieldBlock(p, 100, AMMO.pistol.pen, 0);
+  ok("a round from behind is not", back === 100, "you are carrying it, not wearing it");
+  p.shieldHp = SHIELD.hp;
+  const flank = shieldBlock(p, 100, AMMO.pistol.pen, -Math.PI / 2);
+  ok("a round from the flank is not", flank === 100, "worth nothing from the side");
+  p.shieldHp = SHIELD.hp;
+  ok("carrying it costs the pool", (shieldBlock(p, 100, AMMO.pistol.pen, Math.PI), p.shieldHp < SHIELD.hp),
+     p.shieldHp.toFixed(0) + " of " + SHIELD.hp + " left");
+  p.shieldHp = SHIELD.hp;
+  ok("AP defeats it", shieldBlock(p, 100, AMMO.ap.pen, Math.PI) > 50,
+     "pen " + AMMO.ap.pen + " against rating " + SHIELD.rating);
+  p.shieldHp = 0;
+  ok("a shot-through bunker stops nothing", shieldBlock(p, 100, AMMO.pistol.pen, Math.PI) === 100,
+     "and you are still carrying the weight");
+  game.loadout.primary = "carbine"; game.loadout.ammo = "fmj";
+}
+
+head("grenades");
+{
+  initGame();
+  const p = game.player;
+  p.x = 3 * TILE + 16; p.y = 2 * TILE + 16; p.face = 0;
+  const from = { x: p.x, y: p.y };
+  ok("MMB throws one", throwNade(p, "frag") && game.nades.length === 1);
+  ok("and it will not throw a second immediately", !throwNade(p, "frag"),
+     "the only cost is cadence");
+  let landed = null;
+  for (let i = 0; i < 60 * 3; i++) {
+    if (game.nades[0]) landed = { x: game.nades[0].x, y: game.nades[0].y };
+    updateNades(1 / 60);
+  }
+  ok("it goes off", game.nades.length === 0);
+  const carry = Math.hypot(landed.x - from.x, landed.y - from.y) / TILE;
+  ok("a throw carries across a room, not across the map", carry > 3 && carry < 9,
+     carry.toFixed(1) + " tiles");
+
+  // Damage, staged rather than thrown, so the assertion is about the blast and
+  // not about where a throw happens to land.
+  initGame();
+  const near2 = game.enemies[1];
+  near2.x = 4 * TILE + 16; near2.y = 10 * TILE + 16;      // 2 tiles south, open floor
+  const nhp = near2.hp;
+  game.nades.push({ x: 4 * TILE + 16, y: 8 * TILE + 16, vx: 0, vy: 0, fuse: 0.01,
+                    kind: "frag", side: "player", alive: true });
+  for (let i = 0; i < 30; i++) updateNades(1 / 60);
+  ok("a frag hurts what it can see", near2.hp < nhp, (nhp - near2.hp).toFixed(1) + " damage");
+
+  // Same range, same charge, one drywall partition in between. Row 7 is drywall.
+  initGame();
+  const behind = game.enemies[1];
+  behind.x = 4 * TILE + 16; behind.y = 6 * TILE + 16;     // 2 tiles north, through row 7
+  const bhp = behind.hp;
+  ok("the partition really is between them",
+     !lineOfSight(4 * TILE + 16, 8 * TILE + 16, behind.x, behind.y));
+  ok("and it is inside the blast radius",
+     Math.hypot(0, (8 - 6) * TILE) < GRENADES.frag.radius,
+     ((8 - 6) * TILE) + "px vs a " + GRENADES.frag.radius + "px radius");
+  game.nades.push({ x: 4 * TILE + 16, y: 8 * TILE + 16, vx: 0, vy: 0, fuse: 0.01,
+                    kind: "frag", side: "player", alive: true });
+  for (let i = 0; i < 30; i++) updateNades(1 / 60);
+  ok("it does not reach through a wall", behind.hp === bhp);
+
+  // flash blinds instead of killing
+  initGame();
+  const t = game.enemies[1], thp = t.hp;
+  game.nades.push({ x: t.x, y: t.y, vx: 0, vy: 0, fuse: 0.01, kind: "flash", side: "player", alive: true });
+  for (let i = 0; i < 30; i++) updateNades(1 / 60);
+  ok("a flashbang blinds", t.blind > 0, t.blind.toFixed(2) + "s");
+  ok("and does not wound", t.hp === thp);
+  t.face = Math.atan2(game.player.y - t.y, game.player.x - t.x);
+  let firedWhileBlind = false;
+  for (let i = 0; i < 60 && t.blind > 0; i++) { updateEnemies(1 / 60); if (game.bullets.length) firedWhileBlind = true; }
+  ok("a blinded man does not shoot", !firedWhileBlind);
+}
+
+head("you can finally SEE where the rounds went");
+{
+  // v1.0 pushed spark and blood into game.fx and drew neither, and never drew
+  // game.bullets at all. Nothing here asserts pixels — that is a Chromium job —
+  // but the state the painter reads has to exist and be reachable.
+  initGame();
+  const p = game.player;
+  p.x = 3 * TILE + 16; p.y = 2 * TILE + 16; p.face = -Math.PI / 2;   // face the north wall
+  p.recoil = 0; p.turnBloom = 0; p.moving = false;
+  game.decals = [];
+  p.cool = 0; p.mag = 30; fire(p);
+  for (let i = 0; i < 60; i++) updateBullets(1 / 240);
+  ok("a round that strikes a wall leaves a hole", game.decals.length > 0,
+     game.decals.length + " decals");
+  ok("and throws a spark", game.fx.some(f => f.kind === "spark"));
+  ok("the painter can find both", typeof drawDecals === "function" && typeof drawWorldFx === "function");
+
+  // the cap holds
+  for (let i = 0; i < TUNE.decalMax + 40; i++) addDecal(100, 100, "player");
+  ok("holes are capped", game.decals.length <= TUNE.decalMax,
+     game.decals.length + " of " + TUNE.decalMax);
+
+  // a round into a man produces blood AND a hit marker
+  initGame();
+  const e2 = game.enemies[1];
+  const p2 = game.player;
+  p2.x = e2.x - 60; p2.y = e2.y; p2.face = 0;
+  p2.recoil = 0; p2.turnBloom = 0; p2.moving = false; p2.cool = 0; p2.mag = 30;
+  fire(p2);
+  for (let i = 0; i < 60; i++) updateBullets(1 / 240);
+  ok("a hit on a man bleeds", game.fx.some(f => f.kind === "blood"));
+  ok("and posts a hit marker", game.fx.some(f => f.kind === "hitmark" || f.kind === "killmark"),
+     "the unambiguous 'that one landed' signal");
+}
+
+head("RMB is the source game's STEADY, wearing a narrower field");
+{
+  initGame();
+  const p = game.player;
+  p.recoil = 0; p.turnBloom = 0; p.moving = false; p.sprinting = false;
+  p.steady = false; const hip = currentSpread(p);
+  p.steady = true;  const ads = currentSpread(p);
+  ok("steady tightens the cone by steadyMul", near(ads, hip * TUNE.steadyMul, 1e-9),
+     `${(hip * 180 / Math.PI).toFixed(3)}deg -> ${(ads * 180 / Math.PI).toFixed(3)}deg`);
+  game.adsT = 0; ok("hip fire uses the full field", near(fovNow(), TUNE.fov, 1e-9));
+  game.adsT = 1; ok("ADS pulls it in", fovNow() < TUNE.fov,
+     `${(TUNE.fov * 180 / Math.PI).toFixed(0)}deg -> ${(fovNow() * 180 / Math.PI).toFixed(0)}deg`);
+  game.adsT = 0;
+}
+
 // ---------------------------------------------------------------------------
 console.log(`\n${PASS} CORRECT, ${FAIL} WRONG`);
 if (FAIL > 0) process.exit(1);
 
 // CHANGELOG
 // v1.0 (2026-09-04): Initial suite — solver, fisheye, penetration, spread, doors, movement, LOS.
+// v1.1 (2026-09-04): Spawn survivability and the reaction clock; settle and its
+//   gunfire exemption; the AKM and burst discipline; a drift guard pinning every
+//   weapon number to v0.89; briefing loadouts, the sidearm swap and ammo cycling;
+//   the shield stow, its arc and AP defeating it; grenades; and the impact
+//   feedback state that v1.0 created and never drew.
