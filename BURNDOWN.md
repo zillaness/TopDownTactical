@@ -50,7 +50,42 @@ unit unsaved, because a limit error mid-unit is what actually loses work.
   actually aim: v1.1 moved the camera and left the gun where it was, so the
   weapon now comes onto the centreline with a rear aperture and a front post.
   Suite 136 CORRECT / 0 WRONG. Committed b8f043f, on `main`.
-- ▶ NEXT: Sam plays v1.2 and reports. Nothing is queued ahead of that, because
+- 12:2x ✅ raycaster v1.3 (comfort, figures that turn) and v1.4 (red dot optic).
+- 12:3x ✅ **THE ART LANDED, and nearly got deleted.** It is on
+  `claude/raycaster-poc` under `raycaster-poc/assets/`, commit c5a1094, pushed
+  AFTER the earlier check that concluded that branch "carries nothing unique".
+  278 files, 83.3MiB. This is the CLAUDE.md trap verbatim: Codex pushes art to
+  its own branches, never main. **The branch must not be deleted**, and the
+  earlier advice to Sam that it was disposable has been retracted to him.
+- ▶ NEXT: Sam signs off the art PRD (scope A walls-only vs B walls+sedan,
+  and the q92 encode). Nothing is inlined until he does.
+
+### The art drop, measured
+
+Not a texture pack. Four damage stages per material (intact / punctured /
+opened / breached) whose aperture geometry is shared between player sight,
+bullets, AI detection and movement, plus a grey sedan in eight bearings and
+three glass states. Authored against the game's real model: the sedan manifest
+carries world dimensions 4.75 x 1.78 x 1.46m (one tile is one metre), an
+`engine_block` cover volume, `bullet_energy_retained_per_pane: 0.6` and
+`max_deflection_degrees_per_pane: 3.5` (the raycaster's dmgKeep and defl), and
+`monotonic_from_previous` on every stage (damage can never appear to heal).
+
+Wire budget, measured not estimated. Ceiling 1,310,720; current file 32,717;
+headroom 1,278,003.
+
+| encoding | wire | verdict |
+|---|---|---|
+| PNG as shipped | 1,440,351 | **breaks the ceiling by 162,348** |
+| lossless WebP | 952,948 | fits, but eats 75% of all headroom |
+| **WebP q92** | **263,832** | 20.6% of headroom, error 2.58/255 mean, 3.80 worst |
+| walls only, q92 | 125,131 | 9.8% |
+| sedan only, q92 | 138,701 | 10.9% |
+
+Every mask and manifest together is under 45KB and is not a budget question.
+
+NO FIGURE ART in the drop. Enemies stay code-drawn, and the eight-facing figure
+sheet is still outstanding. The sedan proves the pipeline can produce bearings. Nothing is queued ahead of that, because
   every remaining item is a judgement call he has not made yet.
 
 ### Found in passing, belongs to the GAME and not the raycaster
