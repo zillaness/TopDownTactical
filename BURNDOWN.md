@@ -3,7 +3,7 @@ file: BURNDOWN.md (top-down-tactical)
 version: 1.0
 author: Sam Cao
 created: 2026-08-07
-last_updated: 2026-08-18
+last_updated: 2026-09-04
 description: Living ranked backlog and checkpoint ledger for the top-down-tactical project, compatible with the token-burndown skill's ledger format.
 ai_update: Update last_updated in this frontmatter (filename stays BURNDOWN.md). Keep the ▶ NEXT line current at all times. Append ✅ ledger lines with commit hashes as units finish; never delete finished lines. Bump version only on structural changes to this file.
 ---
@@ -14,6 +14,51 @@ Ranked queue of work units for this project. Every unit is small,
 partial-completable, and committed on completion — the same discipline
 as a token-burndown night, so `/burndown` and the token-burndown skill
 can both drive this file.
+
+## Burndown night — 2026-09-04 (5h window; Sam at 49% when it started)
+
+Working the RAYCASTER experiment under `raycaster/`, not the game. Meter
+readings from Sam at ~01:00: 49% on the 5-hour limit, 37% weekly, 55% Fable.
+Weekly is not the binding constraint; the 5-hour window is. Continuity is
+handled by a self-trigger rather than by pacing: `trig_01V4FF9NKNf8vWT8Rjh9dJ5r`
+fires at 12:15 UTC, after the window rolls over, and carries the state it needs
+to resume. Standing rule for the night is the skill's: never hold more than one
+unit unsaved, because a limit error mid-unit is what actually loses work.
+
+### Ledger
+
+- 01:0x ✅ Verified the deployed v1.0: both suites green, `main` at 8434044,
+  the stray `claude/raycaster-poc` branch carries nothing unique (game and test
+  files byte-identical, two metadata lines differ).
+- 01:1x ✅ Diagnosed the spawn with a headless probe: 200/200 deaths standing
+  still, median 0.92s, first incoming 0.38s. Root causes were no settle, a flat
+  0.23s reaction ramp, and the garrison carrying the player's MP5.
+- 01:2x ✅ Found the feedback bug by grep: `spark` and `blood` were pushed into
+  `game.fx` and never drawn, and `game.bullets` never reached the render path.
+  Three of four effects were dead code.
+- 01:3x ✅ Diffed the POC's weapon table against v0.89 and found it was ported
+  from a build predating the accuracy pass, carrying the rejected numbers
+  throughout.
+- 08:0x ✅ raycaster v1.1 — impact feedback, the spawn port, re-ported weapon
+  numbers, briefing loadouts, the shield stow, RMB ADS, MMB grenades.
+  Suite 130 CORRECT / 0 WRONG. Chromium-verified. Committed e6ddc39, merged
+  fast-forward to `main` and pushed. 27,312 bytes over the wire.
+- ▶ NEXT: Sam plays v1.1 and reports. Nothing is queued ahead of that, because
+  every remaining item is a judgement call he has not made yet.
+
+### Waiting on Sam (do not guess these)
+
+- The stray `claude/raycaster-poc` branch: delete or keep. Carries nothing.
+- Raycaster art at `C:\Users\Sam\Documents\Codex\2026-09-03\can-x20\outputs`,
+  which no sandbox can reach. Needs pushing to a branch or dropping in
+  `assets/incoming/`. A PRD follows once the contents are known.
+- Armour (four tiers, rating against penetration, sprint cost) — deferred by Sam.
+- Suppressor — deferred by Sam.
+- M203 — never named in scope; needs a projectile arc and a fuse that will not
+  arm inside 170px, so it is a build of its own.
+- Two assumptions shipped in v1.1 that he can still veto: the shield stow is
+  REVERSIBLE, and the grenade is frag plus flashbang on G rather than a single
+  type.
 
 ## Burndown night — 2026-08-07 (reset 8:00am PDT / 15:00 UTC)
 
