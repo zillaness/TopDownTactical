@@ -43,8 +43,27 @@ unit unsaved, because a limit error mid-unit is what actually loses work.
   numbers, briefing loadouts, the shield stow, RMB ADS, MMB grenades.
   Suite 130 CORRECT / 0 WRONG. Chromium-verified. Committed e6ddc39, merged
   fast-forward to `main` and pushed. 27,312 bytes over the wire.
-- ▶ NEXT: Sam plays v1.1 and reports. Nothing is queued ahead of that, because
+- 08:2x ✅ raycaster v1.2 — Sam played v1.1 and found two things. Moved the
+  enemy out of the spawn room, which was the third of the three original causes
+  and the one deliberately deferred; measured 0/200 deaths and no incoming round
+  at all inside ten seconds, against v1.0's 200/200 at 0.92s. And made ADS
+  actually aim: v1.1 moved the camera and left the gun where it was, so the
+  weapon now comes onto the centreline with a rear aperture and a front post.
+  Suite 136 CORRECT / 0 WRONG. Committed b8f043f, on `main`.
+- ▶ NEXT: Sam plays v1.2 and reports. Nothing is queued ahead of that, because
   every remaining item is a judgement call he has not made yet.
+
+### Found in passing, belongs to the GAME and not the raycaster
+
+- **`sim[dynamic] map21 LAST LIGHT` never finishes.** It runs to the sim's 480s
+  cap in `end=play` with the player alive and the squad largely intact, goal
+  `HOLD THE POSITION`, and the harness counts that as a failure. Roughly one run
+  in four. Every other map in the batch finishes in 6 to 60 seconds. It is not
+  caused by any raycaster work: that diff touches zero game files, and it
+  reproduces on 8434044. Could genuinely be either side — a hold-the-position
+  mission may be meant to run to a timer, in which case the harness expectation
+  is what is wrong. Queued as a task card for Sam rather than fixed, because
+  top-down-tactical is not to be touched without his say-so.
 
 ### Waiting on Sam (do not guess these)
 
