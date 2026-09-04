@@ -1,0 +1,1136 @@
+<!--
+  file: raycaster_poc_v1.0.html
+  version: 1.0
+  author: Sam Cao
+  created: 2026-09-04
+  last_updated: 2026-09-04
+  description: Wolfenstein-style first-person raycaster proof of concept, carrying the top-down-tactical weapon model (spread, recoil, turn bloom, material penetration) into a first-person camera.
+  ai_update: Update last_updated and version. Rename file to match. Append changelog comment at bottom.
+
+  SCOPE: this is an EXPERIMENT that happens to share a repository with the game.
+  It shares no code with it: nothing here imports from, reads, or modifies the
+  top-down-tactical build, and that project's GOAL.md is untouched. The weapon
+  constants below were transcribed from its tuning tables because they are good
+  numbers, not because the two are linked. Nothing here is a build direction.
+-->
+<meta charset="utf-8">
+<title>Raycaster POC</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0a0c0e; overflow: hidden;
+    font: 13px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #c8d2da; }
+  #view { display: block; width: 100vw; height: 100vh; cursor: crosshair; image-rendering: pixelated; }
+  #overlay { position: fixed; inset: 0; display: grid; place-items: center;
+    background: rgba(6,8,10,.92); text-align: center; padding: 24px; }
+  #overlay.hide { display: none; }
+  #overlay h1 { font-size: 22px; letter-spacing: .14em; margin: 0 0 6px; color: #e8eef3; font-weight: 600; }
+  #overlay .sub { color: #7d8b96; margin-bottom: 22px; letter-spacing: .04em; }
+  #overlay table { border-collapse: collapse; margin: 0 auto 20px; font-size: 12px; }
+  #overlay td { padding: 3px 12px; text-align: left; color: #9aa8b3; }
+  #overlay td.k { text-align: right; color: #e8eef3; }
+  kbd { background: #1b2228; border: 1px solid #2c363e; border-radius: 3px;
+    padding: 1px 6px; color: #dbe4ea; font: inherit; }
+  #overlay .go { color: #6fd08c; letter-spacing: .1em; }
+  #overlay .note { color: #5d6a74; font-size: 11px; margin-top: 18px; max-width: 460px; line-height: 1.6; }
+</style>
+
+<canvas id="view"></canvas>
+<div id="overlay">
+  <div>
+    <h1>RAYCASTER POC</h1>
+    <div class="sub">first-person proof of concept &middot; tactical weapon model</div>
+    <table>
+      <tr><td class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>move</td>
+          <td class="k"><kbd>Mouse</kbd></td><td>look</td></tr>
+      <tr><td class="k"><kbd>Shift</kbd></td><td>sprint (wrecks your aim)</td>
+          <td class="k"><kbd>Space</kbd></td><td>steady the sights</td></tr>
+      <tr><td class="k"><kbd>LMB</kbd></td><td>fire</td>
+          <td class="k"><kbd>R</kbd></td><td>reload</td></tr>
+      <tr><td class="k"><kbd>1</kbd>&ndash;<kbd>5</kbd></td><td>select weapon</td>
+          <td class="k"><kbd>X</kbd></td><td>cycle ammunition</td></tr>
+      <tr><td class="k"><kbd>E</kbd></td><td>open / close door</td>
+          <td class="k"><kbd>M</kbd></td><td>minimap</td></tr>
+      <tr><td class="k"><kbd>F</kbd></td><td>debug readout</td>
+          <td class="k"><kbd>Esc</kbd></td><td>release mouse</td></tr>
+    </table>
+    <div class="go">CLICK TO PLAY</div>
+    <div class="note">
+      Walls are not all the same. Drywall and wood pass rifle rounds and cost the
+      bullet damage on the way through; concrete stops everything. Shoot the grey
+      partitions, not the blue-grey ones. A snapped shot is a worse shot than a
+      pied one.
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ===========================================================================
+// S0  constants and the weapon model
+//
+// The tables in this section are transcribed from the top-down-tactical
+// tuning file. They are reproduced here so this experiment stands alone; there
+// is no import, no shared module, and no coupling between the two projects.
+// ===========================================================================
+
+const TILE = 32;                       // world pixels per map cell
+function deg(d) { return d * Math.PI / 180; }
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function rand(a, b) { return a + Math.random() * (b - a); }
+function angDiff(a, b) { let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
+
+// `opaque` is cover for the eyes; `resist` is cover for bullets. A material can
+// be one without being the other, which is the whole point of the table.
+// `dmgKeep` is the fraction of damage a round retains after punching through.
+const MATERIALS = {
+  air:        { resist: 0,   opaque: false, dmgKeep: 1,    defl: 0,        col: null },
+  concrete:   { name: "concrete",  resist: 999, opaque: true, dmgKeep: 0,    defl: 0,        col: "#46545f" },
+  brick:      { name: "brick",     resist: 30,  opaque: true, dmgKeep: 0.45, defl: deg(9),   col: "#845345" },
+  wood:       { name: "wood",      resist: 13,  opaque: true, dmgKeep: 0.65, defl: deg(6),   col: "#80623a" },
+  drywall:    { name: "drywall",   resist: 5,   opaque: true, dmgKeep: 0.85, defl: deg(3.5), col: "#6d777f" },
+  glass:      { name: "glass",     resist: 3,   opaque: false,dmgKeep: 0.9,  defl: deg(7),   col: "#8ed9f2" },
+  sheetmetal: { name: "sheet metal",resist: 11, opaque: true, dmgKeep: 0.6,  defl: deg(7),   col: "#788792" },
+  door:       { name: "a door",    resist: 13,  opaque: true, dmgKeep: 0.65, defl: deg(6),   col: "#9a6b3c" },
+};
+
+const AMMO = {
+  fmj:   { name: "5.56 FMJ", pen: 26, dmgMul: 1.00 },
+  hp:    { name: "5.56 HP",  pen: 4,  dmgMul: 1.30 },   // will not cross drywall
+  ap:    { name: "5.56 AP",  pen: 46, dmgMul: 0.85 },
+  pistol:{ name: "9mm FMJ",  pen: 12, dmgMul: 1.00 },
+  hp9:   { name: "9mm HP",   pen: 3,  dmgMul: 1.25 },
+  buck:  { name: "BUCKSHOT", pen: 13, dmgMul: 0.75, pellets: 6, spread: deg(7) },
+  bird:  { name: "BIRDSHOT", pen: 2,  dmgMul: 0.45, pellets: 9, spread: deg(11) },
+  slug:  { name: "SLUG",     pen: 34, dmgMul: 1.70 },
+};
+
+const TUNE = {
+  moveSpeed: 196, sprintMul: 1.62, walkMul: 0.52,
+  accel: 1400, friction: 12,          // this POC adds acceleration; the source game has none
+  spreadSprint: deg(11),
+  steadyMul: 0.6,
+  recoilRamp: 1.55, recoilSettle: 1.0,
+  turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
+  mouseSens: 0.0022,
+  fov: deg(75),
+  wallH: 1.8,        // walls are 1.8 tiles tall, so a room has a ceiling
+  figureH: 0.62,     // a man against that ceiling
+  viewDist: 900,
+  playerHp: 100,
+};
+
+const BASE = { dmg: 34, rpm: 640, mag: 30, reload: 1.9, speed: 1500, ammo: "fmj",
+  spreadBase: deg(0.54), spreadMove: deg(5.5), spreadWalkMove: deg(2.4),
+  recoil: deg(0.62), recoilMax: deg(7), recoilDecay: deg(5.5), range: 900, penMul: 1 };
+
+const WEAPONS = [
+  { id: "carbine", name: "M4 CARBINE", ammo: ["fmj", "hp", "ap"], w: { ...BASE } },
+  { id: "smg", name: "MP5 SMG", ammo: ["pistol", "hp9"],
+    w: { ...BASE, dmg: 24, rpm: 800, mag: 30, reload: 1.8, range: 560,
+         spreadBase: deg(0.72), recoil: deg(0.45), recoilDecay: deg(5), penMul: 0.7 } },
+  { id: "shotgun", name: "SHOTGUN", ammo: ["buck", "slug", "bird"],
+    w: { ...BASE, dmg: 30, rpm: 95, mag: 7, reload: 3.2, range: 430,
+         spreadBase: deg(1.08), recoil: deg(3), recoilMax: deg(9) } },
+  { id: "dmr", name: "MARKSMAN RIFLE", ammo: ["fmj", "ap", "hp"],
+    w: { ...BASE, dmg: 68, rpm: 160, mag: 20, reload: 2.9, range: 1100,
+         spreadBase: deg(0.32), spreadMove: deg(12), spreadWalkMove: deg(5),
+         recoil: deg(3.2), recoilMax: deg(11), recoilDecay: deg(9), penMul: 1.15 } },
+  { id: "sidearm", name: "SIDEARM", ammo: ["pistol", "hp9"],
+    w: { ...BASE, dmg: 22, rpm: 380, mag: 15, reload: 1.5, range: 480,
+         spreadBase: deg(0.99), spreadMove: deg(7), recoil: deg(0.9),
+         recoilMax: deg(7), recoilDecay: deg(6), penMul: 0.7, speed: 1150 } },
+];
+
+// The cone of a shot, assembled from everything the shooter is doing wrong.
+// Ported verbatim in structure from the source game's currentSpread().
+function currentSpread(s) {
+  const t = s.weapon;
+  let sp = t.spreadBase + s.recoil;
+  if (s.turnBloom) sp += Math.min(TUNE.turnBloomMax, s.turnBloom);
+  if (s.sprinting) sp += TUNE.spreadSprint;
+  if (s.steady) sp *= TUNE.steadyMul;
+  if (s.moving) sp += s.walking ? (t.spreadWalkMove ?? t.spreadMove * 0.45) : t.spreadMove;
+  return sp;
+}
+
+// ===========================================================================
+// S1  the map
+// ===========================================================================
+//   #  concrete (stops everything)      =  brick
+//   -  drywall (rifle passes)           |  wood partition
+//   %  sheet metal                      g  glass (see through, shoot through)
+//   D  door                             .  floor
+//   @  player start                     e  enemy
+// ===========================================================================
+
+const MAP_SRC = [
+  "########################################",
+  "#....................#.................#",
+  "#..@.................|.......e.........#",
+  "#....................|.................#",
+  "#........e...........|.................#",
+  "#....................D.................#",
+  "#....................|.................#",
+  "#-------D------------|--------ggg------#",
+  "#..........#.........|.................#",
+  "#..........#....e....|......e..........#",
+  "#..........#.........|.................#",
+  "#..........#=========+=====D===========#",
+  "#..........#...........................#",
+  "#..........D..........%%%%%%%%.........#",
+  "#..........#..........%.......%........#",
+  "#....e.....#..........%...e...%........#",
+  "#..........#..........%.......D........#",
+  "#..........#..........%%%%%%%%%........#",
+  "#..........#...........................#",
+  "########################################",
+];
+
+const GLYPH = { "#": "concrete", "=": "brick", "+": "brick", "-": "drywall",
+                "|": "wood", "%": "sheetmetal", "g": "glass", "D": "door" };
+
+function parseMap(src) {
+  const h = src.length, w = src[0].length;
+  const mat = [], doors = [], enemies = [];
+  let start = null;
+  for (let y = 0; y < h; y++) {
+    mat.push(new Array(w).fill(0));
+    for (let x = 0; x < w; x++) {
+      const ch = src[y][x];
+      if (GLYPH[ch]) mat[y][x] = GLYPH[ch];
+      if (ch === "D") doors.push({ tx: x, ty: y, open: 0, target: 0 });
+      if (ch === "@") start = { x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 };
+      if (ch === "e") enemies.push({ x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 });
+    }
+  }
+  return { w, h, mat, doors, start, enemySpawns: enemies };
+}
+
+let level = parseMap(MAP_SRC);
+
+function inBounds(tx, ty) { return tx >= 0 && ty >= 0 && tx < level.w && ty < level.h; }
+function doorAt(tx, ty) {
+  for (const d of level.doors) if (d.tx === tx && d.ty === ty) return d;
+  return null;
+}
+// What a round meets at this cell. A door that has slid more than halfway open
+// stops being a material at all.
+function materialAt(tx, ty) {
+  if (!inBounds(tx, ty)) return MATERIALS.concrete;
+  const key = level.mat[ty][tx];
+  if (!key) return MATERIALS.air;
+  if (key === "door") {
+    const d = doorAt(tx, ty);
+    return d && d.open > 0.5 ? MATERIALS.air : MATERIALS.door;
+  }
+  return MATERIALS[key];
+}
+function opaqueAt(tx, ty) { return materialAt(tx, ty).opaque; }
+function solidForMove(tx, ty) {
+  if (!inBounds(tx, ty)) return true;
+  const key = level.mat[ty][tx];
+  if (!key) return false;
+  if (key === "glass") return true;             // a frame still stops a body
+  if (key === "door") { const d = doorAt(tx, ty); return !(d && d.open > 0.6); }
+  return true;
+}
+
+// ===========================================================================
+// S2  the column solver  (pure — no canvas, no globals beyond the level)
+//
+// Amanatides-Woo DDA per screen column. Split out as a pure function precisely
+// so it can be asserted headlessly: the painter below is deliberately too dumb
+// to hide a bug.
+// ===========================================================================
+
+// Returns one record per column, left to right:
+//   { dist, mat, side, texU, tx, ty, hit }
+// `dist` is the PERPENDICULAR distance to the projection plane, not the
+// euclidean distance to the wall — using euclidean here is the classic fisheye
+// bug, and it bows a flat wall by 26% at the edge of a 75 degree view.
+function castColumns(px, py, ang, fov, cols, maxDist) {
+  const out = new Array(cols);
+  const dirX = Math.cos(ang), dirY = Math.sin(ang);
+  // Camera plane, perpendicular to the view direction, half-length tan(fov/2).
+  // Stepping the plane linearly (not the angle) is what keeps a flat wall flat.
+  const planeLen = Math.tan(fov / 2);
+  const planeX = -dirY * planeLen, planeY = dirX * planeLen;
+
+  for (let c = 0; c < cols; c++) {
+    const camX = 2 * c / cols - 1;                    // -1 .. +1 across the screen
+    const rdX = dirX + planeX * camX, rdY = dirY + planeY * camX;
+
+    let mapX = Math.floor(px / TILE), mapY = Math.floor(py / TILE);
+    const deltaX = Math.abs(rdX) < 1e-9 ? 1e30 : Math.abs(1 / rdX);
+    const deltaY = Math.abs(rdY) < 1e-9 ? 1e30 : Math.abs(1 / rdY);
+    const fx = px / TILE - mapX, fy = py / TILE - mapY;
+    let stepX, stepY, sideDistX, sideDistY;
+    if (rdX < 0) { stepX = -1; sideDistX = fx * deltaX; }
+    else         { stepX =  1; sideDistX = (1 - fx) * deltaX; }
+    if (rdY < 0) { stepY = -1; sideDistY = fy * deltaY; }
+    else         { stepY =  1; sideDistY = (1 - fy) * deltaY; }
+
+    let side = 0, hit = null, perp = 0;
+    const maxTiles = maxDist / TILE;
+    for (let guard = 0; guard < 512; guard++) {
+      if (sideDistX < sideDistY) { perp = sideDistX; sideDistX += deltaX; mapX += stepX; side = 0; }
+      else                       { perp = sideDistY; sideDistY += deltaY; mapY += stepY; side = 1; }
+      if (perp > maxTiles) break;
+      if (!inBounds(mapX, mapY)) { hit = MATERIALS.concrete; break; }
+      const m = materialAt(mapX, mapY);
+      if (m.opaque) { hit = m; break; }
+    }
+
+    if (!hit) { out[c] = { dist: maxDist, mat: null, side, texU: 0, tx: mapX, ty: mapY, hit: false }; continue; }
+
+    const distPx = perp * TILE;
+    // Where along the face the ray landed, for texturing.
+    let wall = side === 0 ? py / TILE + perp * rdY : px / TILE + perp * rdX;
+    wall -= Math.floor(wall);
+    if ((side === 0 && rdX > 0) || (side === 1 && rdY < 0)) wall = 1 - wall;
+
+    out[c] = { dist: Math.max(distPx, 1e-3), mat: hit, side, texU: wall,
+               tx: mapX, ty: mapY, hit: true };
+  }
+  return out;
+}
+
+// A single ray, for bullets and for enemy line of sight. Returns the first
+// opaque OR bullet-resisting cell, depending on `test`.
+function raycastHit(px, py, ang, maxDist, test) {
+  const rdX = Math.cos(ang), rdY = Math.sin(ang);
+  let mapX = Math.floor(px / TILE), mapY = Math.floor(py / TILE);
+  const deltaX = Math.abs(rdX) < 1e-9 ? 1e30 : Math.abs(1 / rdX);
+  const deltaY = Math.abs(rdY) < 1e-9 ? 1e30 : Math.abs(1 / rdY);
+  const fx = px / TILE - mapX, fy = py / TILE - mapY;
+  let stepX, stepY, sdX, sdY;
+  if (rdX < 0) { stepX = -1; sdX = fx * deltaX; } else { stepX = 1; sdX = (1 - fx) * deltaX; }
+  if (rdY < 0) { stepY = -1; sdY = fy * deltaY; } else { stepY = 1; sdY = (1 - fy) * deltaY; }
+  let side = 0, perp = 0;
+  const maxTiles = maxDist / TILE;
+  for (let guard = 0; guard < 512; guard++) {
+    if (sdX < sdY) { perp = sdX; sdX += deltaX; mapX += stepX; side = 0; }
+    else           { perp = sdY; sdY += deltaY; mapY += stepY; side = 1; }
+    if (perp > maxTiles) return null;
+    if (!inBounds(mapX, mapY)) return { tx: mapX, ty: mapY, d: perp * TILE, side, mat: MATERIALS.concrete };
+    const m = materialAt(mapX, mapY);
+    if (test(m)) return { tx: mapX, ty: mapY, d: perp * TILE, side, mat: m,
+                          x: px + rdX * perp * TILE, y: py + rdY * perp * TILE };
+  }
+  return null;
+}
+const TEST_SIGHT  = m => m.opaque;
+const TEST_BULLET = m => m.resist > 0;
+
+function lineOfSight(ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy);
+  if (d < 1) return true;
+  const h = raycastHit(ax, ay, Math.atan2(dy, dx), d, TEST_SIGHT);
+  return !h || h.d >= d - 0.5;
+}
+
+// ===========================================================================
+// S3  movement
+// ===========================================================================
+
+function moveCircle(x, y, dx, dy, r) {
+  let nx = x + dx;
+  if (!circleHits(nx, y, r)) x = nx;
+  let ny = y + dy;
+  if (!circleHits(x, ny, r)) y = ny;
+  return { x, y };
+}
+function circleHits(x, y, r) {
+  const t0x = Math.floor((x - r) / TILE), t1x = Math.floor((x + r) / TILE);
+  const t0y = Math.floor((y - r) / TILE), t1y = Math.floor((y + r) / TILE);
+  for (let ty = t0y; ty <= t1y; ty++)
+    for (let tx = t0x; tx <= t1x; tx++)
+      if (solidForMove(tx, ty)) return true;
+  return false;
+}
+
+// ===========================================================================
+// S4  game state
+// ===========================================================================
+
+const game = {
+  t: 0, player: null, enemies: [], bullets: [], fx: [],
+  showMap: false, showDebug: false, paused: false, over: null,
+  shots: 0, hits: 0, kills: 0, penetrations: 0,
+};
+
+function makeShooter(x, y, side) {
+  return { x, y, r: 9, face: 0, hp: 100, alive: true, side,
+    recoil: 0, turnBloom: 0, moving: false, walking: false, sprinting: false,
+    steady: false, cool: 0, reloading: 0, weaponIdx: 0, ammoIdx: 0,
+    mag: 0, weapon: null, muzzle: 0 };
+}
+
+function equip(s, idx) {
+  s.weaponIdx = clamp(idx, 0, WEAPONS.length - 1);
+  s.ammoIdx = 0;
+  s.weapon = WEAPONS[s.weaponIdx].w;
+  s.mag = s.weapon.mag;
+  s.reloading = 0;
+}
+function ammoOf(s) { return AMMO[WEAPONS[s.weaponIdx].ammo[s.ammoIdx]]; }
+
+function initGame() {
+  level = parseMap(MAP_SRC);
+  game.t = 0; game.bullets = []; game.fx = []; game.over = null;
+  game.shots = 0; game.hits = 0; game.kills = 0; game.penetrations = 0;
+  const p = makeShooter(level.start.x, level.start.y, "player");
+  p.hp = TUNE.playerHp; p.vx = 0; p.vy = 0;
+  equip(p, 0);
+  game.player = p;
+  game.enemies = level.enemySpawns.map(sp => {
+    const e = makeShooter(sp.x, sp.y, "enemy");
+    e.hp = 70; e.face = rand(0, Math.PI * 2);
+    e.weaponIdx = 1; e.ammoIdx = 0; e.weapon = WEAPONS[1].w; e.mag = e.weapon.mag;
+    e.alertness = 0; e.think = 0;
+    return e;
+  });
+}
+
+// ===========================================================================
+// S5  shooting  —  the tactical weapon model in a first-person camera
+// ===========================================================================
+
+function fire(s) {
+  if (s.cool > 0 || s.reloading > 0) return;
+  if (s.mag <= 0) { startReload(s); return; }
+  const w = s.weapon, a = ammoOf(s);
+  s.mag--;
+  s.cool = 60 / w.rpm;
+  s.muzzle = 0.06;
+  const spread = currentSpread(s);
+  const pellets = a.pellets || 1;
+  for (let i = 0; i < pellets; i++) {
+    const cone = a.pellets ? a.spread : spread;
+    const ang = s.face + rand(-cone / 2, cone / 2);
+    game.bullets.push({
+      x: s.x + Math.cos(s.face) * 12, y: s.y + Math.sin(s.face) * 12,
+      ang, spd: w.speed, dmg: w.dmg * a.dmgMul, pen: a.pen * (w.penMul || 1),
+      side: s.side, traveled: 0, range: w.range, alive: true, ricochets: 0,
+      penetrated: [],
+    });
+  }
+  // Recoil ramps while you hold the trigger; it settles when you stop.
+  s.recoil = Math.min(w.recoilMax, s.recoil + w.recoil * TUNE.recoilRamp);
+  if (s === game.player) game.shots++;
+}
+
+function startReload(s) {
+  if (s.reloading > 0 || s.mag === s.weapon.mag) return;
+  s.reloading = s.weapon.reload;
+}
+
+function updateBullets(dt) {
+  for (const b of game.bullets) {
+    if (!b.alive) continue;
+    let remain = b.spd * dt;
+    let guard = 0;
+    while (remain > 0 && b.alive && guard++ < 64) {
+      const step = Math.min(remain, TILE * 0.5);
+      const nx = b.x + Math.cos(b.ang) * step, ny = b.y + Math.sin(b.ang) * step;
+
+      // bodies first
+      const victims = b.side === "enemy" ? [game.player] : game.enemies;
+      let struck = null;
+      for (const v of victims) {
+        if (!v || !v.alive) continue;
+        if (segCircle(b.x, b.y, nx, ny, v.x, v.y, v.r)) { struck = v; break; }
+      }
+      if (struck) {
+        struck.hp -= b.dmg;
+        b.alive = false;
+        game.fx.push({ kind: "blood", x: struck.x, y: struck.y, t: .25, max: .25 });
+        if (b.side === "player") game.hits++;
+        if (struck.hp <= 0 && struck.alive) {
+          struck.alive = false;
+          if (struck !== game.player) game.kills++;
+          else game.over = "DOWN";
+        } else if (struck === game.player) {
+          game.fx.push({ kind: "sting", t: .3, max: .3 });
+        }
+        break;
+      }
+
+      // then geometry
+      const tx = Math.floor(nx / TILE), ty = Math.floor(ny / TILE);
+      const mat = materialAt(tx, ty);
+      if (mat.resist > 0) {
+        resolveImpact(b, nx, ny, tx, ty, mat);
+        if (!b.alive) break;
+      } else {
+        b.x = nx; b.y = ny;
+      }
+      b.traveled += step;
+      remain -= step;
+      if (b.traveled > b.range) b.alive = false;
+    }
+  }
+  game.bullets = game.bullets.filter(b => b.alive);
+}
+
+// Penetration is caliber against material resistance, straight from the source
+// game: beat the resist and you come out the far side, crooked and weaker.
+function resolveImpact(b, hx, hy, tx, ty, mat) {
+  game.fx.push({ kind: "spark", x: hx, y: hy, t: .1, max: .1 });
+  if (b.pen > mat.resist) {
+    b.pen -= mat.resist;
+    b.dmg *= mat.dmgKeep;
+    b.ang += rand(-mat.defl, mat.defl);
+    b.penetrated.push(mat.name || "a wall");
+    if (b.side === "player") game.penetrations++;
+    const skip = TILE * 1.05;
+    b.x = hx + Math.cos(b.ang) * skip;
+    b.y = hy + Math.sin(b.ang) * skip;
+    b.traveled += skip;
+    if (b.dmg < 4) b.alive = false;
+    return;
+  }
+  b.alive = false;
+}
+
+function segCircle(x1, y1, x2, y2, cx, cy, r) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? ((cx - x1) * dx + (cy - y1) * dy) / len2 : 0;
+  t = clamp(t, 0, 1);
+  const px = x1 + dx * t, py = y1 + dy * t;
+  return Math.hypot(px - cx, py - cy) <= r;
+}
+
+// ===========================================================================
+// S6  update
+// ===========================================================================
+
+const input = { keys: {}, mouseDX: 0, firing: false, locked: false };
+
+function update(dt) {
+  game.t += dt;
+  const p = game.player;
+  if (!p || !p.alive) { updateFx(dt); return; }
+
+  // ---- look
+  const yawWas = p.face;
+  p.face += input.mouseDX * TUNE.mouseSens;
+  input.mouseDX = 0;
+  const swung = Math.abs(angDiff(p.face, yawWas));
+  // Whipping the muzzle onto a new contact opens the cone. Snapped shot, worse
+  // shot. This is what makes cornering slowly pay.
+  p.turnBloom = Math.max(0, p.turnBloom - dt * TUNE.turnBloomDecay) + swung * TUNE.turnBloomGain;
+
+  // ---- move
+  const k = input.keys;
+  let ix = 0, iy = 0;
+  if (k["w"]) iy += 1; if (k["s"]) iy -= 1;
+  if (k["d"]) ix += 1; if (k["a"]) ix -= 1;
+  const mag = Math.hypot(ix, iy);
+  p.sprinting = !!k["shift"] && mag > 0 && iy > 0;
+  p.steady = !!k[" "] && !p.sprinting;
+  p.walking = p.steady;
+  const speed = TUNE.moveSpeed * (p.sprinting ? TUNE.sprintMul : p.walking ? TUNE.walkMul : 1);
+
+  let wx = 0, wy = 0;
+  if (mag > 0) {
+    const fx = Math.cos(p.face), fy = Math.sin(p.face);
+    wx = (fx * iy - fy * ix) / mag;
+    wy = (fy * iy + fx * ix) / mag;
+  }
+  // The source game assigns position straight from speed, so movement is
+  // instant-on and instant-off. A fixed overhead camera hides that completely;
+  // at eye level it reads as skating, so this POC adds an acceleration model.
+  p.vx += (wx * speed - p.vx) * Math.min(1, dt * TUNE.friction);
+  p.vy += (wy * speed - p.vy) * Math.min(1, dt * TUNE.friction);
+  const moved = moveCircle(p.x, p.y, p.vx * dt, p.vy * dt, p.r);
+  p.x = moved.x; p.y = moved.y;
+  p.moving = Math.hypot(p.vx, p.vy) > 12;
+
+  // ---- weapon
+  p.recoil = Math.max(0, p.recoil - dt * p.weapon.recoilDecay * TUNE.recoilSettle);
+  p.cool = Math.max(0, p.cool - dt);
+  p.muzzle = Math.max(0, p.muzzle - dt);
+  if (p.reloading > 0) {
+    p.reloading -= dt;
+    if (p.reloading <= 0) { p.mag = p.weapon.mag; p.reloading = 0; }
+  } else if (input.firing) fire(p);
+
+  updateEnemies(dt);
+  updateDoors(dt);
+  updateBullets(dt);
+  updateFx(dt);
+
+  if (game.enemies.every(e => !e.alive) && !game.over) game.over = "CLEAR";
+}
+
+function updateDoors(dt) {
+  for (const d of level.doors) {
+    const before = d.open;
+    d.open += clamp(d.target - d.open, -dt * 2.2, dt * 2.2);
+    if (before !== d.open) d.open = clamp(d.open, 0, 1);
+  }
+}
+
+function updateEnemies(dt) {
+  const p = game.player;
+  for (const e of game.enemies) {
+    if (!e.alive) continue;
+    e.recoil = Math.max(0, e.recoil - dt * e.weapon.recoilDecay);
+    e.cool = Math.max(0, e.cool - dt);
+    e.muzzle = Math.max(0, e.muzzle - dt);
+    if (e.reloading > 0) {
+      e.reloading -= dt;
+      if (e.reloading <= 0) { e.mag = e.weapon.mag; e.reloading = 0; }
+      continue;
+    }
+    if (!p.alive) continue;
+    const d = Math.hypot(p.x - e.x, p.y - e.y);
+    const see = d < 620 && lineOfSight(e.x, e.y, p.x, p.y);
+    if (see) {
+      e.alertness = Math.min(1, e.alertness + dt * 2.4);
+      const want = Math.atan2(p.y - e.y, p.x - e.x);
+      const turn = angDiff(want, e.face);
+      e.face += clamp(turn, -dt * deg(220), dt * deg(220));
+      e.moving = false;
+      if (e.alertness > 0.55 && Math.abs(turn) < deg(12)) {
+        if (e.mag <= 0) startReload(e);
+        else fire(e);
+      }
+    } else {
+      e.alertness = Math.max(0, e.alertness - dt * 0.5);
+    }
+  }
+}
+
+function updateFx(dt) {
+  for (const f of game.fx) f.t -= dt;
+  game.fx = game.fx.filter(f => f.t > 0);
+}
+
+function tryDoor() {
+  const p = game.player;
+  const fx = Math.cos(p.face), fy = Math.sin(p.face);
+  for (let s = 8; s <= 48; s += 8) {
+    const tx = Math.floor((p.x + fx * s) / TILE), ty = Math.floor((p.y + fy * s) / TILE);
+    const d = doorAt(tx, ty);
+    if (d) { d.target = d.target > 0.5 ? 0 : 1; return true; }
+  }
+  return false;
+}
+
+// ===========================================================================
+// S7  rendering
+// ===========================================================================
+
+const cv = document.getElementById("view");
+const ctx = cv.getContext("2d", { alpha: false });
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.floor(window.innerWidth);
+  H = Math.floor(window.innerHeight);
+  cv.width = Math.floor(W * DPR);
+  cv.height = Math.floor(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener("resize", resize);
+
+// Procedural per-material textures. A flat-shaded box gives the eye nothing to
+// track and makes movement feel worse than it is.
+const TEX_W = 32, TEX_H = 32;
+const texCache = {};
+function textureFor(key) {
+  if (texCache[key]) return texCache[key];
+  const c = document.createElement("canvas");
+  c.width = TEX_W; c.height = TEX_H;
+  const g = c.getContext("2d");
+  const base = MATERIALS[key] ? MATERIALS[key].col : "#555";
+  g.fillStyle = base; g.fillRect(0, 0, TEX_W, TEX_H);
+  const shade = (x, y, w, h, a) => { g.fillStyle = `rgba(0,0,0,${a})`; g.fillRect(x, y, w, h); };
+  const light = (x, y, w, h, a) => { g.fillStyle = `rgba(255,255,255,${a})`; g.fillRect(x, y, w, h); };
+  if (key === "brick") {
+    for (let row = 0; row < 8; row++) {
+      const off = row % 2 ? 8 : 0;
+      shade(0, row * 4 + 3, TEX_W, 1, .35);
+      for (let bx = 0; bx < 3; bx++) shade((bx * 16 + off) % TEX_W, row * 4, 1, 4, .3);
+    }
+  } else if (key === "wood" || key === "door") {
+    for (let i = 0; i < TEX_W; i += 4) shade(i, 0, 1, TEX_H, .18);
+    for (let i = 0; i < 5; i++) shade(0, (i * 7 + 2) % TEX_H, TEX_W, 1, .1);
+    if (key === "door") { light(TEX_W - 9, 15, 4, 3, .55); shade(2, 0, 2, TEX_H, .25); }
+  } else if (key === "drywall") {
+    light(0, 0, TEX_W, TEX_H, .10);                       // paper face, paler than concrete
+    for (let i = 0; i < 40; i++) shade(Math.floor(Math.random() * TEX_W), Math.floor(Math.random() * TEX_H), 1, 1, .05);
+    shade(0, 10, TEX_W, 1, .16); shade(0, 22, TEX_W, 1, .16);   // taped seams
+    for (let i = 4; i < TEX_W; i += 8) shade(i, 0, 1, TEX_H, .10);  // studs behind
+    light(0, 11, TEX_W, 1, .10); light(0, 23, TEX_W, 1, .10);
+  } else if (key === "sheetmetal") {
+    for (let i = 0; i < TEX_W; i += 3) light(i, 0, 1, TEX_H, .06);
+    shade(0, TEX_H - 2, TEX_W, 2, .3);
+  } else if (key === "concrete") {
+    for (let i = 0; i < 120; i++) shade(Math.floor(Math.random() * TEX_W), Math.floor(Math.random() * TEX_H), 1, 1, .09);
+    shade(0, 15, TEX_W, 1, .22);
+  } else if (key === "glass") {
+    light(4, 4, 10, 20, .12); light(18, 8, 6, 14, .08);
+  }
+  const img = g.getImageData(0, 0, TEX_W, TEX_H);
+  texCache[key] = img;
+  return img;
+}
+function matKeyOf(mat) {
+  for (const k in MATERIALS) if (MATERIALS[k] === mat) return k;
+  return "concrete";
+}
+
+let colBuf = null, zBuf = null;
+
+function render() {
+  const p = game.player;
+  const cols = Math.max(120, Math.floor(W / 2));   // half-res columns, upscaled
+  const colW = W / cols;
+
+  // ceiling and floor
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H / 2);
+  skyGrad.addColorStop(0, "#14191e"); skyGrad.addColorStop(1, "#1e262c");
+  ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, W, H / 2);
+  const flGrad = ctx.createLinearGradient(0, H / 2, 0, H);
+  flGrad.addColorStop(0, "#191b1a"); flGrad.addColorStop(1, "#2a2c28");
+  ctx.fillStyle = flGrad; ctx.fillRect(0, H / 2, W, H / 2);
+
+  const columns = castColumns(p.x, p.y, p.face, TUNE.fov, cols, TUNE.viewDist);
+  if (!zBuf || zBuf.length !== cols) zBuf = new Float32Array(cols);
+
+  // Projection: a wall is one tile tall, so its screen height is the plane
+  // distance over the perpendicular distance.
+  const projDist = (cols / 2) / Math.tan(TUNE.fov / 2);
+  // One wall-height function, used by walls and sprites alike. The eye sits at
+  // mid-wall, so a wall is symmetric about the horizon and a body standing on
+  // the floor has its feet at the wall's base.
+  const wallPx = d => (TILE * TUNE.wallH / d) * projDist * colW;
+
+  for (let c = 0; c < cols; c++) {
+    const col = columns[c];
+    zBuf[c] = col.hit ? col.dist : Infinity;
+    if (!col.hit) continue;
+    const hgt = wallPx(col.dist);
+    const y0 = H / 2 - hgt / 2;
+    const key = matKeyOf(col.mat);
+    const tex = textureFor(key);
+    const texX = clamp(Math.floor(col.texU * TEX_W), 0, TEX_W - 1);
+
+    // distance shading, plus a constant darkening of the Y faces so corners read
+    const fog = clamp(1 - col.dist / TUNE.viewDist, 0.08, 1);
+    const sideMul = col.side === 1 ? 0.72 : 1;
+
+    // draw the texture column as a few vertical bands (cheap, and it upscales
+    // the way a chunky raycaster should look)
+    const bands = 16;
+    const bandH = hgt / bands;
+    for (let b = 0; b < bands; b++) {
+      const ty = Math.floor((b + 0.5) / bands * TEX_H);
+      const o = (ty * TEX_W + texX) * 4;
+      const r = tex.data[o], g = tex.data[o + 1], bl = tex.data[o + 2];
+      const m = fog * sideMul;
+      ctx.fillStyle = `rgb(${Math.round(r * m)},${Math.round(g * m)},${Math.round(bl * m)})`;
+      ctx.fillRect(c * colW, y0 + b * bandH, colW + 1, bandH + 1);
+    }
+    // glass reads as a pane, not a wall
+    if (key === "glass") {
+      ctx.fillStyle = `rgba(140,215,240,${0.10 * fog})`;
+      ctx.fillRect(c * colW, y0, colW + 1, hgt);
+    }
+  }
+
+  drawSprites(columns, cols, colW, projDist, wallPx);
+  drawWeapon();
+  drawHud();
+  if (game.showMap) drawMinimap();
+  if (game.showDebug) drawDebug(columns);
+}
+
+// Billboards, painted back to front and clipped per column against the z-buffer.
+function drawSprites(columns, cols, colW, projDist, wallPx) {
+  const p = game.player;
+  const list = game.enemies.filter(e => true).map(e => ({
+    e, d: Math.hypot(e.x - p.x, e.y - p.y),
+  })).sort((a, b) => b.d - a.d);
+
+  const dirX = Math.cos(p.face), dirY = Math.sin(p.face);
+  const planeLen = Math.tan(TUNE.fov / 2);
+  const planeX = -dirY * planeLen, planeY = dirX * planeLen;
+  const invDet = 1 / (planeX * dirY - dirX * planeY);
+
+  for (const { e, d } of list) {
+    const rx = e.x - p.x, ry = e.y - p.y;
+    const tX = invDet * (dirY * rx - dirX * ry);
+    const tY = invDet * (-planeY * rx + planeX * ry);   // depth along the view
+    if (tY <= 1) continue;
+    const screenX = (cols / 2) * (1 + tX / tY) * colW;
+    const wall = wallPx(tY);
+    const h = wall * TUNE.figureH;          // a man is shorter than the ceiling
+    const w = h * 0.55;
+    const yBase = H / 2 + wall / 2;         // feet on the floor, not floating
+    const fog = clamp(1 - tY / TUNE.viewDist, 0.1, 1);
+    drawFigure(screenX - w / 2, yBase - h, w, h, e, fog, tY, colW, cols);
+  }
+}
+
+function drawFigure(x, y, w, h, e, fog, depth, colW, cols) {
+  const c0 = Math.max(0, Math.floor(x / colW));
+  const c1 = Math.min(cols - 1, Math.ceil((x + w) / colW));
+  const dead = !e.alive;
+  const shade = v => {
+    const n = Math.round(v * fog);
+    return n;
+  };
+  for (let c = c0; c <= c1; c++) {
+    if (zBuf[c] < depth) continue;                    // occluded by wall
+    const fx = (c * colW - x) / w;                    // 0..1 across the figure
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(c * colW, y, colW + 1, h);
+    ctx.clip();
+    paintFigure(x, y, w, h, e, fog, dead);
+    ctx.restore();
+  }
+}
+
+function paintFigure(x, y, w, h, e, fog, dead) {
+  const cx = x + w / 2;
+  const col = (r, g, b) => `rgb(${Math.round(r * fog)},${Math.round(g * fog)},${Math.round(b * fog)})`;
+  if (dead) {
+    ctx.fillStyle = col(90, 40, 40);
+    ctx.fillRect(x + w * .1, y + h * .82, w * .8, h * .12);
+    return;
+  }
+  const bodyTop = y + h * .30, bodyH = h * .52;
+  // legs
+  ctx.fillStyle = col(38, 44, 40);
+  ctx.fillRect(cx - w * .17, y + h * .74, w * .13, h * .26);
+  ctx.fillRect(cx + w * .04, y + h * .74, w * .13, h * .26);
+  // torso
+  ctx.fillStyle = col(96, 44, 44);
+  ctx.fillRect(cx - w * .24, bodyTop, w * .48, bodyH);
+  // vest
+  ctx.fillStyle = col(58, 62, 56);
+  ctx.fillRect(cx - w * .24, bodyTop + bodyH * .18, w * .48, bodyH * .5);
+  // head
+  ctx.fillStyle = col(178, 142, 112);
+  ctx.fillRect(cx - w * .11, y + h * .13, w * .22, h * .17);
+  // weapon, held across
+  ctx.fillStyle = col(26, 28, 30);
+  ctx.fillRect(cx - w * .02, bodyTop + bodyH * .30, w * .40, h * .045);
+  // muzzle flash
+  if (e.muzzle > 0) {
+    ctx.fillStyle = `rgba(255,225,150,${clamp(e.muzzle / .06, 0, 1) * .95})`;
+    ctx.fillRect(cx + w * .34, bodyTop + bodyH * .26, w * .16, h * .075);
+  }
+}
+
+// A weapon seen from behind is a solid receding away from the eye, so it has to
+// taper: wide at the butt, narrow at the muzzle. Drawn as tapered quads along a
+// butt-to-muzzle axis rather than stacked rectangles, which read as a pole.
+function taperQuad(g, ax, ay, bx2, by2, wa, wb) {
+  const dx = bx2 - ax, dy = by2 - ay, L = Math.hypot(dx, dy) || 1;
+  const nx = -dy / L, ny = dx / L;
+  g.beginPath();
+  g.moveTo(ax + nx * wa, ay + ny * wa);
+  g.lineTo(bx2 + nx * wb, by2 + ny * wb);
+  g.lineTo(bx2 - nx * wb, by2 - ny * wb);
+  g.lineTo(ax - nx * wa, ay - ny * wa);
+  g.closePath(); g.fill();
+}
+
+function drawWeapon() {
+  const p = game.player;
+  const id = WEAPONS[p.weaponIdx].id;
+  // length: butt-to-muzzle run in screen px. girth: half-width at butt / muzzle.
+  const SHAPE = {
+    carbine: { len: 330, buttW: 26, muzW: 11, mag: 62, stock: true },
+    smg:     { len: 250, buttW: 25, muzW: 10, mag: 74, stock: false },
+    shotgun: { len: 355, buttW: 30, muzW: 14, mag: 0,  stock: true },
+    dmr:     { len: 400, buttW: 25, muzW: 10, mag: 48, stock: true },
+    sidearm: { len: 150, buttW: 21, muzW: 9,  mag: 52, stock: false },
+  }[id];
+
+  const K = clamp(H / 660, 0.85, 1.7);
+  const bobT = game.t * 9;
+  const sway = p.moving ? Math.sin(bobT) * 7 * (p.sprinting ? 2.2 : 1) : Math.sin(game.t * 1.7) * 1.6;
+  const bounce = p.moving ? Math.abs(Math.cos(bobT)) * 8 * (p.sprinting ? 2.2 : 1) : 0;
+  const kick = p.recoil * 320;                    // recoil lifts the muzzle
+
+  ctx.save();
+  if (p.sprinting) { ctx.translate(W * 0.03, 34 * K); ctx.rotate(0.30); }
+  if (p.reloading > 0) {
+    const t = clamp(1 - p.reloading / p.weapon.reload, 0, 1);
+    ctx.translate(-24 * K, Math.sin(t * Math.PI) * 170 * K);
+    ctx.rotate(Math.sin(t * Math.PI) * 0.26);
+  }
+
+  // The axis: butt low and right of the eye, muzzle up toward the sightline.
+  const buttX = W / 2 + (168 + sway) * K;
+  const buttY = H + (58 + bounce - kick) * K;
+  const muzX  = W / 2 + (74 + sway * 0.35) * K;
+  const muzY  = buttY - SHAPE.len * K;
+  const ux = (muzX - buttX), uy = (muzY - buttY), uL = Math.hypot(ux, uy);
+  const at = f => ({ x: buttX + ux * f, y: buttY + uy * f });     // point along the axis
+  const bw = SHAPE.buttW * K, mw = SHAPE.muzW * K;
+  const wAt = f => bw + (mw - bw) * f;
+
+  // stock
+  if (SHAPE.stock) {
+    ctx.fillStyle = "#1d2227";
+    const a = at(-0.06), b = at(0.20);
+    taperQuad(ctx, a.x, a.y, b.x, b.y, bw * 1.12, bw * 0.96);
+  }
+  // receiver
+  ctx.fillStyle = "#2b3138";
+  { const a = at(0.10), b = at(0.50); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.10), wAt(0.50)); }
+  // ejection port / charging handle detail, on the right face
+  ctx.fillStyle = "#171b1f";
+  { const a = at(0.22), b = at(0.42); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.22) * 0.34, wAt(0.42) * 0.34); }
+  // magazine, hanging below the axis
+  if (SHAPE.mag) {
+    ctx.fillStyle = "#232a30";
+    const a = at(0.18);
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+    ctx.fillRect(-8 * K, 0, 16 * K, SHAPE.mag * K);
+    ctx.restore();
+  }
+  // handguard and barrel
+  ctx.fillStyle = "#333a41";
+  { const a = at(0.50), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.50), wAt(1.0)); }
+  ctx.fillStyle = "#12161a";
+  { const a = at(0.62), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.62) * 0.30, wAt(1.0) * 0.42); }
+  // front sight post
+  ctx.fillStyle = "#3d454c";
+  { const a = at(0.92), b = at(0.99);
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+    ctx.fillRect(-2.5 * K, -13 * K, 5 * K, 13 * K); ctx.restore(); }
+
+  // hands: firing hand at the grip, support hand forward on the handguard
+  const grip = at(0.16), fore = at(0.63);
+  ctx.fillStyle = "#8a6a52";
+  ctx.save(); ctx.translate(grip.x, grip.y); ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+  ctx.fillRect(-15 * K, -6 * K, 30 * K, 40 * K); ctx.restore();
+  ctx.fillStyle = "#7d6047";
+  ctx.save(); ctx.translate(fore.x, fore.y); ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+  ctx.fillRect(-16 * K, -13 * K, 32 * K, 27 * K); ctx.restore();
+
+  // muzzle flash at the actual muzzle, oriented down the bore
+  if (p.muzzle > 0) {
+    const a = clamp(p.muzzle / 0.06, 0, 1);
+    ctx.save();
+    ctx.translate(muzX, muzY);
+    ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+    ctx.fillStyle = `rgba(255,226,150,${a * 0.9})`;
+    ctx.beginPath();
+    ctx.moveTo(0, -34 * a * K);
+    ctx.lineTo(20 * a * K, 8 * K);
+    ctx.lineTo(-20 * a * K, 8 * K);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = `rgba(255,252,226,${a * 0.9})`;
+    ctx.beginPath(); ctx.arc(0, -4 * K, 10 * a * K, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawHud() {
+  const p = game.player;
+  // reticle: the cone is an angle, so it maps to pixels through the focal length
+  const projDist = (W / 2) / Math.tan(TUNE.fov / 2);
+  const rPx = clamp(projDist * Math.tan(currentSpread(p) / 2), 3, W * .45);
+  ctx.strokeStyle = p.steady ? "rgba(140,235,170,.9)" : "rgba(225,235,240,.75)";
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2;
+    const ox = Math.cos(a), oy = Math.sin(a);
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + ox * rPx, H / 2 + oy * rPx);
+    ctx.lineTo(W / 2 + ox * (rPx + 7), H / 2 + oy * (rPx + 7));
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(225,235,240,.85)";
+  ctx.fillRect(W / 2 - 1, H / 2 - 1, 2, 2);
+
+  // damage sting
+  const sting = game.fx.find(f => f.kind === "sting");
+  if (sting) {
+    ctx.fillStyle = `rgba(170,20,20,${(sting.t / sting.max) * .35})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // bottom bar
+  const wpn = WEAPONS[p.weaponIdx], am = ammoOf(p);
+  ctx.font = "600 13px ui-monospace, Menlo, monospace";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "rgba(10,13,15,.72)";
+  ctx.fillRect(0, H - 34, W, 34);
+  ctx.fillStyle = "#dbe4ea";
+  ctx.textAlign = "left";
+  ctx.fillText(wpn.name, 16, H - 13);
+  ctx.fillStyle = "#8fa0ad";
+  ctx.fillText(am.name, 16 + ctx.measureText(wpn.name).width + 16, H - 13);
+
+  ctx.textAlign = "right";
+  if (p.reloading > 0) { ctx.fillStyle = "#e0b74a"; ctx.fillText("RELOADING", W - 16, H - 13); }
+  else {
+    ctx.fillStyle = p.mag === 0 ? "#d05a5a" : p.mag <= p.weapon.mag * .25 ? "#e0b74a" : "#dbe4ea";
+    ctx.fillText(p.mag + " / " + p.weapon.mag, W - 16, H - 13);
+  }
+
+  // health
+  ctx.textAlign = "left";
+  const hpFrac = clamp(p.hp / TUNE.playerHp, 0, 1);
+  ctx.fillStyle = "#1d2429"; ctx.fillRect(W / 2 - 70, H - 24, 140, 6);
+  ctx.fillStyle = hpFrac > .5 ? "#5fae74" : hpFrac > .25 ? "#c9a03f" : "#c04a4a";
+  ctx.fillRect(W / 2 - 70, H - 24, 140 * hpFrac, 6);
+
+  // state chips
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#7d8b96";
+  const chips = [];
+  if (p.sprinting) chips.push("SPRINT");
+  if (p.steady) chips.push("STEADY");
+  if (chips.length) ctx.fillText(chips.join("  "), W / 2, H - 30);
+
+  if (game.over) {
+    ctx.fillStyle = "rgba(6,8,10,.78)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = "center";
+    ctx.font = "600 30px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = game.over === "CLEAR" ? "#6fd08c" : "#d05a5a";
+    ctx.fillText(game.over === "CLEAR" ? "AREA CLEAR" : "YOU ARE DOWN", W / 2, H / 2 - 16);
+    ctx.font = "400 13px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "#8fa0ad";
+    const acc = game.shots ? Math.round(100 * game.hits / game.shots) : 0;
+    ctx.fillText(`${game.kills} down  ·  ${acc}% of rounds connected  ·  ${game.penetrations} through cover`,
+      W / 2, H / 2 + 14);
+    ctx.fillText("press ENTER to run it again", W / 2, H / 2 + 40);
+  }
+}
+
+function drawMinimap() {
+  const s = 5, ox = W - level.w * s - 14, oy = 14;
+  ctx.fillStyle = "rgba(8,10,12,.82)";
+  ctx.fillRect(ox - 4, oy - 4, level.w * s + 8, level.h * s + 8);
+  for (let y = 0; y < level.h; y++) for (let x = 0; x < level.w; x++) {
+    const m = materialAt(x, y);
+    if (m === MATERIALS.air) continue;
+    ctx.fillStyle = m.col || "#555";
+    ctx.fillRect(ox + x * s, oy + y * s, s, s);
+  }
+  for (const e of game.enemies) {
+    ctx.fillStyle = e.alive ? "#c04a4a" : "#4a3030";
+    ctx.fillRect(ox + e.x / TILE * s - 1.5, oy + e.y / TILE * s - 1.5, 3, 3);
+  }
+  const p = game.player;
+  ctx.fillStyle = "#6fd08c";
+  ctx.fillRect(ox + p.x / TILE * s - 1.5, oy + p.y / TILE * s - 1.5, 3, 3);
+  ctx.strokeStyle = "rgba(111,208,140,.6)";
+  ctx.beginPath();
+  ctx.moveTo(ox + p.x / TILE * s, oy + p.y / TILE * s);
+  ctx.lineTo(ox + p.x / TILE * s + Math.cos(p.face) * 10, oy + p.y / TILE * s + Math.sin(p.face) * 10);
+  ctx.stroke();
+}
+
+function drawDebug(columns) {
+  const p = game.player;
+  const lines = [
+    `pos ${p.x.toFixed(0)},${p.y.toFixed(0)}  face ${(p.face * 180 / Math.PI).toFixed(0)}°`,
+    `spread ${(currentSpread(p) * 180 / Math.PI).toFixed(2)}°  recoil ${(p.recoil * 180 / Math.PI).toFixed(2)}°  bloom ${(p.turnBloom * 180 / Math.PI).toFixed(2)}°`,
+    `cols ${columns.length}  bullets ${game.bullets.length}  enemies ${game.enemies.filter(e => e.alive).length}`,
+    `shots ${game.shots}  hits ${game.hits}  through cover ${game.penetrations}`,
+  ];
+  ctx.font = "400 11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(8,10,12,.8)";
+  ctx.fillRect(10, 10, 340, lines.length * 15 + 10);
+  ctx.fillStyle = "#9aa8b3";
+  lines.forEach((l, i) => ctx.fillText(l, 18, 27 + i * 15));
+}
+
+// ===========================================================================
+// S8  input and the frame loop
+// ===========================================================================
+
+const overlay = document.getElementById("overlay");
+
+cv.addEventListener("click", () => { if (!input.locked) cv.requestPointerLock(); });
+overlay.addEventListener("click", () => cv.requestPointerLock());
+document.addEventListener("pointerlockchange", () => {
+  input.locked = document.pointerLockElement === cv;
+  overlay.classList.toggle("hide", input.locked);
+});
+document.addEventListener("mousemove", e => { if (input.locked) input.mouseDX += e.movementX; });
+document.addEventListener("mousedown", e => { if (input.locked && e.button === 0) input.firing = true; });
+document.addEventListener("mouseup", e => { if (e.button === 0) input.firing = false; });
+
+document.addEventListener("keydown", e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
+  input.keys[k === "shift" ? "shift" : k] = true;
+  if (k === "r") startReload(game.player);
+  if (k === "e") tryDoor();
+  if (k === "m") game.showMap = !game.showMap;
+  if (k === "f") game.showDebug = !game.showDebug;
+  if (k === "x") { const p = game.player; p.ammoIdx = (p.ammoIdx + 1) % WEAPONS[p.weaponIdx].ammo.length; p.mag = 0; startReload(p); }
+  if (k >= "1" && k <= "5") equip(game.player, parseInt(k, 10) - 1);
+  if (k === "enter" && game.over) initGame();
+  if ([" ", "w", "a", "s", "d"].includes(k)) e.preventDefault();
+});
+document.addEventListener("keyup", e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
+  input.keys[k === "shift" ? "shift" : k] = false;
+});
+
+let last = 0;
+function frame(ts) {
+  const dt = Math.min(0.05, last ? (ts - last) / 1000 : 1 / 60);
+  last = ts;
+  if (input.locked && !game.over) update(dt);
+  else if (game.over) updateFx(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+// Headless harness bootstraps by hand; a browser starts itself.
+if (typeof window !== "undefined" && typeof document !== "undefined" && cv) {
+  resize();
+  initGame();
+  requestAnimationFrame(frame);
+}
+
+// Exposed for the test harness (tests/run.sh extracts this script and runs it
+// against a DOM stub, so everything the tests touch has to be reachable here).
+if (typeof globalThis !== "undefined") {
+  Object.assign(globalThis, {
+    TILE, deg, clamp, MATERIALS, AMMO, WEAPONS, TUNE, BASE,
+    parseMap, MAP_SRC, castColumns, raycastHit, lineOfSight,
+    materialAt, opaqueAt, solidForMove, moveCircle, circleHits,
+    currentSpread, initGame, update, fire, startReload, updateBullets,
+    resolveImpact, segCircle, equip, ammoOf, game, input, render, resize,
+    get level() { return level; },
+  });
+}
+</script>
+
+<!-- CHANGELOG
+  v1.0 (2026-09-04): Initial proof of concept. DDA column solver split as a pure
+    function from the painter; procedural per-material wall textures; billboard
+    enemies clipped per column against a z-buffer; sliding doors; the
+    top-down-tactical weapon model (spread, recoil ramp and settle, turn bloom,
+    material penetration with damage falloff and deflection, buckshot pellets)
+    carried across to a first-person camera. Adds an acceleration model the
+    source game does not have, because a fixed overhead camera hides its absence
+    and eye level does not.
+-->
