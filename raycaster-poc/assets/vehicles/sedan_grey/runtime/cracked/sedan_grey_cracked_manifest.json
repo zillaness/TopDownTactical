@@ -1,0 +1,231 @@
+{
+  "asset": "sedan_grey",
+  "state": "cracked",
+  "inherits_cover_geometry_from": "../sedan_grey_manifest.json",
+  "glass_present": true,
+  "glass_rgba": [
+    104,
+    184,
+    198,
+    82
+  ],
+  "ai_acquire_multiplier_single_pane": 0.68,
+  "ai_acquire_multiplier_two_panes": 0.46,
+  "bullet_energy_retained_per_pane": 0.66,
+  "max_deflection_degrees_per_pane": 3.0,
+  "views": {
+    "000_front": {
+      "bearing_degrees": 0,
+      "source_bbox_delta_from_intact": [
+        0,
+        -1,
+        0,
+        0
+      ],
+      "source_cyan_pixels": 67028,
+      "runtime_bbox": [
+        80,
+        144,
+        176,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 372,
+        "opaque_coverage": 318,
+        "glass_coverage": 78,
+        "sight_through": 78
+      }
+    },
+    "045_front_right": {
+      "bearing_degrees": 45,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "source_cyan_pixels": 63145,
+      "runtime_bbox": [
+        48,
+        144,
+        208,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 573,
+        "opaque_coverage": 515,
+        "glass_coverage": 108,
+        "sight_through": 108
+      }
+    },
+    "090_right": {
+      "bearing_degrees": 90,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "source_cyan_pixels": 38854,
+      "runtime_bbox": [
+        16,
+        144,
+        239,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 775,
+        "opaque_coverage": 711,
+        "glass_coverage": 120,
+        "sight_through": 120
+      }
+    },
+    "135_rear_right": {
+      "bearing_degrees": 135,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "source_cyan_pixels": 59620,
+      "runtime_bbox": [
+        44,
+        144,
+        211,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 600,
+        "opaque_coverage": 545,
+        "glass_coverage": 106,
+        "sight_through": 106
+      }
+    },
+    "180_rear": {
+      "bearing_degrees": 180,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        0,
+        -1
+      ],
+      "source_cyan_pixels": 51815,
+      "runtime_bbox": [
+        82,
+        144,
+        174,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 388,
+        "opaque_coverage": 352,
+        "glass_coverage": 70,
+        "sight_through": 70
+      }
+    },
+    "225_rear_left": {
+      "bearing_degrees": 225,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "source_cyan_pixels": 55128,
+      "runtime_bbox": [
+        44,
+        144,
+        212,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 608,
+        "opaque_coverage": 555,
+        "glass_coverage": 107,
+        "sight_through": 107
+      }
+    },
+    "270_left": {
+      "bearing_degrees": 270,
+      "source_bbox_delta_from_intact": [
+        0,
+        0,
+        -1,
+        0
+      ],
+      "source_cyan_pixels": 37540,
+      "runtime_bbox": [
+        13,
+        144,
+        243,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 807,
+        "opaque_coverage": 738,
+        "glass_coverage": 131,
+        "sight_through": 131
+      }
+    },
+    "315_front_left": {
+      "bearing_degrees": 315,
+      "source_bbox_delta_from_intact": [
+        0,
+        -1,
+        0,
+        1
+      ],
+      "source_cyan_pixels": 63059,
+      "runtime_bbox": [
+        45,
+        144,
+        210,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "mask_pixels_64": {
+        "silhouette": 595,
+        "opaque_coverage": 535,
+        "glass_coverage": 109,
+        "sight_through": 109
+      }
+    }
+  },
+  "validation": {
+    "all_views_present": true,
+    "source_registration_within_one_pixel": true,
+    "physical_masks_unchanged_from_intact": true
+  }
+}

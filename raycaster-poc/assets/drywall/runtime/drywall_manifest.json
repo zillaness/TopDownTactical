@@ -1,0 +1,50 @@
+{
+  "asset": "drywall",
+  "master_size": [
+    1254,
+    1254
+  ],
+  "runtime_texture_size": [
+    256,
+    256
+  ],
+  "logic_mask_size": [
+    64,
+    64
+  ],
+  "mask_convention": "white=open, black=solid",
+  "stages": {
+    "intact": {
+      "open_fraction": 0.0,
+      "transparent_pixels": 0,
+      "ai_acquire_multiplier": 0.0,
+      "movement_enabled": false,
+      "monotonic_from_previous": true
+    },
+    "punctured": {
+      "open_fraction": 0.00103,
+      "transparent_pixels": 1619,
+      "ai_acquire_multiplier": 0.0,
+      "movement_enabled": false,
+      "monotonic_from_previous": true
+    },
+    "opened": {
+      "open_fraction": 0.01439,
+      "transparent_pixels": 22626,
+      "ai_acquire_multiplier": 0.45,
+      "movement_enabled": false,
+      "monotonic_from_previous": true
+    },
+    "breached": {
+      "open_fraction": 0.12874,
+      "transparent_pixels": 202453,
+      "ai_acquire_multiplier": 1.0,
+      "movement_enabled": true,
+      "monotonic_from_previous": true
+    }
+  },
+  "validation": {
+    "same_dimensions": true,
+    "monotonic_openings": true
+  }
+}

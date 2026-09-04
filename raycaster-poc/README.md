@@ -1,6 +1,6 @@
 ---
 file: README.md (raycaster-poc)
-version: 1.0
+version: 1.1
 author: Sam Cao
 created: 2026-09-04
 last_updated: 2026-09-04
@@ -79,6 +79,9 @@ overhead camera hides that completely. At eye level it reads as skating.
 | `index.html` | Pages entry point; redirects to the current build |
 | `tests/tests.js` | 66 headless assertions |
 | `tests/stubs.js` | DOM and canvas stubs; the render path is stubbed to no-ops |
+| `assets/` | Authored aperture art library: drywall, wood door, glass partition, grey sedan (8 bearings). Masters, 256×256 runtime textures, 64×64 logic masks, manifests, prompts. See `assets/README.md` |
+| `2026-09-03-raycaster-authored-apertures-design.md` | Design for damage stages whose apertures agree across rendering, ballistics, sight, AI detection, and movement |
 
 ## CHANGELOG
+- v1.1 (2026-09-04): Add the authored aperture asset library under `assets/` and its design document. Art only — nothing in the POC build loads it yet.
 - v1.0 (2026-09-04): Initial POC.

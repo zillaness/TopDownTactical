@@ -1,0 +1,96 @@
+{
+  "asset": "glass_partition",
+  "master_size": [
+    1254,
+    1254
+  ],
+  "runtime_texture_size": [
+    256,
+    256
+  ],
+  "logic_mask_size": [
+    64,
+    64
+  ],
+  "mask_convention": "white=selected, black=not selected",
+  "visual_materials": {
+    "glass_rgba": [
+      128,
+      204,
+      216,
+      82
+    ],
+    "open_air_rgba": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "stages": {
+    "intact": {
+      "glass_fraction": 0.73694,
+      "open_air_fraction": 0.0,
+      "ai_acquire_multiplier": 0.72,
+      "bullet_energy_retained_through_glass": 0.62,
+      "max_deflection_degrees_through_glass": 3.0,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "sight": 3136,
+        "bullet_air": 0,
+        "glass": 3136,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "punctured": {
+      "glass_fraction": 0.73586,
+      "open_air_fraction": 0.00108,
+      "ai_acquire_multiplier": 0.64,
+      "bullet_energy_retained_through_glass": 0.68,
+      "max_deflection_degrees_through_glass": 2.5,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "sight": 3136,
+        "bullet_air": 18,
+        "glass": 3136,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "opened": {
+      "glass_fraction": 0.68473,
+      "open_air_fraction": 0.05221,
+      "ai_acquire_multiplier": 0.86,
+      "bullet_energy_retained_through_glass": 0.82,
+      "max_deflection_degrees_through_glass": 1.5,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "sight": 3136,
+        "bullet_air": 320,
+        "glass": 2978,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "breached": {
+      "glass_fraction": 0.55678,
+      "open_air_fraction": 0.18023,
+      "ai_acquire_multiplier": 1.0,
+      "bullet_energy_retained_through_glass": 0.92,
+      "max_deflection_degrees_through_glass": 0.5,
+      "movement_enabled": true,
+      "mask_pixels_64": {
+        "sight": 3136,
+        "bullet_air": 900,
+        "glass": 2494,
+        "move": 574
+      },
+      "monotonic_from_previous": true
+    }
+  },
+  "validation": {
+    "same_dimensions": true,
+    "monotonic_openings": true
+  }
+}

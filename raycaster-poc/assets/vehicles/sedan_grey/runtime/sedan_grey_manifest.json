@@ -1,0 +1,383 @@
+{
+  "asset": "sedan_grey",
+  "view_convention": "degrees clockwise around vehicle: 000 front, 090 passenger/right, 180 rear, 270 driver/left",
+  "runtime_sprite_size": [
+    256,
+    256
+  ],
+  "logic_mask_size": [
+    64,
+    64
+  ],
+  "world_dimensions_m": {
+    "length": 4.75,
+    "width": 1.78,
+    "height": 1.46
+  },
+  "render_anchor": "bottom center at tire contact line",
+  "glass_rgba": [
+    104,
+    184,
+    198,
+    82
+  ],
+  "glass_simulation": {
+    "ai_acquire_multiplier_single_pane": 0.76,
+    "ai_acquire_multiplier_two_panes": 0.56,
+    "bullet_energy_retained_per_pane": 0.6,
+    "max_deflection_degrees_per_pane": 3.5
+  },
+  "cover_model": {
+    "coordinate_system": "+x forward, +y driver/left, +z up; all volumes rotate with vehicle heading",
+    "volumes": [
+      {
+        "id": "engine_block",
+        "bounds_m": {
+          "x": [
+            0.55,
+            2.3
+          ],
+          "y": [
+            -0.72,
+            0.72
+          ],
+          "z": [
+            0.38,
+            0.92
+          ]
+        },
+        "material": "engine_heavy",
+        "opaque": true
+      },
+      {
+        "id": "front_body",
+        "bounds_m": {
+          "x": [
+            0.45,
+            2.38
+          ],
+          "y": [
+            -0.89,
+            0.89
+          ],
+          "z": [
+            0.22,
+            0.76
+          ]
+        },
+        "material": "sheet_steel",
+        "opaque": true
+      },
+      {
+        "id": "cabin_lower",
+        "bounds_m": {
+          "x": [
+            -1.02,
+            0.72
+          ],
+          "y": [
+            -0.89,
+            0.89
+          ],
+          "z": [
+            0.2,
+            0.88
+          ]
+        },
+        "material": "door_sheet_steel",
+        "opaque": true
+      },
+      {
+        "id": "cabin_glass",
+        "bounds_m": {
+          "x": [
+            -1.04,
+            0.78
+          ],
+          "y": [
+            -0.82,
+            0.82
+          ],
+          "z": [
+            0.88,
+            1.39
+          ]
+        },
+        "material": "automotive_glass",
+        "opaque": false
+      },
+      {
+        "id": "trunk_body",
+        "bounds_m": {
+          "x": [
+            -2.36,
+            -0.82
+          ],
+          "y": [
+            -0.86,
+            0.86
+          ],
+          "z": [
+            0.24,
+            0.79
+          ]
+        },
+        "material": "sheet_steel",
+        "opaque": true
+      },
+      {
+        "id": "roof",
+        "bounds_m": {
+          "x": [
+            -0.96,
+            0.62
+          ],
+          "y": [
+            -0.78,
+            0.78
+          ],
+          "z": [
+            1.36,
+            1.46
+          ]
+        },
+        "material": "sheet_steel",
+        "opaque": true
+      }
+    ]
+  },
+  "views": {
+    "000_front": {
+      "bearing_degrees": 0,
+      "source_bbox": [
+        233,
+        306,
+        1017,
+        942
+      ],
+      "runtime_bbox": [
+        80,
+        144,
+        176,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 96,
+      "source_glass_pixels": 68157,
+      "mask_pixels_64": {
+        "silhouette": 372,
+        "opaque_coverage": 318,
+        "glass_coverage": 78,
+        "sight_through": 78
+      }
+    },
+    "045_front_right": {
+      "bearing_degrees": 45,
+      "source_bbox": [
+        38,
+        357,
+        1180,
+        915
+      ],
+      "runtime_bbox": [
+        48,
+        144,
+        208,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 160,
+      "source_glass_pixels": 64827,
+      "mask_pixels_64": {
+        "silhouette": 573,
+        "opaque_coverage": 515,
+        "glass_coverage": 108,
+        "sight_through": 108
+      }
+    },
+    "090_right": {
+      "bearing_degrees": 90,
+      "source_bbox": [
+        23,
+        433,
+        1231,
+        855
+      ],
+      "runtime_bbox": [
+        16,
+        144,
+        239,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 223,
+      "source_glass_pixels": 39736,
+      "mask_pixels_64": {
+        "silhouette": 775,
+        "opaque_coverage": 711,
+        "glass_coverage": 120,
+        "sight_through": 120
+      }
+    },
+    "135_rear_right": {
+      "bearing_degrees": 135,
+      "source_bbox": [
+        44,
+        369,
+        1210,
+        912
+      ],
+      "runtime_bbox": [
+        44,
+        144,
+        211,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 167,
+      "source_glass_pixels": 60975,
+      "mask_pixels_64": {
+        "silhouette": 600,
+        "opaque_coverage": 545,
+        "glass_coverage": 106,
+        "sight_through": 106
+      }
+    },
+    "180_rear": {
+      "bearing_degrees": 180,
+      "source_bbox": [
+        266,
+        331,
+        989,
+        942
+      ],
+      "runtime_bbox": [
+        82,
+        144,
+        174,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 92,
+      "source_glass_pixels": 53290,
+      "mask_pixels_64": {
+        "silhouette": 388,
+        "opaque_coverage": 352,
+        "glass_coverage": 70,
+        "sight_through": 70
+      }
+    },
+    "225_rear_left": {
+      "bearing_degrees": 225,
+      "source_bbox": [
+        39,
+        361,
+        1214,
+        907
+      ],
+      "runtime_bbox": [
+        44,
+        144,
+        212,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 168,
+      "source_glass_pixels": 57732,
+      "mask_pixels_64": {
+        "silhouette": 608,
+        "opaque_coverage": 555,
+        "glass_coverage": 107,
+        "sight_through": 107
+      }
+    },
+    "270_left": {
+      "bearing_degrees": 270,
+      "source_bbox": [
+        41,
+        450,
+        1202,
+        844
+      ],
+      "runtime_bbox": [
+        13,
+        144,
+        243,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 230,
+      "source_glass_pixels": 38555,
+      "mask_pixels_64": {
+        "silhouette": 807,
+        "opaque_coverage": 738,
+        "glass_coverage": 131,
+        "sight_through": 131
+      }
+    },
+    "315_front_left": {
+      "bearing_degrees": 315,
+      "source_bbox": [
+        41,
+        347,
+        1222,
+        904
+      ],
+      "runtime_bbox": [
+        45,
+        144,
+        210,
+        222
+      ],
+      "anchor_px": [
+        128,
+        222
+      ],
+      "normalized_height_px": 78,
+      "normalized_width_px": 165,
+      "source_glass_pixels": 65164,
+      "mask_pixels_64": {
+        "silhouette": 595,
+        "opaque_coverage": 535,
+        "glass_coverage": 109,
+        "sight_through": 109
+      }
+    }
+  },
+  "validation": {
+    "all_source_dimensions_equal": true,
+    "all_views_present": true
+  },
+  "source_size": [
+    1254,
+    1254
+  ]
+}

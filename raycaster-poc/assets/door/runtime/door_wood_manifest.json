@@ -1,0 +1,75 @@
+{
+  "asset": "door_wood",
+  "master_size": [
+    1254,
+    1254
+  ],
+  "runtime_texture_size": [
+    256,
+    256
+  ],
+  "logic_mask_size": [
+    64,
+    64
+  ],
+  "mask_convention": "white=open, black=solid",
+  "door_pose": "closed (damage state is independent of pose)",
+  "stages": {
+    "intact": {
+      "open_fraction": 0.0,
+      "transparent_pixels": 0,
+      "ai_acquire_multiplier": 0.0,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "player": 0,
+        "bullet": 0,
+        "ai": 0,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "punctured": {
+      "open_fraction": 8e-05,
+      "transparent_pixels": 131,
+      "ai_acquire_multiplier": 0.0,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "player": 12,
+        "bullet": 12,
+        "ai": 0,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "opened": {
+      "open_fraction": 0.01902,
+      "transparent_pixels": 29910,
+      "ai_acquire_multiplier": 0.45,
+      "movement_enabled": false,
+      "mask_pixels_64": {
+        "player": 115,
+        "bullet": 115,
+        "ai": 104,
+        "move": 0
+      },
+      "monotonic_from_previous": true
+    },
+    "breached": {
+      "open_fraction": 0.12351,
+      "transparent_pixels": 194224,
+      "ai_acquire_multiplier": 1.0,
+      "movement_enabled": true,
+      "mask_pixels_64": {
+        "player": 625,
+        "bullet": 625,
+        "ai": 625,
+        "move": 491
+      },
+      "monotonic_from_previous": true
+    }
+  },
+  "validation": {
+    "same_dimensions": true,
+    "monotonic_openings": true
+  }
+}
