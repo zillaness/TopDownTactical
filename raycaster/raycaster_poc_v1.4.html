@@ -1,6 +1,6 @@
 <!--
-  file: raycaster_poc_v1.3.html
-  version: 1.3
+  file: raycaster_poc_v1.4.html
+  version: 1.4
   author: Sam Cao
   created: 2026-09-04
   last_updated: 2026-09-04
@@ -1486,7 +1486,7 @@ function drawWeapon() {
   // magazine, hanging below the axis
   if (SHAPE.mag) {
     ctx.save();
-    ctx.globalAlpha = 1 - A * 0.80;      // it hung in mid-air once the body faded
+    ctx.globalAlpha = 1 - A * 0.97;   // it would otherwise show THROUGH the optic      // it hung in mid-air once the body faded
     ctx.fillStyle = "#232a30";
     const a = at(0.18);
     ctx.save();
@@ -1501,17 +1501,19 @@ function drawWeapon() {
   // standing in front of, so it fades: leaving it solid drew a full-length
   // barrel up the middle of the screen, which is the "ceiling" read.
   ctx.save();
-  ctx.globalAlpha = 1 - A * 0.94;
+  ctx.globalAlpha = 1 - A * 0.97;   // it would otherwise show THROUGH the optic
   ctx.fillStyle = "#333a41";
   { const a = at(0.50), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.50), wAt(1.0)); }
-  ctx.restore();
   ctx.fillStyle = "#12161a";
   { const a = at(0.62), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.62) * 0.30, wAt(1.0) * 0.42); }
-  // front sight post
+  // front sight post. Folded into the same fade as the barrel: these two were
+  // drawn outside it, which is why a dark line still ran up through the glass
+  // after the barrel itself had been faded out.
   ctx.fillStyle = "#3d454c";
-  { const a = at(0.92), b = at(0.99);
+  { const a = at(0.92);
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
     ctx.fillRect(-2.5 * K, -13 * K, 5 * K, 13 * K); ctx.restore(); }
+  ctx.restore();
 
   // hands: firing hand at the grip, support hand forward on the handguard
   const grip = at(0.16), fore = at(0.63);
@@ -1538,39 +1540,59 @@ function drawWeapon() {
     ctx.beginPath(); ctx.arc(0, -4 * K, 10 * a * K, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
-  // IRON SIGHTS. Only worth drawing while you are actually behind them: a rear
-  // aperture near the eye, a front post out at the crosshair, both on the
-  // centreline once A reaches 1. That is the sight picture, and it is the thing
-  // "aim down sights" is supposed to mean.
+  // RED DOT. Iron sights were the wrong instrument for this renderer. They
+  // require a barrel and two posts to line up inside a 2D projection, and every
+  // attempt at that read as a rifle stood on end: four passes of tuning taper,
+  // width and length did not fix it, because the approach was wrong. A red dot
+  // is a tube you look THROUGH. The optic carries the entire read, the barrel
+  // stops mattering, and the dot marks point of impact exactly, which is the
+  // same problem the tracers and impacts were added to solve.
   if (A > 0.02 && !SHAPE.bunker) {
-    const rear = at(0.72), front = at(0.995);
+    const oc = at(0.995);                    // the tube rides where the muzzle points
+    const R = H * 0.205;                     // glass radius
     ctx.save();
     ctx.globalAlpha = clamp((A - 0.02) / 0.5, 0, 1);
-    // The barrel between the two sights is a THIN LINE, not the weapon's side
-    // profile. Drawing the full silhouette up the middle of the screen is what
-    // made this read as a rifle stood on end; looking along a barrel, the barrel
-    // is the one thing you can barely see.
-    ctx.strokeStyle = "#1a2026"; ctx.lineWidth = 7 * K;
-    ctx.beginPath(); ctx.moveTo(rear.x, rear.y - 13 * K); ctx.lineTo(front.x, front.y); ctx.stroke();
-    ctx.strokeStyle = "#39424b"; ctx.lineWidth = 3 * K;
-    ctx.beginPath(); ctx.moveTo(rear.x, rear.y - 13 * K); ctx.lineTo(front.x, front.y); ctx.stroke();
-    // front post, and its protective ears
-    ctx.fillStyle = "#0d1114";
-    ctx.fillRect(front.x - 2.6 * K, front.y - 17 * K, 5.2 * K, 19 * K);
-    ctx.fillStyle = "#c8d2da";
-    ctx.fillRect(front.x - 1.2 * K, front.y - 16 * K, 2.4 * K, 7 * K);
-    ctx.strokeStyle = "#171c21"; ctx.lineWidth = 3 * K;
+
+    // Everything outside the housing goes dark, because you are looking down a
+    // tube. Drawn as a full-screen rect with the glass punched out of it: the
+    // arc runs anticlockwise, so the nonzero winding rule leaves a hole.
+    ctx.fillStyle = "rgba(6,8,10,.62)";   // dark enough to read as a tube, light enough to keep your peripheral
     ctx.beginPath();
-    ctx.moveTo(front.x - 9 * K, front.y + 3 * K); ctx.lineTo(front.x - 9 * K, front.y - 15 * K);
-    ctx.moveTo(front.x + 9 * K, front.y + 3 * K); ctx.lineTo(front.x + 9 * K, front.y - 15 * K);
-    ctx.stroke();
-    // rear aperture: nearer the eye, so bigger and softer
-    ctx.fillStyle = "rgba(6,9,12,.34)";       // a hole reads darker, not like a lens
-    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 15 * K, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#0d1114"; ctx.lineWidth = 7 * K;
-    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 15 * K, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = "rgba(150,166,178,.45)"; ctx.lineWidth = 1.6 * K;
-    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 18.5 * K, 0, Math.PI * 2); ctx.stroke();
+    ctx.rect(0, 0, W, H);
+    ctx.arc(oc.x, oc.y, R, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    // the glass itself: a faint coating tint that deepens toward the edge
+    const glass = ctx.createRadialGradient(oc.x, oc.y, R * 0.2, oc.x, oc.y, R);
+    glass.addColorStop(0, "rgba(124,192,206,0.03)");
+    glass.addColorStop(0.82, "rgba(124,192,206,0.08)");
+    glass.addColorStop(1, "rgba(38,68,78,0.26)");
+    ctx.fillStyle = glass;
+    ctx.beginPath(); ctx.arc(oc.x, oc.y, R, 0, Math.PI * 2); ctx.fill();
+
+    // housing: a heavy black bezel, a machined inner lip, a lit outer edge
+    ctx.strokeStyle = "#0a0d10"; ctx.lineWidth = 30 * K;
+    ctx.beginPath(); ctx.arc(oc.x, oc.y, R + 15 * K, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#323b43"; ctx.lineWidth = 3.5 * K;
+    ctx.beginPath(); ctx.arc(oc.x, oc.y, R + 1.5 * K, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "rgba(154,172,186,.20)"; ctx.lineWidth = 1.6 * K;
+    ctx.beginPath(); ctx.arc(oc.x, oc.y, R + 30 * K, 0, Math.PI * 2); ctx.stroke();
+
+    // THE DOT sits at the crosshair, not at the centre of the tube. That is not
+    // a shortcut: a red dot is parallax-free by design, so the dot stays on the
+    // target while the optic drifts around it with your breathing. It is also
+    // exactly where the round goes.
+    const dotR = 3.4 * K;
+    const bloom = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, dotR * 7);
+    bloom.addColorStop(0, "rgba(255,72,60,.85)");
+    bloom.addColorStop(0.3, "rgba(255,44,36,.32)");
+    bloom.addColorStop(1, "rgba(255,30,24,0)");
+    ctx.fillStyle = bloom;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, dotR * 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,86,72,1)";
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, dotR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,226,220,.92)";
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, dotR * 0.42, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -1941,6 +1963,35 @@ if (typeof globalThis !== "undefined") {
 </script>
 
 <!-- CHANGELOG
+  v1.4 (2026-09-04): The sight is a RED DOT now, at Sam's call, and he is right
+    that it sidesteps the problem rather than tuning around it.
+
+    Iron sights were the wrong instrument for this renderer. They require a
+    barrel and two posts to line up inside a 2D projection, and across v1.2 and
+    v1.3 that took six passes of tuning taper, width, length, alpha and geometry
+    without ever quite reading as aiming. A red dot is a tube you look THROUGH:
+    the optic carries the entire read, the barrel stops mattering, and the dot
+    marks point of impact exactly, which is the same problem tracers and impacts
+    were added to solve in v1.1.
+
+    The tube is a heavy black bezel with a machined inner lip, tinted glass that
+    deepens toward the edge, and everything outside it darkened to 0.62 so you
+    are plainly looking down a housing while keeping enough peripheral to see a
+    man come round a corner. The world outside is punched out of a full-screen
+    rect by an anticlockwise arc, so the nonzero winding rule leaves the hole.
+
+    THE DOT SITS AT THE CROSSHAIR, not at the centre of the tube, and that is
+    not a shortcut. A red dot is parallax-free by design: the dot stays on the
+    target while the optic drifts around it with your breathing. It is also
+    exactly where the round goes.
+
+    One bug found by screenshot rather than by any test: after fading the barrel
+    out, a dark line still ran up through the glass. The barrel CORE and the
+    front sight post were drawn outside the fade block, so only the outer
+    handguard had actually been faded. Both are folded in now. The bunker
+    loadout has no optic, because behind a body bunker you are looking over the
+    top of it rather than through anything.
+
   v1.3 (2026-09-04): Comfort, the sight picture again, and the first real art.
 
     MOTION SICKNESS. Sprint down from 1.62x to 1.42x and mouse sensitivity from
