@@ -1,6 +1,6 @@
 <!--
-  file: raycaster_poc_v1.2.html
-  version: 1.2
+  file: raycaster_poc_v1.3.html
+  version: 1.3
   author: Sam Cao
   created: 2026-09-04
   last_updated: 2026-09-04
@@ -130,13 +130,13 @@ const AMMO = {
 };
 
 const TUNE = {
-  moveSpeed: 196, sprintMul: 1.62, walkMul: 0.52,
+  moveSpeed: 196, sprintMul: 1.42, walkMul: 0.52,   // sprint down from 1.62 (Sam: motion sickness)
   accel: 1400, friction: 12,          // this POC adds acceleration; the source game has none
   spreadSprint: deg(11),
   steadyMul: 0.6,
   recoilRamp: 1.55, recoilSettle: 1.0,
   turnBloomGain: 0.9, turnBloomDecay: deg(26), turnBloomMax: deg(8),
-  mouseSens: 0.0022,
+  mouseSens: 0.0016,        // down from 0.0022, same reason
   fov: deg(75),
   // RMB is the source game's STEADY, which had no home in a first-person camera
   // because Space already holds it. The cone maths is identical; the view pulls
@@ -1267,41 +1267,131 @@ function drawFigure(x, y, w, h, e, fog, depth, colW, cols) {
   }
 }
 
+// A man, not a stack of boxes. The important part is not the detail, it is that
+// HE TURNS: what you see depends on where he is looking relative to you, so a
+// glance tells you whether you have been spotted. That is the same information
+// the reaction clock is already using to pick its band (0.21s if he is watching
+// you, 0.77s if he is not), and until now the art gave you no way to read it.
 function paintFigure(x, y, w, h, e, fog, dead) {
   const cx = x + w / 2;
-  const col = (r, g, b) => `rgb(${Math.round(r * fog)},${Math.round(g * fog)},${Math.round(b * fog)})`;
+  const col = (r, g, b, a) =>
+    `rgba(${Math.round(r * fog)},${Math.round(g * fog)},${Math.round(b * fog)},${a === undefined ? 1 : a})`;
+
   if (dead) {
-    ctx.fillStyle = col(90, 40, 40);
-    ctx.fillRect(x + w * .1, y + h * .82, w * .8, h * .12);
+    // Crumpled, and lower than he stood. A thin bar read as a floor decal.
+    const gy = y + h * 0.80;
+    ctx.fillStyle = col(58, 24, 26, 0.55);
+    ctx.beginPath(); ctx.ellipse(cx, y + h * 0.985, w * 0.62, h * 0.045, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = col(74, 34, 34);
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.52, y + h);
+    ctx.lineTo(cx - w * 0.34, gy);
+    ctx.lineTo(cx + w * 0.16, gy + h * 0.05);
+    ctx.lineTo(cx + w * 0.50, y + h);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col(46, 52, 47);                       // the vest, still on him
+    ctx.fillRect(cx - w * 0.30, gy + h * 0.045, w * 0.44, h * 0.09);
+    ctx.fillStyle = col(150, 118, 92);                     // head, fallen aside
+    ctx.beginPath(); ctx.arc(cx - w * 0.44, gy + h * 0.06, w * 0.12, 0, Math.PI * 2); ctx.fill();
     return;
   }
-  const bodyTop = y + h * .30, bodyH = h * .52;
-  // legs
-  ctx.fillStyle = col(38, 44, 40);
-  ctx.fillRect(cx - w * .17, y + h * .74, w * .13, h * .26);
-  ctx.fillRect(cx + w * .04, y + h * .74, w * .13, h * .26);
-  // torso
-  ctx.fillStyle = col(96, 44, 44);
-  ctx.fillRect(cx - w * .24, bodyTop, w * .48, bodyH);
-  // vest
-  ctx.fillStyle = col(58, 62, 56);
-  ctx.fillRect(cx - w * .24, bodyTop + bodyH * .18, w * .48, bodyH * .5);
-  // head
-  ctx.fillStyle = col(178, 142, 112);
-  ctx.fillRect(cx - w * .11, y + h * .13, w * .22, h * .17);
-  // weapon, held across
-  ctx.fillStyle = col(26, 28, 30);
-  ctx.fillRect(cx - w * .02, bodyTop + bodyH * .30, w * .40, h * .045);
-  // muzzle flash
+
+  // Where is he looking, relative to you? 0 is straight at you, +-PI is away.
+  const p = game.player;
+  const rel = angDiff(e.face, Math.atan2(p.y - e.y, p.x - e.x));
+  const front = Math.cos(rel);          // +1 squared up on you, -1 turned away
+  const lead = Math.sin(rel);           // which shoulder is nearer
+  const chest = Math.abs(front);        // shoulders are widest face-on and back-on
+  const prof = Math.abs(lead);          // and narrowest in profile
+
+  const shoulderW = w * (0.20 + 0.30 * chest);
+  const bodyTop = y + h * 0.30, bodyH = h * 0.52;
+  const litSide = lead > 0 ? 1 : -1;    // cheap directional light so he is not flat
+
+  // legs, planted wider when you see him square
+  ctx.fillStyle = col(36, 42, 38);
+  const stance = w * (0.06 + 0.11 * chest);
+  ctx.fillRect(cx - stance - w * 0.07, y + h * 0.74, w * 0.13, h * 0.26);
+  ctx.fillRect(cx + stance - w * 0.06, y + h * 0.74, w * 0.13, h * 0.26);
+
+  // torso: a taper, not a rectangle. Narrow at the waist, wide at the shoulders.
+  ctx.fillStyle = col(92, 42, 42);
+  ctx.beginPath();
+  ctx.moveTo(cx - shoulderW, bodyTop + bodyH * 0.06);
+  ctx.lineTo(cx + shoulderW, bodyTop + bodyH * 0.06);
+  ctx.lineTo(cx + shoulderW * 0.78, bodyTop + bodyH);
+  ctx.lineTo(cx - shoulderW * 0.78, bodyTop + bodyH);
+  ctx.closePath(); ctx.fill();
+  // the lit shoulder
+  ctx.fillStyle = col(118, 56, 54, 0.55);
+  ctx.beginPath();
+  ctx.moveTo(cx + litSide * shoulderW, bodyTop + bodyH * 0.06);
+  ctx.lineTo(cx + litSide * shoulderW * 0.45, bodyTop + bodyH * 0.06);
+  ctx.lineTo(cx + litSide * shoulderW * 0.40, bodyTop + bodyH);
+  ctx.lineTo(cx + litSide * shoulderW * 0.78, bodyTop + bodyH);
+  ctx.closePath(); ctx.fill();
+
+  // plate carrier, and the pouches on the front of it only
+  ctx.fillStyle = col(54, 58, 52);
+  ctx.fillRect(cx - shoulderW * 0.92, bodyTop + bodyH * 0.16, shoulderW * 1.84, bodyH * 0.52);
+  if (front > 0.25) {
+    ctx.fillStyle = col(40, 44, 40);
+    for (let i = -1; i <= 1; i++)
+      ctx.fillRect(cx + i * shoulderW * 0.52 - shoulderW * 0.20,
+                   bodyTop + bodyH * 0.30, shoulderW * 0.40, bodyH * 0.22);
+  }
+
+  // head: a helmet, and a face only when he is actually looking your way
+  const headR = w * (0.10 + 0.045 * chest);
+  const hy = y + h * 0.205;
+  ctx.fillStyle = col(52, 58, 50);
+  ctx.beginPath(); ctx.arc(cx, hy, headR * 1.16, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = col(168, 134, 106);
+  ctx.fillRect(cx - headR, hy, headR * 2, headR * 1.15);
+  ctx.fillStyle = col(52, 58, 50);
+  ctx.fillRect(cx - headR * 1.16, hy - headR * 0.12, headR * 2.32, headR * 0.42);
+  if (front > 0.35) {
+    ctx.fillStyle = col(22, 24, 26, clamp((front - 0.35) / 0.4, 0, 1) * 0.9);
+    ctx.fillRect(cx - headR * 0.62, hy + headR * 0.42, headR * 0.34, headR * 0.26);
+    ctx.fillRect(cx + headR * 0.28, hy + headR * 0.42, headR * 0.34, headR * 0.26);
+  }
+
+  // The weapon. Squared up on you it is pointed AT you, so it foreshortens to
+  // almost nothing and you see the muzzle. In profile you see its whole length.
+  // Turned away it is on the far side of him and mostly hidden.
+  const gunY = bodyTop + bodyH * 0.30;
+  const gunLen = w * (0.06 + 0.46 * prof);
+  const gunDir = lead >= 0 ? 1 : -1;
+  ctx.fillStyle = col(24, 26, 28);
+  if (front < -0.55) {
+    ctx.globalAlpha = 0.45;             // slung on the far shoulder
+  }
+  ctx.fillRect(cx + (front > 0 ? -w * 0.05 : -w * 0.02), gunY, gunDir * gunLen, h * 0.045);
+  if (chest > 0.45 && front > 0) {      // muzzle-on: a dark bore ring
+    ctx.beginPath();
+    ctx.arc(cx + gunDir * gunLen * 0.9, gunY + h * 0.022, w * 0.055 * chest, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // hands on it, which is what sells a held weapon over a floating stick
+  ctx.fillStyle = col(150, 118, 92);
+  ctx.fillRect(cx + gunDir * gunLen * 0.15 - w * 0.03, gunY - h * 0.008, w * 0.06, h * 0.028);
+  if (prof > 0.3)
+    ctx.fillRect(cx + gunDir * gunLen * 0.66 - w * 0.03, gunY - h * 0.008, w * 0.06, h * 0.028);
+  ctx.globalAlpha = 1;
+
   if (e.muzzle > 0) {
-    ctx.fillStyle = `rgba(255,225,150,${clamp(e.muzzle / .06, 0, 1) * .95})`;
-    ctx.fillRect(cx + w * .34, bodyTop + bodyH * .26, w * .16, h * .075);
+    const k = clamp(e.muzzle / 0.06, 0, 1);
+    const mx = cx + gunDir * gunLen * 1.05, my = gunY + h * 0.022;
+    const r = w * (0.10 + 0.16 * chest) * k;
+    const g = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+    g.addColorStop(0, `rgba(255,248,214,${k})`);
+    g.addColorStop(0.5, `rgba(255,206,120,${k * 0.8})`);
+    g.addColorStop(1, "rgba(255,150,60,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(mx, my, r, 0, Math.PI * 2); ctx.fill();
   }
 }
 
-// A weapon seen from behind is a solid receding away from the eye, so it has to
-// taper: wide at the butt, narrow at the muzzle. Drawn as tapered quads along a
-// butt-to-muzzle axis rather than stacked rectangles, which read as a pole.
 function taperQuad(g, ax, ay, bx2, by2, wa, wb) {
   const dx = bx2 - ax, dy = by2 - ay, L = Math.hypot(dx, dy) || 1;
   const nx = -dy / L, ny = dx / L;
@@ -1329,12 +1419,15 @@ function drawWeapon() {
 
   const K = clamp(H / 660, 0.85, 1.7);
   const bobT = game.t * 9;
-  const sway = p.moving ? Math.sin(bobT) * 7 * (p.sprinting ? 2.2 : 1) : Math.sin(game.t * 1.7) * 1.6;
-  const bounce = p.moving ? Math.abs(Math.cos(bobT)) * 8 * (p.sprinting ? 2.2 : 1) : 0;
+  // The sprint multiplier on bob was 2.2, which is most of what makes a
+  // first-person camera nauseating: the gun swings nearly an inch of screen
+  // every stride. 1.45 keeps the tell without the seasickness.
+  const sway = p.moving ? Math.sin(bobT) * 6 * (p.sprinting ? 1.45 : 1) : Math.sin(game.t * 1.7) * 1.4;
+  const bounce = p.moving ? Math.abs(Math.cos(bobT)) * 6.5 * (p.sprinting ? 1.45 : 1) : 0;
   const kick = p.recoil * 320;                    // recoil lifts the muzzle
 
   ctx.save();
-  if (p.sprinting) { ctx.translate(W * 0.03, 34 * K); ctx.rotate(0.30); }
+  if (p.sprinting) { ctx.translate(W * 0.03, 34 * K); ctx.rotate(0.24); }
   if (p.reloading > 0) {
     const t = clamp(1 - p.reloading / p.weapon.reload, 0, 1);
     ctx.translate(-24 * K, Math.sin(t * Math.PI) * 170 * K);
@@ -1354,19 +1447,35 @@ function drawWeapon() {
   const bounceA = bounce * (1 - A * 0.80);
   const buttX = W / 2 + lerp(168 + swayA, 4 + swayA * 0.25) * K;
   const muzX  = W / 2 + lerp(74 + swayA * 0.35, 4 + swayA * 0.25) * K;
-  const buttY = lerp(H + (58 + bounceA - kick) * K,
-                     H / 2 + SHAPE.len * K + (bounceA - kick) * K);
-  const muzY  = buttY - SHAPE.len * K;
+  // Hip derives the muzzle from the gun's length. Shouldered CANNOT, because the
+  // muzzle has to land on the crosshair while the butt stays against your
+  // shoulder below the frame: what you see is the near end of the weapon, huge,
+  // with the barrel foreshortened to almost nothing behind the front sight.
+  // Deriving one from the other is what produced a full-length rifle standing on
+  // end, which is why it read as aiming at the ceiling.
+  const buttY = lerp(H + (58 + bounceA - kick) * K, H + (120 + bounceA - kick) * K);
+  const muzY  = lerp(H + (58 + bounceA - kick) * K - SHAPE.len * K,
+                     H / 2 - kick * K);
   const ux = (muzX - buttX), uy = (muzY - buttY), uL = Math.hypot(ux, uy);
   const at = f => ({ x: buttX + ux * f, y: buttY + uy * f });     // point along the axis
-  const bw = SHAPE.buttW * K, mw = SHAPE.muzW * K;
-  const wAt = f => bw + (mw - bw) * f;
+  const bw = SHAPE.buttW * K * (1 + A * 1.7), mw = SHAPE.muzW * K;
+  // Shouldered, the weapon axis is nearly parallel to the view axis, so the
+  // barrel RECEDES rather than standing up. v1.2's first pass kept the hip
+  // taper, which is only 2.3x butt-to-muzzle, so a 380px span of near-constant
+  // width read as a rifle pointed at the ceiling. A perspective divide is what
+  // makes the far end small: the near receiver stays wide, the front sight
+  // shrinks to a few pixels, and the eye reads depth instead of a raised stick.
+  const wAt = f => {
+    const flat = bw + (mw - bw) * f;
+    const deep = bw / (1 + f * 9);
+    return flat + (deep - flat) * A;
+  };
 
   // stock
   if (SHAPE.stock) {
     ctx.fillStyle = "#1d2227";
     const a = at(-0.06), b = at(0.20);
-    taperQuad(ctx, a.x, a.y, b.x, b.y, bw * 1.12, bw * 0.96);
+    taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(-0.06) * 1.12, wAt(0.20) * 0.96);
   }
   // receiver
   ctx.fillStyle = "#2b3138";
@@ -1376,17 +1485,26 @@ function drawWeapon() {
   { const a = at(0.22), b = at(0.42); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.22) * 0.34, wAt(0.42) * 0.34); }
   // magazine, hanging below the axis
   if (SHAPE.mag) {
+    ctx.save();
+    ctx.globalAlpha = 1 - A * 0.80;      // it hung in mid-air once the body faded
     ctx.fillStyle = "#232a30";
     const a = at(0.18);
     ctx.save();
     ctx.translate(a.x, a.y);
     ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
-    ctx.fillRect(-8 * K, 0, 16 * K, SHAPE.mag * K);
+    ctx.fillRect(-8 * K * (1 - A * 0.55), 0, 16 * K * (1 - A * 0.55),
+                 SHAPE.mag * K * (1 - A * 0.62));
+    ctx.restore();
     ctx.restore();
   }
-  // handguard and barrel
+  // handguard and barrel. Shouldered, this is the part your own front sight is
+  // standing in front of, so it fades: leaving it solid drew a full-length
+  // barrel up the middle of the screen, which is the "ceiling" read.
+  ctx.save();
+  ctx.globalAlpha = 1 - A * 0.94;
   ctx.fillStyle = "#333a41";
   { const a = at(0.50), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.50), wAt(1.0)); }
+  ctx.restore();
   ctx.fillStyle = "#12161a";
   { const a = at(0.62), b = at(1.0); taperQuad(ctx, a.x, a.y, b.x, b.y, wAt(0.62) * 0.30, wAt(1.0) * 0.42); }
   // front sight post
@@ -1428,16 +1546,23 @@ function drawWeapon() {
     const rear = at(0.72), front = at(0.995);
     ctx.save();
     ctx.globalAlpha = clamp((A - 0.02) / 0.5, 0, 1);
-    // front post
+    // The barrel between the two sights is a THIN LINE, not the weapon's side
+    // profile. Drawing the full silhouette up the middle of the screen is what
+    // made this read as a rifle stood on end; looking along a barrel, the barrel
+    // is the one thing you can barely see.
+    ctx.strokeStyle = "#1a2026"; ctx.lineWidth = 7 * K;
+    ctx.beginPath(); ctx.moveTo(rear.x, rear.y - 13 * K); ctx.lineTo(front.x, front.y); ctx.stroke();
+    ctx.strokeStyle = "#39424b"; ctx.lineWidth = 3 * K;
+    ctx.beginPath(); ctx.moveTo(rear.x, rear.y - 13 * K); ctx.lineTo(front.x, front.y); ctx.stroke();
+    // front post, and its protective ears
     ctx.fillStyle = "#0d1114";
-    ctx.fillRect(front.x - 2.2 * K, front.y - 15 * K, 4.4 * K, 17 * K);
+    ctx.fillRect(front.x - 2.6 * K, front.y - 17 * K, 5.2 * K, 19 * K);
     ctx.fillStyle = "#c8d2da";
-    ctx.fillRect(front.x - 1.1 * K, front.y - 14 * K, 2.2 * K, 6 * K);
-    // its protective ears
-    ctx.strokeStyle = "#171c21"; ctx.lineWidth = 2.4 * K;
+    ctx.fillRect(front.x - 1.2 * K, front.y - 16 * K, 2.4 * K, 7 * K);
+    ctx.strokeStyle = "#171c21"; ctx.lineWidth = 3 * K;
     ctx.beginPath();
-    ctx.moveTo(front.x - 8 * K, front.y + 2 * K); ctx.lineTo(front.x - 8 * K, front.y - 13 * K);
-    ctx.moveTo(front.x + 8 * K, front.y + 2 * K); ctx.lineTo(front.x + 8 * K, front.y - 13 * K);
+    ctx.moveTo(front.x - 9 * K, front.y + 3 * K); ctx.lineTo(front.x - 9 * K, front.y - 15 * K);
+    ctx.moveTo(front.x + 9 * K, front.y + 3 * K); ctx.lineTo(front.x + 9 * K, front.y - 15 * K);
     ctx.stroke();
     // rear aperture: nearer the eye, so bigger and softer
     ctx.fillStyle = "rgba(6,9,12,.34)";       // a hole reads darker, not like a lens
@@ -1816,6 +1941,40 @@ if (typeof globalThis !== "undefined") {
 </script>
 
 <!-- CHANGELOG
+  v1.3 (2026-09-04): Comfort, the sight picture again, and the first real art.
+
+    MOTION SICKNESS. Sprint down from 1.62x to 1.42x and mouse sensitivity from
+    0.0022 to 0.0016. The bigger culprit was the weapon bob: it carried a 2.2x
+    multiplier while sprinting, swinging the gun most of an inch of screen every
+    stride. That is 1.45x now, and the base amplitudes came down with it. The
+    sprint tilt on the viewmodel eased from 0.30 to 0.24 radians.
+
+    AIM DOWN SIGHTS, TAKE THREE. v1.2 brought the weapon to the centreline but
+    still drew its full side profile up the middle of the screen, so it read as a
+    rifle stood on end. Four passes of tuning taper and width did not fix it,
+    because the approach was wrong rather than the numbers: looking ALONG a
+    barrel, the barrel is the one thing you can barely see. The body now fades to
+    almost nothing, the muzzle is decoupled from the weapon's length so it lands
+    on the crosshair while the butt stays below the frame, and the sight picture
+    carries the read: a rear aperture near the eye, a thin barrel line, and a
+    front post with ears out on the target.
+
+    THE FIRST REAL ART, and it is not decoration. Enemies were five flat
+    axis-aligned rectangles that always faced right. They are men now, and more
+    importantly THEY TURN: shoulder width, whether you can see a face, whether
+    the plate carrier's pouches are visible, how much of the weapon is presented,
+    and which shoulder catches the light all follow where he is looking relative
+    to you. So a glance tells you whether you have been spotted, which is exactly
+    the information the reaction clock is already acting on (0.21s if he is
+    watching you against 0.77s if he is not) and which the art gave you no way to
+    read. Muzzle flash is a radial burst that grows as he squares up on you, and
+    the dead are crumpled with a pool rather than a thin bar on the floor.
+
+    NOTE ON ASSETS: Sam's art at C:\Users\Sam\Documents\Codex\2026-09-03\
+    can-x20\outputs is still unreachable from any sandbox and has not landed on
+    any of the eleven branches. Everything here is authored in code. Nothing in
+    this file loads an external request, and that constraint has not moved.
+
   v1.2 (2026-09-04): The two things Sam found playing v1.1.
 
     NOTHING ARMED IN THE SPAWN ROOM. Settle and the reaction clock bought an
