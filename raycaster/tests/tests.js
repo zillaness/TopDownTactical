@@ -298,6 +298,23 @@ head("the sim runs without exploding");
 
 
 // ---------------------------------------------------------------------------
+head("nothing armed can see the spawn point");
+{
+  // Sam's rule after playing v1.1: there should not be an enemy in the room you
+  // start in. Settle and the reaction clock give you a beat; a man already
+  // looking down the room spends it aiming, which is why it still read as dying
+  // instantly. First contact should happen through a door you chose to open.
+  initGame();
+  const p = game.player;
+  const seers = game.enemies.filter(e =>
+    Math.hypot(e.x - p.x, e.y - p.y) < TUNE.enemySight && lineOfSight(e.x, e.y, p.x, p.y));
+  ok("no enemy has line of sight to the start", seers.length === 0,
+     seers.map(e => `(${e.x / TILE - 0.5},${e.y / TILE - 0.5})`).join(" ") || "none");
+  const nearest = Math.min(...game.enemies.map(e => Math.hypot(e.x - p.x, e.y - p.y))) / TILE;
+  ok("and the nearest one is a room away", nearest > 8, nearest.toFixed(1) + " tiles");
+  ok("the headcount is unchanged", game.enemies.length === 6, "moved, not deleted");
+}
+
 head("the spawn is survivable  (v1.0 killed you 200/200 in 0.92s)");
 {
   // v1.0 had no settle and no reaction clock: every enemy went from zero to
@@ -317,13 +334,63 @@ head("the spawn is survivable  (v1.0 killed you 200/200 in 0.92s)");
   }
   const earliest = firstShot.length ? Math.min(...firstShot) : Infinity;
   ok("nobody shoots during the settle", earliest >= TUNE.missionSettle,
-     "earliest incoming round " + earliest.toFixed(2) + "s vs settle " + TUNE.missionSettle + "s");
+     "earliest incoming round " +
+     (earliest === Infinity ? "never" : earliest.toFixed(2) + "s") +
+     " vs settle " + TUNE.missionSettle + "s");
   ok("you are not dead before the settle expires", deaths === 0 || earliest >= TUNE.missionSettle,
      deaths + "/" + N + " died within 6s");
-  // The clock is a ROLL, not a constant. v1.0's flat ramp produced one value.
-  const spread = firstShot.length > 1 ? Math.max(...firstShot) - earliest : 0;
-  ok("the reaction clock varies between spawns", spread > 0.15,
-     "spread " + spread.toFixed(2) + "s across " + firstShot.length + " runs");
+
+  // The clock is a ROLL, not a constant: v1.0's flat ramp produced one value for
+  // every man every time. This used to be measured off whoever could see the
+  // spawn, which stopped working the moment nothing could. Measured directly
+  // now: one man, walked into view after the settle, many times over.
+  const times = [];
+  for (let i = 0; i < 80; i++) {
+    initGame();
+    game.settleT = 0;
+    const p = game.player, e = game.enemies[0];
+    for (const o of game.enemies) o.alive = false;
+    e.alive = true;
+    e.x = p.x + 150; e.y = p.y; e.face = Math.PI;      // squared up on him
+    let t = null;
+    for (let f = 0; f < 60 * 4 && t === null; f++) {
+      updateEnemies(1 / 60);
+      if (game.bullets.length) t = f / 60;
+    }
+    if (t !== null) times.push(t);
+  }
+  ok("he does react", times.length > 70, times.length + "/80 opened fire inside 4s");
+  const lo = Math.min(...times), hi = Math.max(...times);
+  // Squared up on you he always rolls the WATCHING band, which is only 0.11s
+  // wide, so demanding a wider spread than that was an impossible assertion.
+  const bandW = TUNE.enemyReactWatching[1] - TUNE.enemyReactWatching[0];
+  ok("but not on a stopwatch", hi - lo > bandW * 0.5,
+     `${lo.toFixed(2)}s to ${hi.toFixed(2)}s, a spread of ${(hi - lo).toFixed(2)}s ` +
+     `across a ${bandW.toFixed(2)}s band`);
+  ok("and it is the watching band he rolled",
+     lo >= TUNE.enemyReactWatching[0] - 0.03 && hi <= TUNE.enemyReactWatching[1] + 0.06,
+     `${TUNE.enemyReactWatching.join(" to ")}s, because he was already facing you`);
+
+  // The bands are the point: being looked at is worse than being noticed.
+  const cold = [];
+  for (let i = 0; i < 80; i++) {
+    initGame();
+    game.settleT = 0;
+    const p = game.player, e = game.enemies[0];
+    for (const o of game.enemies) o.alive = false;
+    e.alive = true;
+    e.x = p.x + 150; e.y = p.y; e.face = 0;          // looking the other way
+    let t = null;
+    for (let f = 0; f < 60 * 4 && t === null; f++) {
+      updateEnemies(1 / 60);
+      if (game.bullets.length) t = f / 60;
+    }
+    if (t !== null) cold.push(t);
+  }
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  ok("a man facing away is slower than one already looking at you",
+     avg(cold) > avg(times) + 0.1,
+     `${avg(cold).toFixed(2)}s cold vs ${avg(times).toFixed(2)}s watching`);
 }
 
 head("gunfire is exempt from the settle");

@@ -1,6 +1,6 @@
 ---
 file: README.md (raycaster)
-version: 1.1
+version: 1.2
 author: Sam Cao
 created: 2026-09-04
 last_updated: 2026-09-04
@@ -19,7 +19,7 @@ and `GOAL.md` is untouched. The weapon constants were transcribed because they
 are good numbers. Nothing here is a build direction, and it lives on its own
 branch rather than on `main`.
 
-**Play:** open `raycaster_poc_v1.1.html` in a browser, or `index.html`, which
+**Play:** open `raycaster_poc_v1.2.html` in a browser, or `index.html`, which
 redirects to the current build. Click to lock the mouse. No build, no
 dependencies.
 
@@ -74,7 +74,7 @@ overhead camera hides that completely. At eye level it reads as skating.
 
 | File | What it is |
 |---|---|
-| `raycaster_poc_v1.1.html` | The whole thing (single file, canvas 2D) |
+| `raycaster_poc_v1.2.html` | The whole thing (single file, canvas 2D) |
 | `tests/run.sh` | Extract the script and run the assertions in Node |
 | `index.html` | Pages entry point; redirects to the current build |
 | `tests/tests.js` | 66 headless assertions |

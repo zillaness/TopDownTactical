@@ -1,6 +1,6 @@
 <!--
-  file: raycaster_poc_v1.1.html
-  version: 1.1
+  file: raycaster_poc_v1.2.html
+  version: 1.2
   author: Sam Cao
   created: 2026-09-04
   last_updated: 2026-09-04
@@ -274,7 +274,7 @@ const MAP_SRC = [
   "#....................#.................#",
   "#..@.................|.......e.........#",
   "#....................|.................#",
-  "#........e...........|.................#",
+  "#....................|....e............#",
   "#....................D.................#",
   "#....................|.................#",
   "#-------D------------|--------ggg------#",
@@ -1341,10 +1341,21 @@ function drawWeapon() {
     ctx.rotate(Math.sin(t * Math.PI) * 0.26);
   }
 
-  // The axis: butt low and right of the eye, muzzle up toward the sightline.
-  const buttX = W / 2 + (168 + sway) * K;
-  const buttY = H + (58 + bounce - kick) * K;
-  const muzX  = W / 2 + (74 + sway * 0.35) * K;
+  // The axis. HIP: butt low and right of the eye, muzzle up toward the
+  // sightline. SHOULDERED: the gun comes onto the centreline and the muzzle
+  // rises to the crosshair, so the sights below actually line up on it.
+  //
+  // v1.1's first pass moved the CAMERA and left the gun where it was, which is
+  // why RMB read as a zoom rather than as aiming. Bringing the weapon up is the
+  // half that makes it aiming; the narrower field is only what it buys you.
+  const A = game.adsT;
+  const lerp = (u, v) => u + (v - u) * A;
+  const swayA = sway * (1 - A * 0.85);          // shouldered is braced
+  const bounceA = bounce * (1 - A * 0.80);
+  const buttX = W / 2 + lerp(168 + swayA, 4 + swayA * 0.25) * K;
+  const muzX  = W / 2 + lerp(74 + swayA * 0.35, 4 + swayA * 0.25) * K;
+  const buttY = lerp(H + (58 + bounceA - kick) * K,
+                     H / 2 + SHAPE.len * K + (bounceA - kick) * K);
   const muzY  = buttY - SHAPE.len * K;
   const ux = (muzX - buttX), uy = (muzY - buttY), uL = Math.hypot(ux, uy);
   const at = f => ({ x: buttX + ux * f, y: buttY + uy * f });     // point along the axis
@@ -1409,6 +1420,35 @@ function drawWeapon() {
     ctx.beginPath(); ctx.arc(0, -4 * K, 10 * a * K, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
+  // IRON SIGHTS. Only worth drawing while you are actually behind them: a rear
+  // aperture near the eye, a front post out at the crosshair, both on the
+  // centreline once A reaches 1. That is the sight picture, and it is the thing
+  // "aim down sights" is supposed to mean.
+  if (A > 0.02 && !SHAPE.bunker) {
+    const rear = at(0.72), front = at(0.995);
+    ctx.save();
+    ctx.globalAlpha = clamp((A - 0.02) / 0.5, 0, 1);
+    // front post
+    ctx.fillStyle = "#0d1114";
+    ctx.fillRect(front.x - 2.2 * K, front.y - 15 * K, 4.4 * K, 17 * K);
+    ctx.fillStyle = "#c8d2da";
+    ctx.fillRect(front.x - 1.1 * K, front.y - 14 * K, 2.2 * K, 6 * K);
+    // its protective ears
+    ctx.strokeStyle = "#171c21"; ctx.lineWidth = 2.4 * K;
+    ctx.beginPath();
+    ctx.moveTo(front.x - 8 * K, front.y + 2 * K); ctx.lineTo(front.x - 8 * K, front.y - 13 * K);
+    ctx.moveTo(front.x + 8 * K, front.y + 2 * K); ctx.lineTo(front.x + 8 * K, front.y - 13 * K);
+    ctx.stroke();
+    // rear aperture: nearer the eye, so bigger and softer
+    ctx.fillStyle = "rgba(6,9,12,.34)";       // a hole reads darker, not like a lens
+    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 15 * K, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#0d1114"; ctx.lineWidth = 7 * K;
+    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 15 * K, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "rgba(150,166,178,.45)"; ctx.lineWidth = 1.6 * K;
+    ctx.beginPath(); ctx.arc(rear.x, rear.y - 13 * K, 18.5 * K, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.restore();
 
   // THE BUNKER. Without this the shield loadout was a pistol and a blue bar:
@@ -1476,7 +1516,11 @@ function drawHud() {
   // reticle: the cone is an angle, so it maps to pixels through the focal length
   const projDist = (W / 2) / Math.tan(TUNE.fov / 2);
   const rPx = clamp(projDist * Math.tan(currentSpread(p) / 2), 3, W * .45);
-  ctx.strokeStyle = p.steady ? "rgba(140,235,170,.9)" : "rgba(225,235,240,.75)";
+  // The brackets fade as the sights take over, but never all the way: the ring
+  // IS the cone, and the cone is the thing Sam could not read before.
+  const aFade = 1 - game.adsT * 0.55;
+  ctx.strokeStyle = p.steady ? `rgba(140,235,170,${0.9 * aFade})`
+                             : `rgba(225,235,240,${0.75 * aFade})`;
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 4; i++) {
     const a = i * Math.PI / 2;
@@ -1772,6 +1816,32 @@ if (typeof globalThis !== "undefined") {
 </script>
 
 <!-- CHANGELOG
+  v1.2 (2026-09-04): The two things Sam found playing v1.1.
+
+    NOTHING ARMED IN THE SPAWN ROOM. Settle and the reaction clock bought an
+    opening beat, but a man 6.3 tiles away with clear sight of the start, in a
+    room with no cover, spends that beat walking his muzzle onto you, so it still
+    read as dying instantly. He moves to (26,4) in the east room, four tiles past
+    the partition door, so first contact happens through a door you chose to
+    open. A test now asserts that nothing armed can see the start and that the
+    nearest man is a room away; the headcount is unchanged at six.
+
+    AIM DOWN SIGHTS NOW AIMS DOWN SIGHTS. v1.1 moved the CAMERA and left the gun
+    exactly where it was, so RMB was a zoom with a narrower field and nothing
+    else. The weapon now comes onto the centreline and the muzzle rises to the
+    crosshair, with a rear aperture near the eye and a front post out on the
+    target. Sway and bob drop by four fifths because shouldered is braced. The
+    reticle brackets fade but never vanish: the ring IS the cone, and the cone is
+    the thing that was unreadable in v1.0.
+
+    Two test corrections, both cases of the test being wrong rather than the
+    code. The reaction-clock assertion measured whoever could see the spawn,
+    which stopped working the moment nothing could; it now walks one man into
+    view after the settle and measures him directly. And it demanded a 0.12s
+    spread out of a watching band only 0.11s wide, which no code could satisfy.
+    It now scales to the band and also checks the bands against each other:
+    0.77s for a man facing away against 0.21s for one already looking at you.
+
   v1.1 (2026-09-04): Everything Sam reported in the first playtest.
 
     YOU CAN SEE YOUR SHOTS NOW. v1.0 pushed "spark" and "blood" into game.fx and
